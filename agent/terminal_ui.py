@@ -26,6 +26,10 @@ class TerminalUI:
     def _c(self, text: str, color: str) -> str:
         return f"{color}{text}{RESET}" if self.enabled else text
 
+    def _line(self, label: str, value: str, width: int) -> str:
+        content = f"│  {label:<10} {value}"
+        padding = max(0, width - len(content) + 1)
+        return self._c(content + (" " * padding), CYAN) + self._c("│", CYAN)
     def startup(self, workspace: str, approval_mode: str) -> None:
         width = max(54, min(shutil.get_terminal_size((80, 24)).columns, 88))
         inner = width - 4
