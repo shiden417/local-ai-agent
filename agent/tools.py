@@ -261,7 +261,9 @@ def create_default_tool_registry(
             ),
             use_when=(
                 "Current external information is needed, or the user explicitly asks "
-                "for web/internet search."
+                "for web/internet search. For latest/current/official/release/change "
+                "requests, prefer a recent or primary-source result and allow "
+                "fetch_web_page to verify concrete details."
             ),
             avoid_when=(
                 "The answer is already known from the task context or local workspace."
@@ -299,8 +301,9 @@ def create_default_tool_registry(
                 int(arguments.get("timeout_seconds", 10)),
             ),
             use_when=(
-                "Search snippets do not contain enough concrete detail, or the "
-                "user asks for the actual contents/details of a web page."
+                "Search snippets do not contain enough concrete detail, the user "
+                "asks for the actual contents/details of a web page, or the request "
+                "requires current/official/release/change-specific verification."
             ),
             avoid_when="A search result snippet already contains enough evidence to answer safely.",
             availability="on_demand",
