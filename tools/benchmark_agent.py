@@ -1,0 +1,140 @@
+from __future__ import annotations
+
+import argparse
+import os
+import tempfile
+import time
+from pathlib import Path
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Run deterministic live JARVIS tasks against LM Studio."
+    )
+    parser.add_argument(
+        "--model",
+        help="LM Studio model ID. Defaults to LM_STUDIO_MODEL or the project default.",
+    )
+    parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=10,
+        help="Maximum Agent iterations per task.",
+    )
+    parser.add_argument(
+        "--keep-workspace",
+        action="store_true",
+        help="Keep the temporary benchmark workspace for inspection.",
+    )
+    return parser.parse_args()
+
+
+def _seed_workspace(root: Path) -> None:
+    (root / "calculator.py").write_text(
+        "def add(a, b):\n"
+        "    return a - b\n\n"
+        "def multiply(a, b):\n"
+        "    return a * b\n",
+        encoding="utf-8",
+    )
+    (root / "test_calculator.py").write_text(
+        "from calculator import add, multiply\n\n"
+        "def test_add():\n"
+        "    assert add(2, 3) == 5\n\n"
+        "def test_multiply():\n"
+        "    assert multiply(2, 3) == 6\n",
+        encoding="utf-8",
+    )
+
+
+def _run_task(runtime, prompt: str) -> tuple[str, float]:
+    started = time.perf_counter()
+    result = runtime.run(prompt)
+    return result, time.perf_counter() - started
+
+
+def _check_exact(path: Path, expected: str) -> bool:
+    try:
+        return path.read_text(encoding="utf-8") == expected
+    except OSError:
+        return False
+
+
+def run_benchmark(root: Path, *, model: str | None, max_iterations: int) -> int:
+    if model:
+        os.environ["LM_STUDIO_MODEL"] = model
+
+    from agent.runtime import AgentRuntime
+    from agent.llm import MODEL
+
+    _seed_workspace(root)
+    runtime = AgentRuntime(
+        working_directory=root,
+        max_iterations=max_iterations,
+        confirm=lambda _message: True,
+    )
+
+    print("J.A.R.V.I.S. Agent Benchmark")
+    print(f"Model: {MODEL}")
+    print(f"Workspace: {root}")
+    print()
+
+    tasks = [
+        (
+            "Task 1: file creation",
+            "このworkspaceに hello.txt を新規作成してください。内容は1行だけで Hello JARVIS としてください。作成したことを確認して完了してください。",
+            lambda: _check_exact(root / "hello.txt", "Hello JARVIS"),
+        ),
+        (
+            "Task 2: session follow-up",
+            "そのファイルの2行目に Session Context works を追加してください。既存の1行目は変更しないでください。確認して完了してください。",
+            lambda: _check_exact(root / "hello.txt", "Hello JARVIS\nSession Context works"),
+        ),
+        (
+            "Task 3: investigate, edit, test",
+            "calculator.py を調査してください。add関数にバグがあります。原因を修正し、python -m pytest -q を実行して、全テストが成功することを確認してください。テストコード自体は変更しないでください。",
+            lambda: (
+                _check_exact(root / "calculator.py", "def add(a, b):\n    return a + b\n\ndef multiply(a, b):\n    return a * b\n")
+                and _check_exact(root / "test_calculator.py", "from calculator import add, multiply\n\ndef test_add():\n    assert add(2, 3) == 5\n\ndef test_multiply():\n    assert multiply(2, 3) == 6\n")
+            ),
+        ),
+    ]
+
+    passed = 0
+    for label, prompt, check in tasks:
+        print(f"[RUN] {label}")
+        try:
+            result, elapsed = _run_task(runtime, prompt)
+            ok = check()
+        except Exception as exc:
+            result = f"{type(exc).__name__}: {exc}"
+            elapsed = 0.0
+            ok = False
+
+        status = "PASS" if ok else "FAIL"
+        print(f"[{status}] {label} ({elapsed:.1f}s)")
+        print(f"Final: {result}")
+        print()
+        if ok:
+            passed += 1
+
+    print(f"Result: {passed}/{len(tasks)} tasks passed")
+    return 0 if passed == len(tasks) else 1
+
+
+def main() -> int:
+    args = _parse_args()
+    if args.max_iterations < 1:
+        raise SystemExit("--max-iterations must be at least 1")
+
+    if args.keep_workspace:
+        workspace = Path(tempfile.mkdtemp(prefix="jarvis-benchmark-"))
+        print(f"Benchmark workspace: {workspace}")
+        return run_benchmark(workspace, model=args.model, max_iterations=args.max_iterations)
+
+    with tempfile.TemporaryDirectory(prefix="jarvis-benchmark-") as temp_dir:
+        return run_benchmark(Path(temp_dir), model=args.model, max_iterations=args.max_iterations)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
