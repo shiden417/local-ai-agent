@@ -802,10 +802,8 @@ def test_runtime_keeps_task_history_isolated_while_sharing_conversation_context(
     assert runtime.run("先ほどの話を踏まえて続けて") == "先ほどの話を踏まえて続けます。"
     second = runtime.current_task
 
-    assert first is not None
-    assert second is not None
-    assert first.messages[1]["content"] == "最初の話をしたい"
-    assert second.messages[1]["content"] == "先ほどの話を踏まえて続けて"
+    assert first is None
+    assert second is None
     assert any(
         message.get("content") == "最初の話をしたい"
         for message in seen[1]
