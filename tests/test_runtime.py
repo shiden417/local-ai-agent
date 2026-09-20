@@ -85,6 +85,9 @@ def test_runtime_executes_tool_then_returns_final_response(
     result = runtime.run("挨拶してください")
 
     assert result == "作業が完了しました。"
+    assert runtime.task is not None
+    assert runtime.task.status.value == "completed"
+    assert runtime.task.tool_calls == 1
     assert any(
         message.get("role") == "tool"
         and message.get("tool_call_id") == "call-1"
@@ -157,6 +160,8 @@ def test_runtime_rejects_mutating_tool_before_execution(
     result = runtime.run("ファイルを変更してください")
 
     assert result == "了解しました。"
+    assert runtime.task is not None
+    assert runtime.task.status.value == "completed"
     assert executed["value"] is False
     assert confirmations
     assert any(
