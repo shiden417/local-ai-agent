@@ -59,3 +59,19 @@ def test_ask_llm_propagates_provider_errors(monkeypatch) -> None:
         llm.ask_llm([{"role": "user", "content": "こんにちは"}])
 
     assert len(calls) == 1
+
+
+def test_qwen_no_think_mode_marks_latest_user_message(monkeypatch) -> None:
+    captured = {}
+
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(ok=True)
+
+    monkeypatch.setattr(llm._client.chat.completions, "create", fake_create)
+    monkeypatch.setattr(llm, "MODEL", "qwen/qwen3-8b")
+    monkeypatch.setattr(llm, "THINKING_MODE", "no_think")
+
+    llm.ask_llm([{"role": "user", "content": "調査してください"}])
+
+    assert captured["messages"][-1]["content"].endswith("/no_think")
