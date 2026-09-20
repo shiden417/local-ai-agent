@@ -112,6 +112,7 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 ### Agent Core
 
 - Agent loopの安定化
+- 重複Tool Callのループ検知・抑止
 - Task state（1タスクの状態・反復・Tool履歴）
 - Context compaction（実装済みの基礎）
 - Task Manager（複数Taskの追跡・一覧化）
@@ -154,6 +155,7 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 - Agent Coreに特定用途のロジックを埋め込まない
 - ToolはRegistry経由で追加できるようにする
 - Tool結果はLLMへ返す前にサイズを制限する
+- 同じTool + 同じ引数の連続実行を検知し、無限ループを抑止する
 - ContextはTool CallとTool Resultの会話ブロックを壊さずに圧縮する
 - workspace外のアクセスを許可しない
 - 変更操作は確認可能にする
