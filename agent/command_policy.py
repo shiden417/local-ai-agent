@@ -35,7 +35,7 @@ WINDOWS_ABSOLUTE_PATH_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_])(?:[A-Za-z]:\\|\\\\|/(?:mnt|var|etc|tmp)(?:/|$))"
 )
 PARENT_PATH_PATTERN = re.compile(r"(^|[\s'\"])(?:\.\.[\\/])+")
-LOCAL_PATH_MUTATING_TOOLS = {"edit_file", "create_file", "delete_file"}
+LOCAL_PATH_MUTATING_TOOLS = {"file_mutation"}
 
 
 def requires_confirmation(
