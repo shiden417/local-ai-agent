@@ -106,8 +106,9 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 ### Agent Core
 
 - Agent loopの安定化
+- Task state（1タスクの状態・反復・Tool履歴）
 - Context compaction
-- Task state / task management
+- 複数タスクのtask management
 - Memory
 - より明確なpermission policy
 
@@ -130,6 +131,7 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 
 ### Intelligence
 
+- Implicit planning（LLM内で計画し、Runtimeが状態を追跡）
 - Planning
 - Long-term memory
 - Proactive behavior
