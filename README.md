@@ -37,7 +37,7 @@ Agent Coreは特定用途に依存せず、Toolを追加することで能力を
       ├─ Coding tools
       └─ future tools
       ↓
-    Observation / Context management
+    Observation / Context Management
       ↓
     Agent decides next action
       ↓
@@ -109,7 +109,7 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 
 - Agent loopの安定化
 - Task state（1タスクの状態・反復・Tool履歴）
-- Context compaction
+- Context compaction（実装済みの基礎）
 - 複数タスクのtask management
 - Memory
 - より明確なpermission policy
@@ -147,6 +147,7 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 - Agent Coreに特定用途のロジックを埋め込まない
 - ToolはRegistry経由で追加できるようにする
 - Tool結果はLLMへ返す前にサイズを制限する
+- ContextはTool CallとTool Resultの会話ブロックを壊さずに圧縮する
 - workspace外のアクセスを許可しない
 - 変更操作は確認可能にする
 - 巨大なAgent Frameworkをそのまま導入せず、必要な機能を段階的に自作する
