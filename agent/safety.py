@@ -4,8 +4,17 @@ import re
 from typing import Any
 
 
+# This is intentionally a conservative heuristic, not a complete shell security policy.
 DESTRUCTIVE_COMMAND_PATTERNS = (
     re.compile(r"\bremove-item\b", re.IGNORECASE),
+    re.compile(r"\bset-content\b", re.IGNORECASE),
+    re.compile(r"\badd-content\b", re.IGNORECASE),
+    re.compile(r"\bclear-content\b", re.IGNORECASE),
+    re.compile(r"\bout-file\b", re.IGNORECASE),
+    re.compile(r"\bnew-item\b", re.IGNORECASE),
+    re.compile(r"\bcopy-item\b", re.IGNORECASE),
+    re.compile(r"\bmove-item\b", re.IGNORECASE),
+    re.compile(r"\brename-item\b", re.IGNORECASE),
     re.compile(r"\bdel(?:ete)?\b", re.IGNORECASE),
     re.compile(r"\berase\b", re.IGNORECASE),
     re.compile(r"\brmdir\b", re.IGNORECASE),
@@ -15,6 +24,7 @@ DESTRUCTIVE_COMMAND_PATTERNS = (
     re.compile(r"\bgit\s+clean\b.*(?:-f|--force)\b", re.IGNORECASE),
     re.compile(r"\bgit\s+checkout\s+--\b", re.IGNORECASE),
     re.compile(r"\bgit\s+restore\b.*(?:--source|-s)\b", re.IGNORECASE),
+    re.compile(r"(^|[^-])>>?", re.IGNORECASE),
 )
 
 
