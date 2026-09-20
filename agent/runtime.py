@@ -245,36 +245,23 @@ class AgentRuntime:
                 bounded, truncated = truncate_text(serialized)
 
                 observation_summary = self._observation_summary(result)
+                result_signature = json.dumps(
+                    result,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
                 if result.get("repeated_tool_call") or result.get("user_rejected"):
                     signature = f"{name}:no_progress:{result.get('error', '')}"
                     observation_is_new = False
-                elif result.get("ok") is False:
-                    signature = (
-                        f"{name}:error:"
-                        + hashlib.sha256(
-                            json.dumps(
-                                result,
-                                ensure_ascii=False,
-                                sort_keys=True,
-                                separators=(",", ":"),
-                            ).encode("utf-8")
-                        ).hexdigest()
-                    )
-                    observation_is_new = True
                 else:
-                    result_signature = json.dumps(
-                        result,
-                        ensure_ascii=False,
-                        sort_keys=True,
-                        separators=(",", ":"),
-                    )
                     signature = (
                         f"{name}:"
                         + hashlib.sha256(
                             result_signature.encode("utf-8")
                         ).hexdigest()
                     )
-                    observation_is_new = True
+                    observation_is_new = None
                 self.task.record_tool(
                     name,
                     succeeded=bool(result.get("ok")),
