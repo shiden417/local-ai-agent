@@ -17,6 +17,8 @@ from tools.control import ask_user, finish_task
 
 def create_default_tool_registry(
     memory_store: MemoryStore | None = None,
+    *,
+    enable_experimental: bool = False,
 ) -> ToolRegistry:
     """Create the default local capability set."""
     registry = ToolRegistry()
@@ -441,6 +443,17 @@ def create_default_tool_registry(
             capabilities=(Capability.MEMORY_READ,),
         )
     )
+
+    if enable_experimental:
+        from agent.experimental_tools import register_experimental_tools
+        from agent.plugin_manager import PluginManager
+        from agent.recipe_store import RecipeStore
+
+        register_experimental_tools(
+            registry,
+            PluginManager(),
+            RecipeStore(),
+        )
 
     return registry
 
