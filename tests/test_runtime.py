@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from agent.capabilities import Capability
 from agent.runtime import AgentRuntime
 from agent.tool_registry import ToolDefinition, ToolRegistry
 import agent.runtime as runtime_module
@@ -833,7 +832,6 @@ def test_runtime_quarantines_failed_tool_for_next_recovery_step(
                 "required": [],
             },
             handler=failing_tool,
-            capabilities=(Capability.PROCESS,),
         )
     )
 
@@ -1007,7 +1005,6 @@ def test_runtime_synthesizes_immediately_after_terminal_tool_success(
             },
             handler=create,
             terminal_on_success=True,
-            capabilities=(Capability.WORKSPACE_WRITE,),
         )
     )
 
