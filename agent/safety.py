@@ -3,8 +3,10 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from agent.tool_registry import ToolRegistry
 
-# This is intentionally a conservative heuristic, not a complete shell security policy.
+
+# This is a conservative heuristic, not a complete security policy.
 DESTRUCTIVE_COMMAND_PATTERNS = (
     re.compile(r"\bremove-item\b", re.IGNORECASE),
     re.compile(r"\bset-content\b", re.IGNORECASE),
@@ -31,8 +33,10 @@ DESTRUCTIVE_COMMAND_PATTERNS = (
 def requires_confirmation(
     tool_name: str,
     arguments: dict[str, Any],
+    registry: ToolRegistry,
 ) -> bool:
-    if tool_name == "edit_file":
+    tool = registry.get(tool_name)
+    if tool is not None and tool.requires_confirmation:
         return True
 
     if tool_name != "execute_command":
