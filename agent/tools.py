@@ -73,8 +73,8 @@ def create_default_tool_registry(
             avoid_when="You are only trying to discover which files exist, or you need to search unknown files for a specific text.",
             availability="on_demand",
             routing_hints=(
-                "ファイル", "内容", "中身", "読んで", "読み取", "確認", "説明",
-                "調べて", "file", "read", "content", "inspect", "explain",
+                "ファイル", "内容", "中身", "読んで", "読み取", "開いて",
+                "file", "read", "content", "inspect",
             ),
         )
     )
@@ -107,7 +107,7 @@ def create_default_tool_registry(
             avoid_when="You are trying to find important files by role, filename, category, or vague natural-language descriptions.",
             availability="on_demand",
             routing_hints=(
-                "検索", "探して", "どこに", "文字列", "シンボル", "検索して",
+                "検索", "探して", "文字列", "シンボル", "検索して",
                 "search", "find", "locate", "symbol", "text",
             ),
         )
