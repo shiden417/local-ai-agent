@@ -70,18 +70,53 @@ def _check_exact(path: Path, expected: str) -> bool:
         return False
 
 
-def run_benchmark(root: Path, *, model: str | None, max_iterations: int) -> int:
+def _trace_summary(path: Path) -> dict[str, int]:
+    metrics = {
+        "llm_calls": 0,
+        "tool_calls": 0,
+        "llm_duration_ms": 0,
+        "tool_duration_ms": 0,
+        "prompt_chars": 0,
+        "tool_schema_chars": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "reasoning_tokens": 0,
+    }
+    if not path.exists():
+        return metrics
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("event") == "llm":
+            metrics["llm_calls"] += 1
+            metrics["llm_duration_ms"] += int(event.get("duration_ms", 0) or 0)
+            metrics["prompt_chars"] += int(event.get("prompt_chars", 0) or 0)
+            metrics["tool_schema_chars"] += int(event.get("tool_schema_chars", 0) or 0)
+            metrics["prompt_tokens"] += int(event.get("prompt_tokens", 0) or 0)
+            metrics["completion_tokens"] += int(event.get("completion_tokens", 0) or 0)
+            metrics["reasoning_tokens"] += int(event.get("reasoning_tokens", 0) or 0)
+        elif event.get("event") == "tool":
+            metrics["tool_calls"] += 1
+            metrics["tool_duration_ms"] += int(event.get("duration_ms", 0) or 0)
+    return metrics
+
+def run_benchmark(root: Path, *, model: str | None, max_iterations: int, output: Path | None = None) -> int:
     if model:
         os.environ["LM_STUDIO_MODEL"] = model
 
     from agent.runtime import AgentRuntime
     from agent.llm import MODEL
+    from agent.trace import TraceRecorder
 
     _seed_workspace(root)
+    trace_path = root / "trace.jsonl"
     runtime = AgentRuntime(
         working_directory=root,
         max_iterations=max_iterations,
         confirm=lambda _message: True,
+        trace_recorder=TraceRecorder(trace_path),
     )
 
     print("J.A.R.V.I.S. Agent Benchmark")
@@ -110,6 +145,8 @@ def run_benchmark(root: Path, *, model: str | None, max_iterations: int) -> int:
         ),
     ]
 
+    results: list[dict[str, object]] = []
+    started_all = time.perf_counter()
     passed = 0
     for label, prompt, check in tasks:
         print(f"[RUN] {label}")
@@ -127,7 +164,37 @@ def run_benchmark(root: Path, *, model: str | None, max_iterations: int) -> int:
         print()
         if ok:
             passed += 1
+        results.append(
+            {
+                "label": label,
+                "passed": ok,
+                "elapsed_seconds": round(elapsed, 3),
+                "final": str(result),
+            }
+        )
 
+    metrics = _trace_summary(trace_path)
+    report = {
+        "model": MODEL,
+        "max_iterations": max_iterations,
+        "total_elapsed_seconds": round(time.perf_counter() - started_all, 3),
+        "passed": passed,
+        "total_tasks": len(tasks),
+        "tasks": results,
+        "metrics": metrics,
+    }
+    if output is not None:
+        output = output.expanduser().resolve()
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"JSON report: {output}")
+
+    print(
+        f"Metrics: LLM={metrics['llm_calls']} calls, "
+        f"Tool={metrics['tool_calls']} calls, "
+        f"LLM={metrics['llm_duration_ms']}ms, "
+        f"Reasoning={metrics['reasoning_tokens']} tokens"
+    )
     print(f"Result: {passed}/{len(tasks)} tasks passed")
     return 0 if passed == len(tasks) else 1
 
