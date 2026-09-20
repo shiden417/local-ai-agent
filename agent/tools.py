@@ -21,13 +21,13 @@ def create_default_tool_registry(
     registry.register(
         ToolDefinition(
             name="list_directory",
-            description="List files and directories inside the current Agent workspace.",
+            description="List files and directories in the Agent workspace or at an explicit local path.",
             parameters={
                 "type": "object",
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Relative directory path. Use '.' for the workspace root.",
+                        "description": "Workspace-relative path, or an explicit absolute local directory path.",
                     }
                 },
                 "required": [],
@@ -44,13 +44,13 @@ def create_default_tool_registry(
     registry.register(
         ToolDefinition(
             name="read_file",
-            description="Read a text file inside the current Agent workspace.",
+            description="Read a text file in the Agent workspace or at an explicit local path.",
             parameters={
                 "type": "object",
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Relative file path.",
+                        "description": "Workspace-relative file path, or an explicit absolute local file path.",
                     },
                     "start_line": {
                         "type": "integer",
@@ -77,7 +77,7 @@ def create_default_tool_registry(
     registry.register(
         ToolDefinition(
             name="search_files",
-            description="Search for a specific text string inside local files in the current Agent workspace.",
+            description="Search for a specific text string inside local files under the workspace or an explicit local path.",
             parameters={
                 "type": "object",
                 "properties": {
@@ -87,7 +87,7 @@ def create_default_tool_registry(
                     },
                     "path": {
                         "type": "string",
-                        "description": "Optional relative path to a directory or file.",
+                        "description": "Optional workspace-relative path, or an explicit absolute local path.",
                     },
                     "case_sensitive": {
                         "type": "boolean",
@@ -108,7 +108,7 @@ def create_default_tool_registry(
     registry.register(
         ToolDefinition(
             name="edit_file",
-            description="Replace exactly one matching text block in a local text file.",
+            description="Replace exactly one matching text block in a local text file, including at an explicit local path.",
             parameters={
                 "type": "object",
                 "properties": {
