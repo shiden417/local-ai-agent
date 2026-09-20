@@ -334,6 +334,28 @@ def validate_command_scope(
     return None
 
 
+def _extract_path_token(command: str, start: int) -> str | None:
+    """Extract a path while preserving spaces inside PowerShell quotes."""
+    if start < 0 or start >= len(command):
+        return None
+
+    quote = None
+    if start > 0 and command[start - 1] in {"'", "\""}:
+        quote = command[start - 1]
+
+    if quote is not None:
+        end = command.find(quote, start)
+        if end == -1:
+            return None
+        return command[start:end]
+
+    match = re.match(r"[^\s'\" ]+", command[start:])
+    if not match:
+        return None
+
+    return match.group(0)
+
+
 def _is_absolute_local_path(value: str) -> bool:
     if not value:
         return False
