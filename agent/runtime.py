@@ -14,6 +14,7 @@ from agent.observation import truncate_text
 from agent.plugin_manager import PluginManager
 from agent.progress import evaluate_progress
 from agent.recovery import classify_tool_outcome, recovery_guidance
+from agent.request_classifier import RequestClassifier, RequestMode
 from agent.session import SessionManager
 from agent.environment import build_environment_context, extract_related_paths
 from agent.terminal_ui import TerminalUI
