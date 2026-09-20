@@ -632,7 +632,7 @@ def test_runtime_treats_read_ranges_with_same_content_as_same_observation(
 
     assert runtime.run("README.mdを調べてください") == "調査結果をまとめました。"
     assert runtime.task is not None
-    assert runtime.task.progress_count == 1
+    assert runtime.task.progress_state.value == "progressed"
     assert runtime.task.no_progress_streak == 1
     assert runtime.task.observations[0].new_information is True
     assert runtime.task.observations[1].new_information is False
