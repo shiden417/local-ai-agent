@@ -133,7 +133,7 @@ def create_default_tool_registry(
             use_when="The user explicitly wants a local file changed and you have already inspected the target content.",
             avoid_when="You have not read the target file yet or the user only asked for an explanation.",
             availability="on_demand",
-            capabilities=(Capability.WORKSPACE_READ, Capability.WORKSPACE_WRITE),
+            capabilities=(Capability.WORKSPACE_WRITE,),
         )
     )
 
