@@ -169,7 +169,7 @@ def _is_continuation(goal: str, previous_topic: str) -> bool:
 
     text = goal.strip().casefold()
     if re.search(
-        r"^(?:その|それ|この|前回|先ほど|さっき|上記|上述|前の)(?:\s|$)|"
+        r"^(?:その|それ|この|前回|先ほど|さっき|上記|上述|前の)|"
         r"^(?:that|those|these|previous)\b",
         text,
         flags=re.IGNORECASE,
