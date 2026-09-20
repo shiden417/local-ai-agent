@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any
 
-from tools.path_utils import resolve_workspace_path, to_workspace_relative
+from tools.path_utils import resolve_workspace_path, to_display_path
 
 
 MAX_RESULTS = 50
@@ -36,19 +36,19 @@ def search_files(
     if not query:
         return {"ok": False, "error": "query must not be empty"}
 
-    relative_path = str(arguments.get("path", "."))
-    root = resolve_workspace_path(working_directory, relative_path)
-    workspace_root = Path(working_directory).resolve()
+    requested_path = str(arguments.get("path", "."))
+    root = resolve_workspace_path(working_directory, requested_path)
 
     if not root.exists():
-        return {"ok": False, "error": f"Path does not exist: {relative_path}"}
+        return {"ok": False, "error": f"Path does not exist: {requested_path}"}
 
     case_sensitive = bool(arguments.get("case_sensitive", False))
     needle = query if case_sensitive else query.lower()
+    search_root = root.parent if root.is_file() else root
 
     matches: list[dict[str, Any]] = []
-
     candidates = [root] if root.is_file() else root.rglob("*")
+
     for path in candidates:
         if len(matches) >= MAX_RESULTS:
             break
@@ -60,8 +60,11 @@ def search_files(
         except OSError:
             continue
 
-        if not resolved_path.is_relative_to(workspace_root):
+        try:
+            resolved_path.relative_to(search_root.resolve())
+        except ValueError:
             continue
+
         if any(part in IGNORED_DIRECTORIES for part in resolved_path.parts):
             continue
 
@@ -74,7 +77,7 @@ def search_files(
             if needle in line_haystack:
                 matches.append(
                     {
-                        "path": to_workspace_relative(
+                        "path": to_display_path(
                             working_directory,
                             resolved_path,
                         ),
@@ -87,7 +90,7 @@ def search_files(
     return {
         "ok": True,
         "query": query,
-        "path": to_workspace_relative(working_directory, root),
+        "path": to_display_path(working_directory, root),
         "matches": matches,
         "truncated": len(matches) >= MAX_RESULTS,
     }
