@@ -65,7 +65,7 @@ class TraceRecorder:
         include_payloads: bool | None = None,
     ) -> None:
         self.enabled = (
-            os.getenv("JARVIS_TRACE_ENABLED", "1").strip().lower()
+            os.getenv("JARVIS_TRACE_ENABLED", "0" if os.getenv("PYTEST_CURRENT_TEST") else "1").strip().lower()
             not in {"0", "false", "off", "no"}
             if enabled is None
             else bool(enabled)
@@ -100,7 +100,6 @@ class TraceRecorder:
         }
         try:
             line = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-            temporary = self.path.with_suffix(self.path.suffix + ".tmp")
             with self.path.open("a", encoding="utf-8") as handle:
                 handle.write(line + "\n")
         except OSError:
