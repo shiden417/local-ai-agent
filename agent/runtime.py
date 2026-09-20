@@ -3,12 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
 from agent.completion_verifier import CompletionVerifier
-from agent.llm import ask_llm
+from agent.llm import MODEL, ask_llm
 from agent.loop_guard import ToolLoopGuard
 from agent.observation import truncate_text
 from agent.recovery import classify_tool_outcome, recovery_guidance
@@ -18,6 +19,7 @@ from agent.environment import build_environment_context, extract_related_paths
 from agent.terminal_ui import TerminalUI
 from agent.safety import AUTO_ALLOW, AUTO_DENY, SafetyPolicy
 from agent.task import TaskState, classify_progress
+from agent.trace import TraceRecorder
 from agent.task_manager import ManagedTask, TaskManager
 from agent.tool_registry import ToolRegistry
 from agent.tools import create_default_tool_registry
@@ -147,6 +149,7 @@ class AgentRuntime:
         safety_policy: SafetyPolicy | None = None,
         terminal_ui: TerminalUI | None = None,
         ask_user: Callable[[str], str] | None = None,
+        trace_recorder: TraceRecorder | None = None,
     ) -> None:
         self.working_directory = Path(working_directory).resolve()
         self.max_iterations = max_iterations
@@ -157,6 +160,7 @@ class AgentRuntime:
         self.safety = safety_policy or SafetyPolicy()
         self.terminal_ui = terminal_ui
         self.ask_user_callback = ask_user
+        self.trace = trace_recorder or TraceRecorder()
         self.session_manager = session_manager or SessionManager()
         self.request_classifier = RequestClassifier()
         self.loop_guard = ToolLoopGuard()
@@ -164,6 +168,10 @@ class AgentRuntime:
         self.completion_verifier = CompletionVerifier(self.working_directory)
         self.current_task: ManagedTask | None = None
         self.task: TaskState | None = None
+        self._environment_cache: str | None = None
+        self._environment_cache_key: tuple[int, tuple[str, ...]] | None = None
+        self._environment_revision = 0
+        self._last_tool_duration_ms = 0
 
     @property
     def messages(self) -> list[dict[str, Any]]:
@@ -204,8 +212,16 @@ class AgentRuntime:
     def run(self, user_input: str) -> str:
         routing_text = self._routing_text(user_input)
         classification = self.request_classifier.classify(user_input)
+        run_id = self.trace.new_run_id()
         if classification.mode == RequestMode.DIRECT:
-            return self._run_conversation(user_input)
+            self.trace.run_start(
+                run_id,
+                task_id="conversation",
+                mode=classification.mode.value,
+                goal=user_input,
+                model=MODEL,
+            )
+            return self._run_conversation(user_input, run_id=run_id)
 
         is_follow_up = routing_text != user_input
         current_task = self.task_manager.create(user_input)
@@ -216,6 +232,17 @@ class AgentRuntime:
 
         self.current_task = current_task
         self.task = current_task.state
+        self._environment_cache = None
+        self._environment_cache_key = None
+        self._environment_revision = 0
+        self._last_tool_duration_ms = 0
+        self.trace.run_start(
+            run_id,
+            task_id=current_task.task_id,
+            mode=classification.mode.value,
+            goal=user_input,
+            model=MODEL,
+        )
         self.loop_guard.reset()
         terminal_synthesis_required = False
         self.task.start()
@@ -260,10 +287,17 @@ class AgentRuntime:
             ]
 
             current_datetime = datetime.now().astimezone().isoformat(timespec="seconds")
-            environment_context = build_environment_context(
-                self.working_directory,
-                related_paths,
+            environment_key = (
+                self._environment_revision,
+                tuple(related_paths),
             )
+            if environment_key != self._environment_cache_key:
+                self._environment_cache = build_environment_context(
+                    self.working_directory,
+                    related_paths,
+                )
+                self._environment_cache_key = environment_key
+            environment_context = self._environment_cache or ""
 
             llm_messages = [
                 *task_system_messages,
@@ -357,6 +391,14 @@ class AgentRuntime:
             if self.terminal_ui is not None:
                 self.terminal_ui.thinking_start()
 
+            prompt_chars = sum(
+                len(str(message.get("content", ""))) + 40
+                for message in llm_messages
+            )
+            tool_schema_chars = len(
+                json.dumps(available_tools, ensure_ascii=False, separators=(",", ":"))
+            )
+            llm_started = time.perf_counter()
             try:
                 response = ask_llm(
                     llm_messages,
@@ -365,6 +407,14 @@ class AgentRuntime:
             finally:
                 if self.terminal_ui is not None:
                     self.terminal_ui.thinking_stop()
+            self.trace.llm(
+                run_id,
+                iteration=self.task.iteration,
+                duration_ms=round((time.perf_counter() - llm_started) * 1000),
+                prompt_chars=prompt_chars,
+                tool_schema_chars=tool_schema_chars,
+                response=response,
+            )
             message = response.choices[0].message
             tool_calls = getattr(message, "tool_calls", None) or []
             content = self._normalize_final_content(
