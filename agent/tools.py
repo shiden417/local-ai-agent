@@ -190,8 +190,10 @@ def create_default_tool_registry(
                         "description": "Search region/language such as jp-ja or us-en.",
                     },
                     "timelimit": {
-                        "type": ["string", "null"],
-                        "enum": ["d", "w", "m", "y", null],
+                        "anyOf": [
+                            {"type": "string", "enum": ["d", "w", "m", "y"]},
+                            {"type": "null"},
+                        ],
                         "description": "Optional time filter: day, week, month, or year.",
                     },
                 },
