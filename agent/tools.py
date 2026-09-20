@@ -3,9 +3,7 @@ from pathlib import Path
 from agent.capability_router import Capability
 from agent.memory import MemoryStore
 from agent.tool_registry import ToolDefinition, ToolRegistry
-from tools.create_file import create_file
-from tools.delete_file import delete_file
-from tools.edit_file import edit_file
+from tools.file_mutation import file_mutation
 from tools.execute_command import execute_command
 from tools.list_directory import list_directory
 from tools.memory import save_memory, search_memory
@@ -109,85 +107,50 @@ def create_default_tool_registry(
 
     registry.register(
         ToolDefinition(
-            name="create_file",
-            description="Create a new UTF-8 text file at a workspace-relative or explicit local path without overwriting an existing file.",
+            name="file_mutation",
+            description=(
+                "Perform one local file mutation: create, edit, or delete. "
+                "Use one operation at a time and provide the fields required by "
+                "that operation."
+            ),
             parameters={
                 "type": "object",
                 "properties": {
+                    "operation": {
+                        "type": "string",
+                        "enum": ["create", "edit", "delete"],
+                        "description": "Mutation to perform.",
+                    },
                     "path": {
                         "type": "string",
-                        "description": "File path. A workspace-relative path or explicit absolute local path.",
+                        "description": "Workspace-relative path or explicit absolute local file path.",
                     },
                     "content": {
                         "type": "string",
-                        "description": "Complete text content for the new file.",
-                    },
-                },
-                "required": ["path", "content"],
-                "additionalProperties": False,
-            },
-            handler=create_file,
-            requires_confirmation=True,
-            use_when="The user explicitly asks to create a new local file.",
-            avoid_when="The target file already exists and should be modified; use edit_file instead.",
-            availability="on_demand",
-            capabilities=(Capability.WORKSPACE_WRITE,),
-            terminal_on_success=True,
-        )
-    )
-
-    registry.register(
-        ToolDefinition(
-            name="delete_file",
-            description="Delete one existing local file. It does not delete directories.",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Workspace-relative file path or explicit absolute local file path.",
-                    }
-                },
-                "required": ["path"],
-                "additionalProperties": False,
-            },
-            handler=delete_file,
-            requires_confirmation=True,
-            use_when="The user explicitly asks to delete or remove a local file.",
-            avoid_when="The user wants to modify file contents; use edit_file instead.",
-            availability="on_demand",
-            capabilities=(Capability.WORKSPACE_WRITE,),
-            terminal_on_success=True,
-        )
-    )
-
-    registry.register(
-        ToolDefinition(
-            name="edit_file",
-            description="Replace exactly one matching text block in a local text file, including at an explicit local path.",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Relative file path.",
+                        "description": "Complete content. Required for create.",
                     },
                     "search_text": {
                         "type": "string",
-                        "description": "Exact text block to replace. It must occur exactly once.",
+                        "description": "Exact text to replace. Required for edit.",
                     },
                     "replace_text": {
                         "type": "string",
-                        "description": "Replacement text.",
+                        "description": "Replacement text. Required for edit.",
                     },
                 },
-                "required": ["path", "search_text", "replace_text"],
+                "required": ["operation", "path"],
                 "additionalProperties": False,
             },
-            handler=edit_file,
+            handler=file_mutation,
             requires_confirmation=True,
-            use_when="The user explicitly wants a local file changed and you have already inspected the target content.",
-            avoid_when="You have not read the target file yet or the user only asked for an explanation.",
+            use_when=(
+                "The user explicitly asks to create, edit, modify, change, "
+                "or delete a local file."
+            ),
+            avoid_when=(
+                "You only need to read/search files, or the user only wants "
+                "an explanation."
+            ),
             availability="on_demand",
             capabilities=(Capability.WORKSPACE_WRITE,),
             terminal_on_success=True,
