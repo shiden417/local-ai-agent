@@ -63,6 +63,7 @@ Long-term MemoryはAgent CoreのTask履歴とは分離し、ユーザーホー�
 - list_directory - workspace内の一覧取得
 - read_file - テキストファイルの読み取り
 - search_files - ローカルファイル検索
+- create_file - 新規テキストファイルの作成
 - edit_file - SEARCH / REPLACE方式の部分編集
 - execute_command - PowerShellコマンド実行
 - save_memory - 将来も利用する情報をローカルMemoryへ保存
@@ -76,9 +77,10 @@ ToolはToolRegistryに登録され、RuntimeはTool名から実装をディス�
 
 Agentの操作には実行環境に応じた安全策を設定します。
 
-- workspace外へのファイルアクセスを拒否
+- 作業ディレクトリ内の相対パスはworkspace外へ脱出できないよう制限
+- ユーザーが明示したローカル絶対パスはFile Toolで扱える
 - Toolごとに確認が必要か設定可能
-- edit_fileは変更前にユーザー確認
+- create_file / edit_fileは変更前にユーザー確認
 - 代表的な破壊・書き込み系PowerShell/Git操作は確認
 - execute_commandは30秒timeout
 - timeout時はPowerShellプロセスツリーを終了
@@ -125,6 +127,7 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 - Action / Observation / Progressの分離
 - Direct / Scoped / OpenのCapability routing
 - Task内の重複Tool Call検知・Tool quarantine
+- Tool Failure Recoveryの一時Quarantine
 - Context compaction
 - Task Manager
 - Task-aware Capability routing
