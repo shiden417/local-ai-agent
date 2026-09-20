@@ -868,12 +868,28 @@ class AgentRuntime:
         if not normalized or normalized in {"{}", "[]"}:
             return True
 
-        if messages:
-            return any(
-                message.get("role") == "tool"
-                and str(message.get("content", "")).strip() == normalized
-                for message in messages
-            )
+        if not messages:
+            return False
+
+        for message in reversed(messages):
+            if message.get("role") != "tool":
+                continue
+            tool_content = str(message.get("content", "")).strip()
+            if tool_content == normalized:
+                return True
+
+            try:
+                echoed = json.loads(normalized)
+                observed = json.loads(tool_content)
+            except json.JSONDecodeError:
+                continue
+
+            if isinstance(echoed, dict) and isinstance(observed, dict):
+                echoed.pop("status", None)
+                observed.pop("status", None)
+                if echoed == observed:
+                    return True
+            break
 
         return False
 
