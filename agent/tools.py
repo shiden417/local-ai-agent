@@ -21,8 +21,6 @@ def create_default_tool_registry(
     registry = ToolRegistry()
     memory = memory_store or MemoryStore()
     plugins = plugin_manager or PluginManager()
-    plugins.load_enabled(registry)
-
     registry.register(
         ToolDefinition(
             name="list_directory",
@@ -367,6 +365,7 @@ def create_default_tool_registry(
         )
     )
 
+    plugins.load_enabled(registry)
     return registry
 
 
