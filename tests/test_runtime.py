@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+from agent.capability_router import Capability
 from agent.runtime import AgentRuntime
 from agent.tool_registry import ToolDefinition, ToolRegistry
 import agent.runtime as runtime_module
@@ -809,4 +810,101 @@ def test_runtime_keeps_task_history_isolated_while_sharing_conversation_context(
         message.get("content") == "了解しました。READMEを確認します。"
         for message in seen[1]
         if message.get("role") == "assistant"
+    )
+
+
+def test_runtime_quarantines_failed_tool_for_next_recovery_step(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    registry = ToolRegistry()
+    executed = {"count": 0}
+
+    def failing_tool(_working_directory, _arguments):
+        executed["count"] += 1
+        return {"ok": False, "error": "command failed"}
+
+    registry.register(
+        ToolDefinition(
+            name="run_action",
+            description="Run an action",
+            parameters={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+            handler=failing_tool,
+            capabilities=(Capability.PROCESS,),
+        )
+    )
+
+    def tool_call(call_id: str):
+        return SimpleNamespace(
+            id=call_id,
+            function=SimpleNamespace(
+                name="run_action",
+                arguments="{}",
+            ),
+        )
+
+    responses = [
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="",
+                        tool_calls=[tool_call("call-1")],
+                    )
+                )
+            ]
+        ),
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="",
+                        tool_calls=[tool_call("call-2")],
+                    )
+                )
+            ]
+        ),
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="原因を確認できないため、ここで止めます。",
+                        tool_calls=[],
+                    )
+                )
+            ]
+        ),
+    ]
+
+    captured_tools = []
+
+    def fake_ask_llm(messages, tools=None):
+        captured_tools.append(tools or [])
+        return responses.pop(0)
+
+    monkeypatch.setattr(runtime_module, "ask_llm", fake_ask_llm)
+
+    runtime = AgentRuntime(tmp_path, tool_registry=registry)
+
+    assert runtime.run("アクションを実行してください") == (
+        "原因を確認できないため、ここで止めます。"
+    )
+    assert executed["count"] == 1
+    assert runtime.task is not None
+    assert runtime.task.recovery_tool == "run_action"
+    assert all(
+        schema["function"]["name"] != "run_action"
+        for schema in captured_tools[1]
+    )
+    assert any(
+        json.loads(message["content"]).get("recovery_blocked") is True
+        for message in runtime.messages
+        if message.get("role") == "tool"
     )
