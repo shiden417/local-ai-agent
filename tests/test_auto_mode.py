@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from agent.command_policy import AUTO_ALLOW, AUTO_ASK, AUTO_DENY, classify_auto_mode
+from agent.safety import AUTO_ALLOW, AUTO_ASK, AUTO_DENY, classify_auto_mode
 from agent.tools import create_default_tool_registry
 
 

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from agent.approval import ApprovalPolicy
+from agent.safety import SafetyPolicy
 from agent.llm import MODEL
 from agent.runtime import AgentRuntime
 from agent.terminal_ui import TerminalUI
@@ -21,7 +21,7 @@ def print_tasks(runtime: AgentRuntime) -> None:
         )
 
 
-def print_permissions(policy: ApprovalPolicy) -> None:
+def print_permissions(policy: SafetyPolicy) -> None:
     entries = policy.entries()
     if not entries:
         print("\nLearned permissions: none")
@@ -43,7 +43,7 @@ def main() -> None:
 
     ui.startup(
         str(runtime.working_directory),
-        f"Auto / LM Studio (learned approvals: {len(runtime.approval_policy.entries())} rules)",
+        f"Auto / LM Studio (learned approvals: {len(runtime.safety.entries())} rules)",
     )
 
     while True:
@@ -64,11 +64,11 @@ def main() -> None:
             continue
 
         if lowered == "/permissions":
-            print_permissions(runtime.approval_policy)
+            print_permissions(runtime.safety)
             continue
 
         if lowered in {"/clear-permissions", "/clear-approvals"}:
-            runtime.approval_policy.clear()
+            runtime.safety.clear()
             print("Learned permissionsをクリアしました。")
             continue
 
