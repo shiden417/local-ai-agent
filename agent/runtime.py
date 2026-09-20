@@ -179,10 +179,13 @@ class AgentRuntime:
         if self.confirm is not None:
             return bool(self.confirm(summary))
 
-        print(f"\n{summary}")
-        answer = input(
-            "Approval? [y] once / [a] always for this action / [n] deny: "
-        ).strip().lower()
+        if self.terminal_ui is not None:
+            answer = self.terminal_ui.approval(summary)
+        else:
+            print(f"\n{summary}")
+            answer = input(
+                "Approval? [y] once / [a] always for this action / [n] deny: "
+            ).strip().lower()
         if answer in {"a", "always"}:
             self.approval_policy.allow(permission_key, summary)
             print("[Approval] learned")
@@ -444,7 +447,7 @@ class AgentRuntime:
                         ),
                         "recovery_blocked": True,
                     }
-                            if self.terminal_ui is not None:
+                    if self.terminal_ui is not None:
                         self.terminal_ui.info(f"Tool blocked by recovery quarantine: {name}")
                     else:
                         print("[Tool] blocked by recovery quarantine")
@@ -456,7 +459,7 @@ class AgentRuntime:
                         "repeated_tool_call": True,
                         "call_count": call_count,
                     }
-                            if self.terminal_ui is not None:
+                    if self.terminal_ui is not None:
                         self.terminal_ui.info(f"Repeated Tool blocked: {name}")
                     else:
                         print("[Tool] repeated call blocked; tool disabled for this task")
