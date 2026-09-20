@@ -44,3 +44,19 @@ def test_registry_reports_unknown_tool(tmp_path: Path) -> None:
 
     assert result["ok"] is False
     assert "Unknown tool" in result["error"]
+
+
+def test_registry_can_mark_a_tool_as_confirmation_required(tmp_path: Path) -> None:
+    registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="mutate",
+            description="Mutate local state",
+            parameters={"type": "object", "properties": {}, "required": []},
+            handler=lambda _working_directory, _arguments: {"ok": True},
+            requires_confirmation=True,
+        )
+    )
+
+    assert registry.get("mutate") is not None
+    assert registry.get("mutate").requires_confirmation is True
