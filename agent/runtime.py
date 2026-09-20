@@ -483,6 +483,13 @@ class AgentRuntime:
                 )
                 self.task.complete()
                 self.task_manager.update_timestamp(current_task)
+                self.trace.run_end(
+                    run_id,
+                    task_id=current_task.task_id,
+                    status=self.task.status.value,
+                    iterations=self.task.iteration,
+                    tool_calls=self.task.tool_calls,
+                )
                 if self.terminal_ui is not None:
                     self.terminal_ui.final(final_content)
                 return final_content
