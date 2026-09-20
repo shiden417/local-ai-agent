@@ -68,6 +68,15 @@ class RecipeStore:
         self._save()
         return entry
 
+    def get(self, recipe_id: str) -> RecipeEntry | None:
+        recipe_id = str(recipe_id).strip()
+        if not recipe_id:
+            return None
+        return next(
+            (entry for entry in self._entries if entry.id == recipe_id),
+            None,
+        )
+
     def search(self, query: str, limit: int = 3) -> list[RecipeEntry]:
         query = query.strip()
         if not query or limit <= 0:
