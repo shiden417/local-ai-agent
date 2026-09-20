@@ -8,7 +8,7 @@ from agent.environment import build_environment_context
 from agent.runtime import AgentRuntime
 from agent.session_context import SessionContext
 from agent.task import TaskState
-from agent.tool_registry import ToolRegistry
+from agent.tool_registry import ToolDefinition, ToolRegistry
 from agent.tools import create_default_tool_registry
 import tools.fetch_web_page as fetch_module
 
@@ -401,13 +401,52 @@ def test_completed_task_does_not_pollute_conversation_history(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    monkeypatch.setattr(
-        "agent.runtime.ask_llm",
-        lambda messages, tools=None: _llm_response("調査結果を確認しました。"),
+    registry = ToolRegistry()
+
+    def run_action(_working_directory, _arguments):
+        return {"ok": True, "message": "done"}
+
+    registry.register(
+        ToolDefinition(
+            name="run_action",
+            description="Run an action",
+            parameters={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+            handler=run_action,
+            capabilities=(Capability.PROCESS,),
+        )
     )
 
-    runtime = AgentRuntime(tmp_path)
-    assert runtime.run("調査") == "調査結果を確認しました。"
+    tool_call = SimpleNamespace(
+        id="call-1",
+        function=SimpleNamespace(
+            name="run_action",
+            arguments="{}",
+        ),
+    )
+    responses = [
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content="",
+                        tool_calls=[tool_call],
+                    )
+                )
+            ]
+        ),
+        _llm_response("調査結果を確認しました。"),
+    ]
+    monkeypatch.setattr(
+        "agent.runtime.ask_llm",
+        lambda messages, tools=None: responses.pop(0),
+    )
+
+    runtime = AgentRuntime(tmp_path, tool_registry=registry)
+    assert runtime.run("アクションを実行してください") == "調査結果を確認しました。"
 
     assert runtime.conversation_manager.recent_messages() == []
     assert runtime.session_context.last_answer == "調査結果を確認しました。"
