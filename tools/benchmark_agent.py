@@ -31,6 +31,11 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Keep the temporary benchmark workspace for inspection.",
     )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional JSON file for benchmark results.",
+    )
     return parser.parse_args()
 
 
