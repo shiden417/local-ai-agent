@@ -122,6 +122,7 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 - 複数タスクのtask management
 - Memory（拡張予定）
 - より明確なpermission policy
+- Task-aware Tool Capability Routing（実装済み基礎）
 
 ### Tools
 
@@ -157,6 +158,7 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 - Agent Coreに特定用途のロジックを埋め込まない
 - ToolはRegistry経由で追加できるようにする
 - Tool結果はLLMへ返す前にサイズを制限する
+- Task内容に応じて必要なTool capabilityだけをLLMへ公開する
 - 同じTool + 同じ引数のTask内重複実行を検知し、探索ループを抑止する
 - Tool結果をTask observationとして保持し、新しい情報が得られたかを追跡する
 - Task間の会話履歴を混在させない
