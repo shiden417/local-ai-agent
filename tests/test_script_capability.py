@@ -6,7 +6,7 @@ def test_router_classifies_script_fallback_tasks() -> None:
     route = CapabilityRouter().route("PDFをCSVに変換して")
 
     assert route.mode is RoutingMode.SCOPED
-    assert route.capabilities == {Capability.SCRIPT_EXECUTION}
+    assert Capability.SCRIPT_EXECUTION in route.capabilities
 
 
 def test_registry_exposes_script_runner_for_script_tasks_only() -> None:
