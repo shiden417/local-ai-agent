@@ -379,11 +379,7 @@ class AgentRuntime:
             )
 
             if not tool_calls:
-                if (
-                    route.mode.value == "scoped"
-                    and self.task.tool_calls == 0
-                    and self.task.iteration == 1
-                ):
+                if self.task.tool_calls == 0 and self.task.iteration == 1:
                     current_task.messages.append(_message_to_dict(message))
                     current_task.messages.append(
                         {
