@@ -16,7 +16,6 @@ from agent.progress import evaluate_progress
 from agent.recovery import classify_tool_outcome, recovery_guidance
 from agent.session import SessionManager
 from agent.environment import build_environment_context, extract_related_paths
-from agent.recipe_store import RecipeStore
 from agent.terminal_ui import TerminalUI
 from agent.safety import AUTO_ALLOW, AUTO_DENY, SafetyPolicy
 from agent.task import TaskState
@@ -151,7 +150,6 @@ class AgentRuntime:
         tool_registry: ToolRegistry | None = None,
         confirm: Callable[[str], bool] | None = None,
         session_manager: SessionManager | None = None,
-        recipe_store: RecipeStore | None = None,
         plugin_manager: PluginManager | None = None,
         safety_policy: SafetyPolicy | None = None,
         terminal_ui: TerminalUI | None = None,
@@ -160,16 +158,15 @@ class AgentRuntime:
         self.working_directory = Path(working_directory).resolve()
         self.max_iterations = max_iterations
         self.plugin_manager = plugin_manager or PluginManager()
-        self.recipe_store = recipe_store or RecipeStore()
         self.tool_registry = tool_registry or create_default_tool_registry(
             plugin_manager=self.plugin_manager,
-            recipe_store=self.recipe_store,
         )
         self.confirm = confirm
         self.safety = safety_policy or SafetyPolicy()
         self.terminal_ui = terminal_ui
         self.ask_user_callback = ask_user
         self.session_manager = session_manager or SessionManager()
+        self.request_classifier = RequestClassifier()
         self.loop_guard = ToolLoopGuard()
         self.task_manager = TaskManager()
         self.completion_verifier = CompletionVerifier(self.working_directory)
@@ -214,8 +211,8 @@ class AgentRuntime:
         return answer in {"y", "yes"}
     def run(self, user_input: str) -> str:
         routing_text = self._routing_text(user_input)
-        route = self.tool_registry.route_for(routing_text)
-        if route.mode.value in {"direct", "open"}:
+        classification = self.request_classifier.classify(user_input)
+        if classification.mode == RequestMode.DIRECT:
             return self._run_conversation(user_input)
 
         is_follow_up = routing_text != user_input
@@ -245,52 +242,6 @@ class AgentRuntime:
             )
             prior_conversation = self.session_manager.recent_conversation_messages()
             related_paths = self._related_paths(current_task)
-            route = self.tool_registry.route_for(routing_text)
-            capability_text = ", ".join(
-                capability.value for capability in sorted(
-                    route.capabilities,
-                    key=lambda item: item.value,
-                )
-            ) or "none"
-            recipe_messages: list[dict[str, Any]] = []
-            if Capability.CAPABILITY_MANAGEMENT in route.capabilities:
-                promotion_candidates = self.recipe_store.promotion_candidates(
-                    min_uses=2
-                )
-                if promotion_candidates:
-                    candidate_lines = [
-                        "Recipe promotion candidates (do not promote automatically):"
-                    ]
-                    for candidate in promotion_candidates[:3]:
-                        candidate_lines.append(
-                            f"- id={candidate.id}, use_count={candidate.use_count}, "
-                            f"goal={candidate.goal}"
-                        )
-                    recipe_messages.append(
-                        {
-                            "role": "system",
-                            "content": "\n".join(candidate_lines),
-                        }
-                    )
-            if Capability.SCRIPT_EXECUTION in route.capabilities:
-                recipes = self.recipe_store.search(self.task.goal, limit=2)
-                if recipes:
-                    recipe_lines = [
-                        "Relevant successful local Recipes (reference only):"
-                    ]
-                    for index, recipe in enumerate(recipes, start=1):
-                        bounded_script, _ = truncate_text(recipe.script, 4_000)
-                        recipe_lines.append(
-                            f"Recipe {index}: use_count={recipe.use_count}, "
-                            f"goal={recipe.goal}"
-                        )
-                        recipe_lines.append(bounded_script)
-                    recipe_messages.append(
-                        {
-                            "role": "system",
-                            "content": "\n".join(recipe_lines),
-                        }
-                    )
 
             task_system_messages = [
                 message
@@ -326,7 +277,6 @@ class AgentRuntime:
                 *task_system_messages,
                 {"role": "system", "content": environment_context},
                 {"role": "system", "content": self.session_manager.prompt_block()},
-                *recipe_messages,
                 *prior_conversation,
                 *task_non_system_messages,
                 {
@@ -337,11 +287,9 @@ class AgentRuntime:
                         "Current task execution dashboard. "
                         "Treat this as Runtime-managed state; do not reconstruct "
                         "progress only from chat history.\n"
-                        f"Tool scope={route.mode.value}; "
-                        f"capabilities={capability_text}\n"
                         f"{self.task.snapshot()}\n"
-                        "Tool use is optional. In scoped/open modes, call a tool "
-                        "only when it advances the goal; otherwise answer directly."
+                        "Tool use is optional. Call a tool only when it advances "
+                        "the goal; otherwise answer directly."
                     ),
                 },
             ]
@@ -351,7 +299,6 @@ class AgentRuntime:
                 excluded_tools.add(self.task.recovery_tool)
 
             available_tools = self.tool_registry.schemas_for(
-                routing_text,
                 excluded_tools=excluded_tools,
                 include_control_tools=True,
             )
@@ -708,34 +655,11 @@ class AgentRuntime:
                     terminal_synthesis_required = True
                     break
 
-                if name == "run_python_script" and bool(result.get("ok")):
-                    script = str(arguments.get("script", "")).strip()
-                    if script:
-                        try:
-                            recipe = self.recipe_store.record(
-                                self.task.goal,
-                                script,
-                            )
-                            print(
-                                f"[Recipe] saved {recipe.id} "
-                                f"(use_count={recipe.use_count})"
-                            )
-                        except ValueError as exc:
-                            print(f"[Recipe] skipped: {exc}")
-
                 tool_definition = self.tool_registry.get(name)
                 if (
                     bool(result.get("ok"))
                     and tool_definition is not None
                     and tool_definition.terminal_on_success
-                    and not any(
-                        capability.value in {
-                            "process",
-                            "memory_read",
-                            "memory_write",
-                        }
-                        for capability in route.capabilities
-                    )
                 ):
                     terminal_synthesis_required = True
 
@@ -773,9 +697,8 @@ class AgentRuntime:
         return content
 
     def _routing_text(self, user_input: str) -> str:
-        """Reuse the previous task's capability scope for clear follow-up references."""
-        route = self.tool_registry.route_for(user_input)
-        if route.mode.value == "scoped" or not self.session_manager.has_context:
+        """Expand clear follow-ups with the previous session topic for task reasoning."""
+        if not self.session_manager.has_context:
             return user_input
 
         if not self._is_session_follow_up(user_input):
@@ -786,10 +709,6 @@ class AgentRuntime:
             or self.session_manager.last_goal.strip()
         )
         if not previous_goal:
-            return user_input
-
-        previous_route = self.tool_registry.route_for(previous_goal)
-        if previous_route.mode.value != "scoped":
             return user_input
 
         return f"{previous_goal}\nFollow-up request: {user_input}"
