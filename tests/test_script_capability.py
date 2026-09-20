@@ -1,6 +1,5 @@
 from agent.request_classifier import RequestClassifier, RequestMode
 from agent.tools import create_default_tool_registry
-from agent.tools import create_default_tool_registry
 
 def test_request_classifier_marks_script_fallback_as_task() -> None:
     result = RequestClassifier().classify("PDFをCSVに変換して")
