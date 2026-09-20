@@ -89,3 +89,34 @@ def test_plugin_router_exposes_capability_management() -> None:
     assert (
         Capability.CAPABILITY_MANAGEMENT in route.capabilities
     )
+
+
+def test_registry_can_stage_and_promote_plugin(tmp_path: Path) -> None:
+    from agent.tools import create_default_tool_registry
+
+    manager = PluginManager(tmp_path / "plugins")
+    registry = create_default_tool_registry(plugin_manager=manager)
+
+    staged = registry.execute(
+        "stage_plugin",
+        {
+            "plugin_id": "double-value",
+            "manifest": manifest(),
+            "source": PLUGIN_SOURCE,
+        },
+        tmp_path,
+    )
+    assert staged["ok"] is True
+
+    promoted = registry.execute(
+        "promote_plugin",
+        {"plugin_id": "double-value"},
+        tmp_path,
+    )
+    assert promoted["ok"] is True
+    assert promoted["registered"] is True
+    assert registry.execute(
+        "double_value",
+        {"value": 7},
+        tmp_path,
+    ) == {"ok": True, "value": 14}
