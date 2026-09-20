@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any
 
-from tools.path_utils import resolve_workspace_path, to_workspace_relative
+from tools.path_utils import resolve_workspace_path, to_display_path
 
 
 MAX_CHARS = 12_000
@@ -18,14 +18,14 @@ def read_file(
     working_directory: Path,
     arguments: dict[str, Any],
 ) -> dict[str, Any]:
-    relative_path = str(arguments.get("path", ""))
-    path = resolve_workspace_path(working_directory, relative_path)
+    requested_path = str(arguments.get("path", ""))
+    path = resolve_workspace_path(working_directory, requested_path)
 
     if not path.exists():
-        return {"ok": False, "error": f"File does not exist: {relative_path}"}
+        return {"ok": False, "error": f"File does not exist: {requested_path}"}
 
     if not path.is_file():
-        return {"ok": False, "error": f"Not a file: {relative_path}"}
+        return {"ok": False, "error": f"Not a file: {requested_path}"}
 
     try:
         content = _read_text(path)
@@ -57,7 +57,7 @@ def read_file(
 
     return {
         "ok": True,
-        "path": to_workspace_relative(working_directory, path),
+        "path": to_display_path(working_directory, path),
         "start_line": start_line,
         "end_line": end_line,
         "content": output,
