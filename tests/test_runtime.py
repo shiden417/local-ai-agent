@@ -981,3 +981,87 @@ def test_runtime_retries_scoped_request_when_model_only_explains(
     assert (tmp_path / "test.txt").read_text(encoding="utf-8") == "new"
     assert runtime.task is not None
     assert runtime.task.tool_calls == 1
+
+
+def test_runtime_synthesizes_immediately_after_terminal_tool_success(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    registry = ToolRegistry()
+    executed = {"count": 0}
+
+    def create(_working_directory, _arguments):
+        executed["count"] += 1
+        return {"ok": True, "created": True, "path": "test.html"}
+
+    registry.register(
+        ToolDefinition(
+            name="create_file",
+            description="Create a file",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"},
+                    "content": {"type": "string"},
+                },
+                "required": ["path", "content"],
+            },
+            handler=create,
+            terminal_on_success=True,
+            capabilities=(Capability.WORKSPACE_WRITE,),
+        )
+    )
+
+    tool_call = SimpleNamespace(
+        id="call-create",
+        function=SimpleNamespace(
+            name="create_file",
+            arguments=json.dumps(
+                {"path": "test.html", "content": "<html></html>"}
+            ),
+        ),
+    )
+    tool_response = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    role="assistant",
+                    content="",
+                    tool_calls=[tool_call],
+                )
+            )
+        ]
+    )
+    final_response = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    role="assistant",
+                    content="HTMLファイルを作成しました。",
+                    tool_calls=[],
+                )
+            )
+        ]
+    )
+
+    captured_tools = []
+    responses = [tool_response, final_response]
+
+    def fake_ask_llm(_messages, tools=None):
+        captured_tools.append(tools or [])
+        return responses.pop(0)
+
+    monkeypatch.setattr(runtime_module, "ask_llm", fake_ask_llm)
+
+    runtime = AgentRuntime(
+        tmp_path,
+        tool_registry=registry,
+    )
+
+    assert runtime.run("HTMLファイルを作成してください") == (
+        "HTMLファイルを作成しました。"
+    )
+    assert executed["count"] == 1
+    assert len(captured_tools) == 2
+    assert captured_tools[0]
+    assert captured_tools[1] == []
