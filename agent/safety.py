@@ -108,33 +108,40 @@ class SafetyPolicy:
     ) -> str:
         return approval_key(tool_name, arguments, workspace)
 
-    def classify_auto_mode(
+    def decide(
         self,
         tool_name: str,
         arguments: dict[str, Any],
         registry: ToolRegistry,
         working_directory: str | Path | None = None,
     ) -> str:
-        return classify_auto_mode(
+        """Return allow, ask, or deny after applying all hard safety checks."""
+        auto_decision = _classify_auto_mode(
             tool_name,
             arguments,
             registry,
             working_directory,
         )
+        if auto_decision == AUTO_DENY:
+            return AUTO_DENY
 
-    def requires_confirmation(
-        self,
-        tool_name: str,
-        arguments: dict[str, Any],
-        registry: ToolRegistry,
-        working_directory: str | Path | None = None,
-    ) -> bool:
-        return requires_confirmation(
+        if not _requires_confirmation(
             tool_name,
             arguments,
             registry,
             working_directory,
+        ):
+            return AUTO_ALLOW
+
+        key = self.approval_key(
+            tool_name,
+            arguments,
+            working_directory or Path.cwd(),
         )
+        if self.is_allowed(key):
+            return AUTO_ALLOW
+
+        return auto_decision
 
     def _load(self) -> None:
         if not self.approval_path.exists():
@@ -201,7 +208,7 @@ def approval_key(
     return f"{tool}:{_digest(_canonical_arguments(arguments))}"
 
 
-def classify_auto_mode(
+def _classify_auto_mode(
     tool_name: str,
     arguments: dict[str, Any],
     registry: ToolRegistry,
@@ -262,7 +269,7 @@ def classify_auto_mode(
     return AUTO_ASK
 
 
-def requires_confirmation(
+def _requires_confirmation(
     tool_name: str,
     arguments: dict[str, Any],
     registry: ToolRegistry,
@@ -386,7 +393,6 @@ __all__ = [
     "HARD_DENY_COMMAND_PATTERNS",
     "SafetyPolicy",
     "approval_key",
-    "classify_auto_mode",
-    "requires_confirmation",
+    "SafetyPolicy",
     "validate_command_scope",
 ]
