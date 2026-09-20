@@ -213,7 +213,9 @@ class AgentRuntime:
             )
             message = response.choices[0].message
             tool_calls = getattr(message, "tool_calls", None) or []
-            content = getattr(message, "content", None) or ""
+            content = self._normalize_final_content(
+                getattr(message, "content", None) or ""
+            )
 
             if not tool_calls:
                 if self._is_invalid_final_response(
@@ -341,13 +343,30 @@ class AgentRuntime:
     @staticmethod
     def _normalize_final_content(content: Any) -> str:
         """Convert model content/message-like payloads into plain user text."""
+        if content is None:
+            return ""
+
         if isinstance(content, str):
-            return content.strip()
+            normalized = content.strip()
+            if normalized.startswith("{") and normalized.endswith("}"):
+                try:
+                    decoded = json.loads(normalized)
+                except json.JSONDecodeError:
+                    return normalized
+                if isinstance(decoded, dict) and "content" in decoded:
+                    return AgentRuntime._normalize_final_content(
+                        decoded["content"]
+                    )
+            return normalized
 
         if isinstance(content, dict):
             nested = content.get("content")
-            if isinstance(nested, str):
-                return nested.strip()
+            if nested is not None:
+                return AgentRuntime._normalize_final_content(nested)
+
+        nested = getattr(content, "content", None)
+        if nested is not None and nested is not content:
+            return AgentRuntime._normalize_final_content(nested)
 
         return str(content).strip()
 
