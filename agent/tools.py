@@ -2,7 +2,6 @@ from pathlib import Path
 
 from agent.capability_router import Capability
 from agent.memory import MemoryStore
-from agent.recipe_store import RecipeStore
 from agent.tool_registry import ToolDefinition, ToolRegistry
 from tools.file_mutation import file_mutation
 from tools.execute_command import execute_command
@@ -15,12 +14,10 @@ from tools.run_python_script import run_python_script
 
 def create_default_tool_registry(
     memory_store: MemoryStore | None = None,
-    recipe_store: RecipeStore | None = None,
 ) -> ToolRegistry:
     """Create the default local capability set."""
     registry = ToolRegistry()
     memory = memory_store or MemoryStore()
-    _recipes = recipe_store or RecipeStore()
 
     registry.register(
         ToolDefinition(
