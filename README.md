@@ -80,7 +80,7 @@ LM StudioのDeveloper tabでServerを起動し、既定モデルをロードし�
 
     google/gemma-4-e4b-qat
 
-Gemma 4 E4B QATは、Native Function Calling・Reasoning・Visionを備えた小型ローカルモデルです。LM Studio向けQ4_0版は約5.15GBで、ローカルAgentのTool Callingを試しやすい構成です。
+Gemma 4 E4Bは、Native Function Calling・Reasoning・Visionを備えた小型ローカルモデルです。LM Studio公式Hubでは最低システムメモリ6GB、7.9Bタグ、128K contextのモデルとして案内されています。
 
 APIの既定値:
 
