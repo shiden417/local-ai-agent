@@ -193,22 +193,25 @@ class AgentRuntime:
                 )
             ) or "none"
             recipe_messages: list[dict[str, Any]] = []
-            promotion_candidates = self.recipe_store.promotion_candidates(min_uses=2)
-            if promotion_candidates:
-                candidate_lines = [
-                    "Recipe promotion candidates (do not promote automatically):"
-                ]
-                for candidate in promotion_candidates[:3]:
-                    candidate_lines.append(
-                        f"- id={candidate.id}, use_count={candidate.use_count}, "
-                        f"goal={candidate.goal}"
-                    )
-                recipe_messages.append(
-                    {
-                        "role": "system",
-                        "content": "\n".join(candidate_lines),
-                    }
+            if Capability.CAPABILITY_MANAGEMENT in route.capabilities:
+                promotion_candidates = self.recipe_store.promotion_candidates(
+                    min_uses=2
                 )
+                if promotion_candidates:
+                    candidate_lines = [
+                        "Recipe promotion candidates (do not promote automatically):"
+                    ]
+                    for candidate in promotion_candidates[:3]:
+                        candidate_lines.append(
+                            f"- id={candidate.id}, use_count={candidate.use_count}, "
+                            f"goal={candidate.goal}"
+                        )
+                    recipe_messages.append(
+                        {
+                            "role": "system",
+                            "content": "\n".join(candidate_lines),
+                        }
+                    )
             if Capability.SCRIPT_EXECUTION in route.capabilities:
                 recipes = self.recipe_store.search(self.task.goal, limit=2)
                 if recipes:
