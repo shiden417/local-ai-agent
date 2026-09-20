@@ -338,6 +338,8 @@ def _execute_plugin(
             [
                 sys.executable,
                 "-I",
+                "-c",
+                "import importlib.util\nimport json\nimport sys\n\nplugin_path = sys.argv[1]\nspec = importlib.util.spec_from_file_location(\"local_agent_plugin\", plugin_path)\nif spec is None or spec.loader is None:\n    raise RuntimeError(\"could not load plugin module\")\nmodule = importlib.util.module_from_spec(spec)\nspec.loader.exec_module(module)\nrun = getattr(module, \"run\", None)\nif not callable(run):\n    raise RuntimeError(\"plugin must define callable run(arguments)\")\npayload = json.loads(sys.stdin.read())\nresult = run(payload.get(\"arguments\", {}))\nif not isinstance(result, dict):\n    raise RuntimeError(\"plugin result must be a JSON object\")\nprint(json.dumps(result, ensure_ascii=False))\n",
                 str(plugin_file),
             ],
             cwd=str(cwd),
