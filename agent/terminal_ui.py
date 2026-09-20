@@ -27,6 +27,7 @@ class TerminalUI:
         self._spinner_stop: threading.Event | None = None
         self._spinner_thread: threading.Thread | None = None
         self._spinner_lock = threading.Lock()
+        self._activity_label = ""
 
     def _c(self, text: str, color: str) -> str:
         return f"{color}{text}{RESET}" if self.enabled else text
@@ -66,19 +67,21 @@ class TerminalUI:
         self.start_activity(f"Running {name}")
 
     def tool_result(self, ok: bool, summary: str) -> None:
+        label = self._activity_label or "Tool"
         self.stop_activity()
         symbol = "✓" if ok else "✗"
         color = GREEN if ok else RED
         if ok:
-            print(self._c(f"  {symbol} Done", color))
+            print(self._c(f"  {symbol} {label.removeprefix('Running ')}", color))
         else:
             compact_summary = " ".join(str(summary).split())
             if len(compact_summary) > 180:
                 compact_summary = compact_summary[:177] + "..."
-            print(self._c(f"  {symbol} {compact_summary}", color))
+            print(self._c(f"  {symbol} {label.removeprefix('Running ')}: {compact_summary}", color))
 
     def start_activity(self, label: str) -> None:
         self.stop_activity()
+        self._activity_label = label
         if not self.enabled:
             return
 
@@ -106,6 +109,7 @@ class TerminalUI:
         if thread is not None and thread is not threading.current_thread():
             thread.join(timeout=0.5)
 
+        self._activity_label = ""
         if self.enabled:
             sys.stdout.write("\r\x1b[2K")
             sys.stdout.flush()
@@ -133,6 +137,7 @@ class TerminalUI:
         print(self._c(f"✗ {content}", RED))
 
     def info(self, content: str) -> None:
+        self.stop_activity()
         print(self._c(f"  {content}", GRAY))
 
     def approval(self, description: str) -> str:
