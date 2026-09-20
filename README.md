@@ -41,6 +41,7 @@ Agent Coreは特定用途に依存せず、Toolを追加することで能力を
     Tool Registry / Dispatcher
       ├─ Built-in Tools
       ├─ Temporary Script capability
+    ├─ Web Search capability
       ├─ Capability Management
       │    └─ Quarantine → Promote → Load
       └─ future capabilities
@@ -66,6 +67,7 @@ Long-term MemoryはAgent CoreのTask履歴とは分離し、ユーザーホー�
 - search_files - ローカルファイル検索
 - file_mutation - ローカルファイルの作成・編集・削除
 - execute_command - PowerShellコマンド実行
+- search_web - 現在の外部情報をWeb検索（読み取り専用）
 - run_python_script - 専用Toolがない処理を一時Python Scriptとして実行
 - list_promotion_candidates - 繰り返し成功したRecipeをPromotion候補として取得
 - generate_plugin - RecipeからPlugin候補をLLM生成
@@ -170,6 +172,7 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 - Agentからのlist_promotion_candidates / stage_plugin / promote_pluginによるCapability獲得
 
 ### Tools
+- Web Search（DDGS metasearch）
 - Git
 - Web / HTTP
 - Database
