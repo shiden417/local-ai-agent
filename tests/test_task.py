@@ -30,6 +30,8 @@ def test_failed_tool_is_recorded() -> None:
 
     assert task.phase == TaskPhase.VERIFY
     assert task.errors == ["Tool failed: search_files"]
+    assert task.progress_state.value == "failed"
+    assert task.no_progress_streak == 1
 
 
 def test_task_tracks_new_and_repeated_observations() -> None:
@@ -82,3 +84,21 @@ def test_snapshot_is_compact() -> None:
     assert "phase=plan" in snapshot
     assert "iteration=1" in snapshot
     assert "tool_calls=0" in snapshot
+
+
+def test_failed_unique_observation_does_not_count_as_progress() -> None:
+    task = TaskState(goal="復旧")
+    task.start()
+
+    task.record_tool(
+        "read_file",
+        succeeded=False,
+        summary="missing",
+        signature="read_file:missing",
+        new_information=True,
+    )
+
+    assert task.observations[0].new_information is True
+    assert task.observations[0].progress_state.value == "failed"
+    assert task.progress_count == 0
+    assert task.no_progress_streak == 1
