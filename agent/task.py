@@ -64,6 +64,7 @@ class TaskState:
     failed_tool_history: list[dict[str, str]] = field(default_factory=list)
     consecutive_failures: int = 0
     last_failure_status: str | None = None
+    last_tool_result_truncated: bool = False
 
     def start(self) -> None:
         self.status = TaskStatus.RUNNING
@@ -85,9 +86,11 @@ class TaskState:
         new_information: bool | None = None,
         progress_state: ProgressState | None = None,
         failure_status: str | None = None,
+        result_truncated: bool = False,
     ) -> None:
         self.tool_calls += 1
         self.last_tool = name
+        self.last_tool_result_truncated = result_truncated
         self.phase = TaskPhase.VERIFY
 
         if new_information is None:
@@ -197,6 +200,7 @@ class TaskState:
             f"Recovery quarantine: {recovery}",
             f"Consecutive failures: {self.consecutive_failures}; "
             f"last_failure_status={self.last_failure_status or 'none'}",
+            f"Last tool result truncated: {self.last_tool_result_truncated}",
             "Execution guidance: "
             "use the smallest action that advances the goal; "
             "after a useful observation, verify whether the goal can already be answered; "
