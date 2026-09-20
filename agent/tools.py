@@ -3,6 +3,7 @@ from pathlib import Path
 from agent.capability_router import Capability
 from agent.memory import MemoryStore
 from agent.tool_registry import ToolDefinition, ToolRegistry
+from tools.create_file import create_file
 from tools.edit_file import edit_file
 from tools.execute_command import execute_command
 from tools.list_directory import list_directory
@@ -102,6 +103,34 @@ def create_default_tool_registry(
             avoid_when="You are trying to find important files by role, filename, category, or vague natural-language descriptions.",
             availability="on_demand",
             capabilities=(Capability.WORKSPACE_READ,),
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="create_file",
+            description="Create a new UTF-8 text file at a workspace-relative or explicit local path without overwriting an existing file.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "File path. A workspace-relative path or explicit absolute local path.",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Complete text content for the new file.",
+                    },
+                },
+                "required": ["path", "content"],
+                "additionalProperties": False,
+            },
+            handler=create_file,
+            requires_confirmation=True,
+            use_when="The user explicitly asks to create a new local file.",
+            avoid_when="The target file already exists and should be modified; use edit_file instead.",
+            availability="on_demand",
+            capabilities=(Capability.WORKSPACE_WRITE,),
         )
     )
 
