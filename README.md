@@ -114,6 +114,7 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 - Agent loopの安定化
 - Task state（1タスクの状態・反復・Tool履歴）
 - Context compaction（実装済みの基礎）
+- Task Manager（複数Taskの追跡・一覧化）
 - Long-term Memory（ローカルJSON + キーワード検索の基礎実装）
 - 複数タスクのtask management
 - Memory（拡張予定）
@@ -131,6 +132,7 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 ### Interaction
 
 - 会話履歴
+- Taskの一覧確認 (`/tasks`)
 - 音声入力 (STT)
 - 音声出力 (TTS)
 - GUI
