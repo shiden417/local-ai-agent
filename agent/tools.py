@@ -4,6 +4,7 @@ from agent.capability_router import Capability
 from agent.memory import MemoryStore
 from agent.tool_registry import ToolDefinition, ToolRegistry
 from tools.create_file import create_file
+from tools.delete_file import delete_file
 from tools.edit_file import edit_file
 from tools.execute_command import execute_command
 from tools.list_directory import list_directory
@@ -129,6 +130,31 @@ def create_default_tool_registry(
             requires_confirmation=True,
             use_when="The user explicitly asks to create a new local file.",
             avoid_when="The target file already exists and should be modified; use edit_file instead.",
+            availability="on_demand",
+            capabilities=(Capability.WORKSPACE_WRITE,),
+            terminal_on_success=True,
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="delete_file",
+            description="Delete one existing local file. It does not delete directories.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Workspace-relative file path or explicit absolute local file path.",
+                    }
+                },
+                "required": ["path"],
+                "additionalProperties": False,
+            },
+            handler=delete_file,
+            requires_confirmation=True,
+            use_when="The user explicitly asks to delete or remove a local file.",
+            avoid_when="The user wants to modify file contents; use edit_file instead.",
             availability="on_demand",
             capabilities=(Capability.WORKSPACE_WRITE,),
             terminal_on_success=True,
