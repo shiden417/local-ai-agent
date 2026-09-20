@@ -908,3 +908,75 @@ def test_runtime_quarantines_failed_tool_for_next_recovery_step(
         for message in runtime.messages
         if message.get("role") == "tool"
     )
+
+
+def test_runtime_retries_scoped_request_when_model_only_explains(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    tool_call = SimpleNamespace(
+        id="call-edit",
+        function=SimpleNamespace(
+            name="edit_file",
+            arguments=json.dumps(
+                {
+                    "path": "test.txt",
+                    "search_text": "old",
+                    "replace_text": "new",
+                }
+            ),
+        ),
+    )
+    responses = [
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="以下のように編集してください。",
+                        tool_calls=[],
+                    )
+                )
+            ]
+        ),
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="",
+                        tool_calls=[tool_call],
+                    )
+                )
+            ]
+        ),
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="編集を実行しました。",
+                        tool_calls=[],
+                    )
+                )
+            ]
+        ),
+    ]
+
+    (tmp_path / "test.txt").write_text("old", encoding="utf-8")
+
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm",
+        lambda _messages, tools=None: responses.pop(0),
+    )
+
+    runtime = AgentRuntime(
+        tmp_path,
+        confirm=lambda _message: True,
+    )
+
+    assert runtime.run("test.txtを修正してください") == "編集を実行しました。"
+    assert (tmp_path / "test.txt").read_text(encoding="utf-8") == "new"
+    assert runtime.task is not None
+    assert runtime.task.tool_calls == 1
