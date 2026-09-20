@@ -17,6 +17,24 @@ class ToolDefinition:
     requires_confirmation: bool = False
     use_when: str = ""
     avoid_when: str = ""
+    availability: str = "always"
+    routing_hints: tuple[str, ...] = ()
+
+    def is_candidate(self, task_text: str) -> bool:
+        """Return whether this tool should be exposed for the current task."""
+        if self.availability == "always":
+            return True
+        if self.availability != "on_demand":
+            raise ValueError(
+                f"Unsupported tool availability: {self.availability}"
+            )
+
+        normalized = task_text.casefold()
+        return any(
+            hint.casefold() in normalized
+            for hint in self.routing_hints
+            if hint.strip()
+        )
 
     def schema(self) -> dict[str, Any]:
         description = self.description.strip()
@@ -49,6 +67,14 @@ class ToolRegistry:
     @property
     def schemas(self) -> list[dict[str, Any]]:
         return [tool.schema() for tool in self._tools.values()]
+
+    def schemas_for(self, task_text: str) -> list[dict[str, Any]]:
+        """Expose only the capabilities relevant to the current task."""
+        return [
+            tool.schema()
+            for tool in self._tools.values()
+            if tool.is_candidate(task_text)
+        ]
 
     def get(self, name: str) -> ToolDefinition | None:
         return self._tools.get(name)
