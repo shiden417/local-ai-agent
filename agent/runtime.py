@@ -529,6 +529,7 @@ class AgentRuntime:
                     continue
 
                 call_count = self.loop_guard.record(name, arguments)
+                self._last_tool_duration_ms = 0
                 safety_decision = AUTO_ALLOW
                 if self.task.recovery_tool == name:
                     safety_decision = "recovery_blocked"
