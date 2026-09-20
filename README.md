@@ -110,22 +110,16 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 ## Roadmap
 
 ### Agent Core
-
-- Agent loopの安定化（実装中）
-- Task内の重複Tool Call検知・抑止
+- Agent loopの収束・安定化
 - Taskごとの独立した会話履歴
-- Task observation ledger（観測結果の保持・新規情報判定）
-- Context compaction（実装済みの基礎）
-- Task Manager（複数Taskの追跡・一覧化）
-- Tool用途メタデータによるルーティング補助
-- Long-term Memory（ローカルJSON + キーワード検索の基礎実装）
-- 複数タスクのtask management
-- Memory（拡張予定）
-- より明確なpermission policy
-- Task-aware Tool Capability Routing（実装済み基礎）
+- Task observation ledger（観測結果・新規情報・進捗）
+- Task内の重複Tool Call検知・Tool quarantine
+- Context compaction
+- Task Manager
+- Task-aware Tool Capability Routing
+- permission policyの強化
 
 ### Tools
-
 - Git
 - Web / HTTP
 - Database
@@ -134,21 +128,20 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 - Notifications
 
 ### Interaction
-
 - 会話履歴
-- Taskの一覧確認 (`/tasks`)
+- Taskの一覧確認
 - 音声入力 (STT)
 - 音声出力 (TTS)
 - GUI
 - 常駐 / event-driven execution
 
 ### Intelligence
-
-- Implicit planning（LLM内で計画し、Runtimeが状態を追跡）
-- Planning
-- Long-term memory
-- Proactive behavior
 - Goal / task decomposition
+- Long-term memoryの高度化
+- Planningの強化
+- Proactive behavior
+- 長期的な自己改善・評価基盤
+
 
 ## Design principles
 
