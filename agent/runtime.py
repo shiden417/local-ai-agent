@@ -404,6 +404,23 @@ class AgentRuntime:
                     llm_messages,
                     tools=available_tools,
                 )
+            except Exception as exc:
+                self.trace.record(
+                    "llm_error",
+                    run_id=run_id,
+                    iteration=self.task.iteration,
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+                self.task.fail(f"LLM request failed: {type(exc).__name__}: {exc}")
+                self.task_manager.update_timestamp(current_task)
+                self.trace.run_end(
+                    run_id,
+                    task_id=current_task.task_id,
+                    status=self.task.status.value,
+                    iterations=self.task.iteration,
+                    tool_calls=self.task.tool_calls,
+                )
+                raise
             finally:
                 if self.terminal_ui is not None:
                     self.terminal_ui.thinking_stop()
@@ -779,6 +796,22 @@ class AgentRuntime:
         llm_started = time.perf_counter()
         try:
             response = ask_llm(messages, tools=[])
+        except Exception as exc:
+            if run_id is not None:
+                self.trace.record(
+                    "llm_error",
+                    run_id=run_id,
+                    iteration=1,
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+                self.trace.run_end(
+                    run_id,
+                    task_id="conversation",
+                    status="failed",
+                    iterations=1,
+                    tool_calls=0,
+                )
+            raise
         finally:
             if self.terminal_ui is not None:
                 self.terminal_ui.thinking_stop()
