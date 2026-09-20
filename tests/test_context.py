@@ -120,9 +120,16 @@ def test_context_summary_keeps_tool_status() -> None:
             "name": "execute_command",
             "content": '{"ok": false, "exit_code": 1, "error": "test failed"}',
         },
+        {
+            "role": "user",
+            "content": "continue",
+        },
     ]
 
-    manager = ContextManager(max_chars=500)
+    manager = ContextManager(
+        max_chars=500,
+        keep_recent_blocks=1,
+    )
 
     compacted = manager.prepare(messages)
 
