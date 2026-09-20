@@ -29,6 +29,7 @@ class ProgressState(str, Enum):
 
 
 def classify_progress(
+    tool_name: str,
     result: dict,
     observation_is_new: bool,
 ) -> ProgressState:
@@ -41,7 +42,7 @@ def classify_progress(
     if not result.get("ok", False):
         return ProgressState.FAILED
 
-    if result.get("entries") == []:
+    if tool_name == "search_memory" and result.get("entries") == []:
         return ProgressState.NO_PROGRESS
 
     if not observation_is_new:
