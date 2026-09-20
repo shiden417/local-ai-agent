@@ -61,6 +61,12 @@ def test_registry_filters_on_demand_tools_by_task() -> None:
         "core",
     ]
 
+    excluded = registry.schemas_for(
+        "前回の記憶を確認してください",
+        excluded_tools={"memory"},
+    )
+    assert [schema["function"]["name"] for schema in excluded] == ["core"]
+
 
 def test_registry_dispatches_tool(tmp_path: Path) -> None:
     registry = ToolRegistry()
