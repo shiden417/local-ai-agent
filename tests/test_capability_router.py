@@ -88,3 +88,26 @@ def test_router_scopes_file_creation_tasks() -> None:
     assert route.mode == RoutingMode.SCOPED
     assert Capability.WORKSPACE_WRITE in route.capabilities
     assert Capability.WORKSPACE_READ in route.capabilities
+
+
+def test_router_sends_topic_research_to_web_search() -> None:
+    route = CapabilityRouter().route("Python 3.14について調べて")
+
+    assert route.mode == RoutingMode.SCOPED
+    assert Capability.WEB_SEARCH in route.capabilities
+    assert Capability.WORKSPACE_WRITE not in route.capabilities
+
+
+def test_router_does_not_treat_explanatory_changes_as_file_edits() -> None:
+    route = CapabilityRouter().route("その中で特に重要な変更を3つ教えて")
+
+    assert Capability.WORKSPACE_WRITE not in route.capabilities
+
+
+def test_router_keeps_generic_workspace_research_local() -> None:
+    route = CapabilityRouter().route("README.mdを調べてください")
+
+    assert route.mode == RoutingMode.SCOPED
+    assert Capability.WORKSPACE_READ in route.capabilities
+
+
