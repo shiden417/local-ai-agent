@@ -11,28 +11,21 @@ from agent.tool_registry import ToolRegistry
 from agent.tools import create_default_tool_registry
 
 
-SYSTEM_PROMPT = """あなたはローカルAI Agentです。
-ユーザーの依頼を達成するために、必要なツールを自律的に使用してください。
+SYSTEM_PROMPT = """あなたはローカルで動作する汎用AI Agentです。
+ユーザーの目的を達成するために、利用可能なツールを適切に組み合わせて自律的に行動してください。
 
 重要なルール:
-- ツールを使用する前に、必要な情報を調査してください。
-- ファイルを変更する前に、対象ファイルを読み、周辺コードを理解してください。
-- 1回の判断では、必要最小限のツールを使用してください。
-- ツール実行結果を確認し、必要なら次のツールを呼び出してください。
-- コマンドが失敗した場合は、エラー内容を分析して別の方法を試してください。
-- Agentの作業ディレクトリの外へアクセスしようとしないでください。
-- edit_fileはユーザー確認後に実行されます。
-- 作業が完了したら、最終結果を通常の文章で説明してください。
+- 依頼の目的を理解してから行動してください。
+- 必要な情報を調査し、観測結果を確認してから次の行動を判断してください。
+- ツールを使った結果に基づいて、必要なら追加のツールを呼び出してください。
+- ツールが失敗した場合は、エラー内容を分析して別の方法を検討してください。
+- 1回の判断では必要最小限の操作を選んでください。
+- 現在の作業環境で利用できる範囲を超えてアクセスしようとしないでください。
+- ユーザーの確認が必要な操作は、確認が得られてから実行してください。
+- 作業が完了したら、結果と重要な変更点を通常の文章で説明してください。
 
-現在使用できるツール:
-- list_directory: 作業ディレクトリ内のファイル・ディレクトリ一覧
-- read_file: 作業ディレクトリ内のテキストファイルの読み取り
-- search_files: 作業ディレクトリ内の文字列検索
-- edit_file: 読み取ったファイルの一部分をSEARCH/REPLACE方式で変更
-- execute_command: 作業ディレクトリをカレントディレクトリとしてPowerShellを実行
-
-ファイル操作では、できるだけ専用Toolを優先してください。
-execute_commandはビルド、テスト、Git確認など、専用Toolがない操作に使用してください。
+利用可能なツールは、その時点でRuntimeから提供されます。
+各Toolのdescriptionとparametersを読み、目的に最も適したToolを選択してください。
 """
 
 
@@ -132,7 +125,7 @@ class AgentRuntime:
                     )
                     continue
 
-                if requires_confirmation(name, arguments):
+                if requires_confirmation(name, arguments, self.tool_registry):
                     summary = self._confirmation_message(name, arguments)
                     if not self.confirm(summary):
                         result = {
@@ -142,17 +135,9 @@ class AgentRuntime:
                         }
                         print("[Tool] rejected by user")
                     else:
-                        result = self._execute_tool(
-                            name,
-                            arguments,
-                            call_id,
-                        )
+                        result = self._execute_tool(name, arguments)
                 else:
-                    result = self._execute_tool(
-                        name,
-                        arguments,
-                        call_id,
-                    )
+                    result = self._execute_tool(name, arguments)
 
                 serialized = json.dumps(result, ensure_ascii=False, indent=2)
                 bounded, truncated = truncate_text(serialized)
@@ -177,23 +162,16 @@ class AgentRuntime:
         self,
         name: str,
         arguments: dict[str, Any],
-        call_id: str,
     ) -> dict[str, Any]:
         print(f"\n[Tool] {name}")
         print(f"[Working Directory] {self.working_directory}")
         print(f"[Arguments] {json.dumps(arguments, ensure_ascii=False)}")
 
-        try:
-            return self.tool_registry.execute(
-                name,
-                arguments,
-                self.working_directory,
-            )
-        except Exception as exc:
-            return {
-                "ok": False,
-                "error": f"{type(exc).__name__}: {exc}",
-            }
+        return self.tool_registry.execute(
+            name,
+            arguments,
+            self.working_directory,
+        )
 
     @staticmethod
     def _confirmation_message(
@@ -202,11 +180,12 @@ class AgentRuntime:
     ) -> str:
         if name == "edit_file":
             return (
-                "Agentがファイルを変更しようとしています。\n"
+                "Agentがローカルファイルを変更しようとしています。\n"
                 f"path: {arguments.get('path', '')}"
             )
 
         return (
-            "Agentが破壊的なコマンドを実行しようとしています。\n"
-            f"command: {arguments.get('command', '')}"
+            "Agentが確認の必要な操作を実行しようとしています。\n"
+            f"tool: {name}\n"
+            f"arguments: {json.dumps(arguments, ensure_ascii=False)}"
         )
