@@ -15,6 +15,7 @@ from agent.observation import truncate_text
 from agent.plugin_manager import PluginManager
 from agent.progress import evaluate_progress
 from agent.recipe_store import RecipeStore
+from agent.terminal_ui import TerminalUI
 from agent.safety import requires_confirmation
 from agent.task import TaskState
 from agent.task_manager import ManagedTask, TaskManager
@@ -138,6 +139,7 @@ class AgentRuntime:
         recipe_store: RecipeStore | None = None,
         plugin_manager: PluginManager | None = None,
         approval_policy: ApprovalPolicy | None = None,
+        terminal_ui: TerminalUI | None = None,
     ) -> None:
         self.working_directory = Path(working_directory).resolve()
         self.max_iterations = max_iterations
@@ -149,6 +151,7 @@ class AgentRuntime:
         )
         self.confirm = confirm
         self.approval_policy = approval_policy or ApprovalPolicy()
+        self.terminal_ui = terminal_ui
         self.context_manager = context_manager or ContextManager()
         self.loop_guard = ToolLoopGuard()
         self.task_manager = TaskManager()
@@ -198,10 +201,14 @@ class AgentRuntime:
         terminal_synthesis_required = False
         self.task.start()
         self.task_manager.update_timestamp(current_task)
+        if self.terminal_ui is not None:
+            self.terminal_ui.task_start(current_task.goal, current_task.task_id)
 
         for _ in range(self.max_iterations):
             self.task.begin_iteration()
             self.task_manager.update_timestamp(current_task)
+            if self.terminal_ui is not None:
+                self.terminal_ui.phase(self.task.phase.value, self.task.iteration)
 
             context_messages = self.context_manager.prepare(current_task.messages)
             prior_conversation = self.conversation_manager.recent_messages()
@@ -388,6 +395,8 @@ class AgentRuntime:
                 )
                 self.task.complete()
                 self.task_manager.update_timestamp(current_task)
+                if self.terminal_ui is not None:
+                    self.terminal_ui.final(final_content)
                 return final_content
 
             current_task.messages.append(_message_to_dict(message))
@@ -435,7 +444,10 @@ class AgentRuntime:
                         ),
                         "recovery_blocked": True,
                     }
-                    print("[Tool] blocked by recovery quarantine")
+                            if self.terminal_ui is not None:
+                        self.terminal_ui.info(f"Tool blocked by recovery quarantine: {name}")
+                    else:
+                        print("[Tool] blocked by recovery quarantine")
                 elif self.loop_guard.is_repetition(name, arguments):
                     self.task.disable_tool(name)
                     result = {
@@ -444,7 +456,10 @@ class AgentRuntime:
                         "repeated_tool_call": True,
                         "call_count": call_count,
                     }
-                    print("[Tool] repeated call blocked; tool disabled for this task")
+                            if self.terminal_ui is not None:
+                        self.terminal_ui.info(f"Repeated Tool blocked: {name}")
+                    else:
+                        print("[Tool] repeated call blocked; tool disabled for this task")
                 elif requires_confirmation(
                     name,
                     arguments,
@@ -455,7 +470,10 @@ class AgentRuntime:
                         name, arguments, self.working_directory
                     )
                     if self.approval_policy.is_allowed(permission_key):
-                        print("[Approval] learned permission")
+                        if self.terminal_ui is not None:
+                            self.terminal_ui.info(f"Learned permission: {name}")
+                        else:
+                            print("[Approval] learned permission")
                         result = self._execute_tool(name, arguments)
                     else:
                         summary = self._confirmation_message(name, arguments)
@@ -468,7 +486,10 @@ class AgentRuntime:
                                 "error": "User rejected the operation.",
                                 "user_rejected": True,
                             }
-                            print("[Tool] rejected by user")
+                            if self.terminal_ui is not None:
+                                self.terminal_ui.info(f"Approval rejected: {name}")
+                            else:
+                                print("[Tool] rejected by user")
                         else:
                             result = self._execute_tool(name, arguments)
                 else:
@@ -501,10 +522,18 @@ class AgentRuntime:
                 )
                 self.task_manager.update_timestamp(current_task)
 
-                print("[Result]")
-                print(bounded)
-                if truncated:
-                    print("[Result] output truncated before returning to the model.")
+                if self.terminal_ui is not None:
+                    self.terminal_ui.tool_result(
+                        bool(result.get("ok")),
+                        observation_summary,
+                    )
+                    if truncated:
+                        self.terminal_ui.info("Tool result was truncated before returning to the model.")
+                else:
+                    print("[Result]")
+                    print(bounded)
+                    if truncated:
+                        print("[Result] output truncated before returning to the model.")
 
                 current_task.messages.append(
                     {
@@ -617,9 +646,12 @@ class AgentRuntime:
         name: str,
         arguments: dict[str, Any],
     ) -> dict[str, Any]:
-        print(f"\n[Tool] {name}")
-        print(f"[Working Directory] {self.working_directory}")
-        print(f"[Arguments] {json.dumps(arguments, ensure_ascii=False)}")
+        if self.terminal_ui is not None:
+            self.terminal_ui.tool_start(name, arguments)
+        else:
+            print(f"\n[Tool] {name}")
+            print(f"[Working Directory] {self.working_directory}")
+            print(f"[Arguments] {json.dumps(arguments, ensure_ascii=False)}")
 
         return self.tool_registry.execute(
             name,
