@@ -21,6 +21,7 @@ class ToolDefinition:
     avoid_when: str = ""
     availability: str = "always"
     capabilities: tuple[Capability, ...] = ()
+    terminal_on_success: bool = False
 
     def schema(self) -> dict[str, Any]:
         description = self.description.strip()
