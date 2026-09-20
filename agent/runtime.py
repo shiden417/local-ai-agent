@@ -20,7 +20,6 @@ from agent.terminal_ui import TerminalUI
 from agent.safety import AUTO_ALLOW, AUTO_DENY, SafetyPolicy
 from agent.task import TaskState
 from agent.task_manager import ManagedTask, TaskManager
-from agent.capabilities import Capability
 from agent.tool_registry import ToolRegistry
 from agent.tools import create_default_tool_registry
 
