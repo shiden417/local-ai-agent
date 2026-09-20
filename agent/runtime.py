@@ -824,6 +824,18 @@ class AgentRuntime:
                 if name and name != "finish_task":
                     successful_tools.append((name, payload))
 
+        if self._requires_project_diagnostic(verification_goal):
+            diagnostic_tools = {"read_file", "search_files", "execute_command"}
+            if not any(
+                tool_name in diagnostic_tools
+                for tool_name, _ in successful_tools
+            ):
+                return (
+                    "System Verification Failed: this project investigation needs "
+                    "at least one concrete diagnostic action such as reading/searching "
+                    "source files or running a relevant command/test before completion."
+                )
+
         if not successful_tools:
             return (
                 "System Verification Failed: no successful action has been observed "
@@ -894,6 +906,17 @@ class AgentRuntime:
             return None
 
         return None
+
+    @staticmethod
+    def _requires_project_diagnostic(goal: str) -> bool:
+        text = str(goal).casefold()
+        has_project_context = bool(
+            re.search(r"(プロジェクト|workspace|repository|repo|コード)", text)
+        )
+        has_diagnostic_intent = bool(
+            re.search(r"(問題点|問題|不具合|バグ|原因|調査|確認|状態)", text)
+        )
+        return has_project_context and has_diagnostic_intent
 
     @staticmethod
     def _requires_primary_web_source(goal: str) -> bool:
