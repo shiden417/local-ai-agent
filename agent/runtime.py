@@ -7,6 +7,7 @@ from typing import Any, Callable
 from agent.llm import ask_llm
 from agent.observation import truncate_text
 from agent.safety import requires_confirmation
+from agent.task import TaskState
 from agent.tool_registry import ToolRegistry
 from agent.tools import create_default_tool_registry
 
@@ -16,7 +17,9 @@ SYSTEM_PROMPT = """あなたはローカルで動作する汎用AI Agentです�
 
 重要なルール:
 - 依頼の目的を理解してから行動してください。
+- 複雑な依頼では、実行前に達成までの手順を内部で小さく分解してください。
 - 必要な情報を調査し、観測結果を確認してから次の行動を判断してください。
+- 不可逆な変更や確認が必要な操作を急いで実行しないでください。
 - ツールを使った結果に基づいて、必要なら追加のツールを呼び出してください。
 - ツールが失敗した場合は、エラー内容を分析して別の方法を検討してください。
 - 1回の判断では必要最小限の操作を選んでください。
@@ -81,6 +84,7 @@ class AgentRuntime:
         self.max_iterations = max_iterations
         self.tool_registry = tool_registry or create_default_tool_registry()
         self.confirm = confirm or self._default_confirm
+        self.task: TaskState | None = None
         self.messages: list[dict[str, Any]] = [
             {"role": "system", "content": SYSTEM_PROMPT}
         ]
@@ -91,11 +95,28 @@ class AgentRuntime:
         return answer.strip().lower() in {"y", "yes"}
 
     def run(self, user_input: str) -> str:
+        self.task = TaskState(goal=user_input)
+        self.task.start()
         self.messages.append({"role": "user", "content": user_input})
 
         for _ in range(self.max_iterations):
+            self.task.begin_iteration()
+
+            llm_messages = [
+                *self.messages,
+                {
+                    "role": "system",
+                    "content": (
+                        "Current task state: "
+                        f"{self.task.snapshot()}\n"
+                        "Use this only as execution state. Do not expose internal "
+                        "task-state details unless the user asks."
+                    ),
+                },
+            ]
+
             response = ask_llm(
-                self.messages,
+                llm_messages,
                 tools=self.tool_registry.schemas,
             )
             message = response.choices[0].message
@@ -104,6 +125,7 @@ class AgentRuntime:
 
             if not tool_calls:
                 self.messages.append(_message_to_dict(message))
+                self.task.complete()
                 return content
 
             self.messages.append(_message_to_dict(message))
@@ -113,6 +135,7 @@ class AgentRuntime:
                     call_id, name, arguments = _tool_call_values(tool_call)
                 except (TypeError, ValueError, json.JSONDecodeError) as exc:
                     print(f"[Tool Error] {exc}")
+                    self.task.fail(f"Invalid tool call: {exc}")
                     self.messages.append(
                         {
                             "role": "tool",
@@ -139,6 +162,8 @@ class AgentRuntime:
                 else:
                     result = self._execute_tool(name, arguments)
 
+                self.task.record_tool(name, succeeded=bool(result.get("ok")))
+
                 serialized = json.dumps(result, ensure_ascii=False, indent=2)
                 bounded, truncated = truncate_text(serialized)
 
@@ -156,6 +181,7 @@ class AgentRuntime:
                     }
                 )
 
+        self.task.hit_max_iterations()
         return "Agentの最大反復回数に達したため、処理を終了しました。"
 
     def _execute_tool(
@@ -180,7 +206,7 @@ class AgentRuntime:
     ) -> str:
         if name == "edit_file":
             return (
-                "Agentがローカルファイルを変更しようとしています。\n"
+                "Agentがローカルファイルを変更しようとしています.\n"
                 f"path: {arguments.get('path', '')}"
             )
 
