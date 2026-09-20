@@ -49,7 +49,7 @@ Agent Coreは特定用途に依存せず、Toolを追加することで能力を
 
 現時点では、ローカルPC上でのCoding / Automationを最初の用途として、次のToolを提供しています。
 
-Agent Coreには、1つの依頼を追跡するTaskStateと軽量なImplicit Planningを実装しています。別Planner Agentを増やさず、Qwen3:8Bへの呼び出し回数を増やさない方針です。
+Agent Coreには、1つの依頼を独立して追跡するTaskStateと軽量な実行状態・観測履歴を実装しています。別Planner Agentを増やさず、Qwen3:8Bへの呼び出し回数を必要以上に増やさない方針です。
 
 Long-term MemoryはAgent CoreのTask履歴とは分離し、ユーザーホーム配下のローカルJSONへ永続化します。検索は現在キーワードベースで、外部サービスやクラウドへ送信しません。
 
@@ -111,11 +111,13 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 
 ### Agent Core
 
-- Agent loopの安定化
-- 重複Tool Callのループ検知・抑止
-- Task state（1タスクの状態・反復・Tool履歴）
+- Agent loopの安定化（実装中）
+- Task内の重複Tool Call検知・抑止
+- Taskごとの独立した会話履歴
+- Task observation ledger（観測結果の保持・新規情報判定）
 - Context compaction（実装済みの基礎）
 - Task Manager（複数Taskの追跡・一覧化）
+- Tool用途メタデータによるルーティング補助
 - Long-term Memory（ローカルJSON + キーワード検索の基礎実装）
 - 複数タスクのtask management
 - Memory（拡張予定）
@@ -155,7 +157,9 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 - Agent Coreに特定用途のロジックを埋め込まない
 - ToolはRegistry経由で追加できるようにする
 - Tool結果はLLMへ返す前にサイズを制限する
-- 同じTool + 同じ引数の連続実行を検知し、無限ループを抑止する
+- 同じTool + 同じ引数のTask内重複実行を検知し、探索ループを抑止する
+- Tool結果をTask observationとして保持し、新しい情報が得られたかを追跡する
+- Task間の会話履歴を混在させない
 - ContextはTool CallとTool Resultの会話ブロックを壊さずに圧縮する
 - workspace外のアクセスを許可しない
 - 変更操作は確認可能にする
