@@ -122,3 +122,21 @@ def test_failed_tool_enters_recovery_quarantine_and_is_cleared_by_progress() -> 
     )
 
     assert task.recovery_tool is None
+
+
+def test_record_tool_tracks_result_truncation() -> None:
+    state = TaskState("調査")
+    state.start()
+
+    state.record_tool(
+        "fetch_web_page",
+        succeeded=True,
+        summary="page",
+        signature="fetch_web_page:1",
+        new_information=True,
+        progress_state=ProgressState.PROGRESSED,
+        result_truncated=True,
+    )
+
+    assert state.last_tool_result_truncated is True
+    assert "Last tool result truncated: True" in state.snapshot()
