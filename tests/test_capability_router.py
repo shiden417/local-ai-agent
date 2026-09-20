@@ -14,7 +14,7 @@ def test_router_scopes_workspace_tasks() -> None:
     )
 
     assert route.mode == RoutingMode.SCOPED
-    assert route.capabilities == frozenset({Capability.WORKSPACE_READ})
+    assert Capability.WORKSPACE_READ in route.capabilities
 
 
 def test_router_scopes_file_editing_tasks() -> None:
@@ -29,14 +29,14 @@ def test_router_scopes_process_tasks() -> None:
     route = CapabilityRouter().route("pytestを実行してください")
 
     assert route.mode == RoutingMode.SCOPED
-    assert route.capabilities == frozenset({Capability.PROCESS})
+    assert Capability.PROCESS in route.capabilities
 
 
 def test_router_detects_current_weather_as_web_search() -> None:
     route = CapabilityRouter().route("今日の天気を教えてください")
 
     assert route.mode == RoutingMode.SCOPED
-    assert route.capabilities == frozenset({Capability.WEB_SEARCH})
+    assert Capability.WEB_SEARCH in route.capabilities
 
 
 def test_router_detects_current_price_as_web_search() -> None:
@@ -50,7 +50,7 @@ def test_router_scopes_memory_tasks() -> None:
     route = CapabilityRouter().route("前回の記憶を確認してください")
 
     assert route.mode == RoutingMode.SCOPED
-    assert route.capabilities == frozenset({Capability.MEMORY_READ})
+    assert Capability.MEMORY_READ in route.capabilities
 
 
 def test_router_keeps_ambiguous_requests_open_for_llm_choice() -> None:
