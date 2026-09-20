@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from agent.capability_router import Capability
+from agent.capabilities import Capability
 from agent.tool_registry import ToolDefinition, ToolRegistry
 
 
@@ -28,194 +28,87 @@ def test_registry_exposes_openai_style_schema(tmp_path: Path) -> None:
     assert "Do not use for: No greeting is required." in registry.schemas[0]["function"]["description"]
 
 
-def test_registry_filters_on_demand_tools_by_task() -> None:
+def test_registry_exposes_registered_tools_without_natural_language_routing() -> None:
     registry = ToolRegistry()
-
     registry.register(
         ToolDefinition(
-            name="core",
-            description="Always available",
+            name="read",
+            description="Read",
             parameters={"type": "object", "properties": {}, "required": []},
             handler=lambda _working_directory, _arguments: {"ok": True},
-            availability="always",
         )
     )
+    registry.register(
+        ToolDefinition(
+            name="write",
+            description="Write",
+            parameters={"type": "object", "properties": {}, "required": []},
+            handler=lambda _working_directory, _arguments: {"ok": True},
+        )
+    )
+
+    names = [schema["function"]["name"] for schema in registry.schemas_for()]
+    assert names == ["read", "write"]
+
+
+def test_registry_can_exclude_temporarily_unavailable_tools() -> None:
+    registry = ToolRegistry()
+    for name in ("first", "second"):
+        registry.register(
+            ToolDefinition(
+                name=name,
+                description=name,
+                parameters={"type": "object", "properties": {}, "required": []},
+                handler=lambda _working_directory, _arguments: {"ok": True},
+            )
+        )
+
+    names = [schema["function"]["name"] for schema in registry.schemas_for(excluded_tools={"second"})]
+    assert names == ["first"]
+
+
+def test_registry_hides_control_tools_by_default() -> None:
+    registry = ToolRegistry()
+    for name in ("ask_user", "finish_task"):
+        registry.register(
+            ToolDefinition(
+                name=name,
+                description=name,
+                parameters={"type": "object", "properties": {}, "required": []},
+                handler=lambda _working_directory, _arguments: {"ok": True},
+            )
+        )
+
+    assert registry.schemas_for() == []
+    names = [schema["function"]["name"] for schema in registry.schemas_for(include_control_tools=True)]
+    assert names == ["ask_user", "finish_task"]
+
+
+def test_default_registry_contains_all_registered_tools() -> None:
+    from agent.tools import create_default_tool_registry
+
+    registry = create_default_tool_registry()
+    names = [schema["function"]["name"] for schema in registry.schemas_for()]
+    assert set(names) == set(registry.names()) - {"ask_user", "finish_task"}
+
+
+def test_default_registry_exposes_controls_for_agent_tasks() -> None:
+    from agent.tools import create_default_tool_registry
+
+    registry = create_default_tool_registry()
+    names = [schema["function"]["name"] for schema in registry.schemas_for(include_control_tools=True)]
+    assert set(names) == set(registry.names())
+
+
+def test_tool_capability_metadata_is_preserved() -> None:
+    registry = ToolRegistry()
     registry.register(
         ToolDefinition(
             name="memory",
             description="Memory operation",
             parameters={"type": "object", "properties": {}, "required": []},
             handler=lambda _working_directory, _arguments: {"ok": True},
-            availability="on_demand",
             capabilities=(Capability.MEMORY_READ,),
         )
     )
-
-    memory_schemas = registry.schemas_for("前回の記憶を確認してください")
-    workspace_schemas = registry.schemas_for("このフォルダの中身を確認してください")
-
-    assert [schema["function"]["name"] for schema in memory_schemas] == [
-        "core",
-        "memory",
-    ]
-    assert [schema["function"]["name"] for schema in workspace_schemas] == [
-        "core",
-    ]
-
-    excluded = registry.schemas_for(
-        "前回の記憶を確認してください",
-        excluded_tools={"memory"},
-    )
-    assert [schema["function"]["name"] for schema in excluded] == ["core"]
-
- 
- 
-def test_registry_routes_default_capability_scopes() -> None:
-    from agent.tools import create_default_tool_registry
-
-    registry = create_default_tool_registry()
-
-    assert registry.schemas_for("こんにちは") == []
-
-    folder_tools = [
-        schema["function"]["name"]
-        for schema in registry.schemas_for(
-            "このフォルダの一覧を確認してください"
-        )
-    ]
-    assert folder_tools == ["list_directory", "read_file", "search_files"]
-
-    process_tools = [
-        schema["function"]["name"]
-        for schema in registry.schemas_for("pytestを実行してください")
-    ]
-    assert process_tools == ["execute_command"]
-
-    memory_tools = [
-        schema["function"]["name"]
-        for schema in registry.schemas_for("前回の記憶を確認してください")
-    ]
-    assert memory_tools == ["search_memory"]
-
-    ambiguous_tools = [
-        schema["function"]["name"]
-        for schema in registry.schemas_for("どうすればよいですか")
-    ]
-    assert ambiguous_tools == []
-
-
-def test_registry_exposes_read_and_write_tools_for_edit_tasks() -> None:
-    from agent.tools import create_default_tool_registry
-
-    registry = create_default_tool_registry()
-
-    edit_tools = [
-        schema["function"]["name"]
-        for schema in registry.schemas_for("READMEを修正してください")
-    ]
-
-    assert edit_tools == ["list_directory", "read_file", "search_files", "file_mutation"]
-
-
-def test_registry_exposes_create_file_for_creation_request() -> None:
-    from agent.tools import create_default_tool_registry
-
-    registry = create_default_tool_registry()
-
-    tools = [
-        schema["function"]["name"]
-        for schema in registry.schemas_for("HTMLファイルを作成してください")
-    ]
-
-    assert tools == ["file_mutation"]
-
-
-def test_registry_exposes_delete_file_for_deletion_request() -> None:
-    from agent.tools import create_default_tool_registry
-
-    registry = create_default_tool_registry()
-
-    tools = [
-        schema["function"]["name"]
-        for schema in registry.schemas_for("test.htmlを削除してください")
-    ]
-
-    assert tools == ["file_mutation"]
-
-
-def test_registry_exposes_capability_management_tools_for_plugin_requests() -> None:
-    from agent.tools import create_default_tool_registry
-
-    registry = create_default_tool_registry()
-
-    tools = [
-        schema["function"]["name"]
-        for schema in registry.schemas_for("新しいToolを追加してPDFを処理できるようにして")
-    ]
-
-    assert tools == [
-        "list_promotion_candidates",
-        "generate_plugin",
-        "test_plugin_candidate",
-        "stage_plugin",
-        "promote_plugin",
-    ]
-
-
-def test_registry_exposes_promotion_candidate_tool() -> None:
-    from agent.tools import create_default_tool_registry
-
-    registry = create_default_tool_registry()
-
-    tools = [
-        schema["function"]["name"]
-        for schema in registry.schemas_for("Agentに新しい能力を追加したい")
-    ]
-
-    assert tools == [
-        "list_promotion_candidates",
-        "generate_plugin",
-        "test_plugin_candidate",
-        "stage_plugin",
-        "promote_plugin",
-    ]
-
-
-def test_registry_exposes_full_plugin_promotion_pipeline() -> None:
-    from agent.tools import create_default_tool_registry
-
-    registry = create_default_tool_registry()
-
-    tools = [
-        schema["function"]["name"]
-        for schema in registry.schemas_for("Agentに新しい能力を追加して")
-    ]
-
-    assert tools == [
-        "list_promotion_candidates",
-        "generate_plugin",
-        "test_plugin_candidate",
-        "stage_plugin",
-        "promote_plugin",
-    ]
-
-from agent.capability_router import Capability
-from agent.tools import create_default_tool_registry
-
-
-def test_router_detects_web_search() -> None:
-    registry = create_default_tool_registry()
-    route = registry.route_for("最新のPython 3.14の情報をWeb検索してください")
-
-    assert route.mode.value == "scoped"
-    assert Capability.WEB_SEARCH in route.capabilities
-
-
-def test_registry_exposes_web_search_only_for_web_task() -> None:
-    registry = create_default_tool_registry()
-    names = [
-        schema["function"]["name"]
-        for schema in registry.schemas_for("WebでPython 3.14の最新情報を検索してください")
-    ]
-
-    assert names == ["search_web", "fetch_web_page"]
+    assert registry.get("memory").capabilities == (Capability.MEMORY_READ,)
