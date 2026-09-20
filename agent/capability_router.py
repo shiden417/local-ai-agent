@@ -83,7 +83,7 @@ class CapabilityRouter:
                 capabilities=frozenset(),
             )
 
-        if any(re.search(pattern, text.casefold()) for pattern in self._DIRECT_PATTERNS):
+        if any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in self._DIRECT_PATTERNS):
             return CapabilityRoute(
                 mode=RoutingMode.DIRECT,
                 capabilities=frozenset(),
@@ -93,7 +93,7 @@ class CapabilityRouter:
             capability
             for capability, patterns in self._PATTERNS.items()
             if any(
-                re.search(pattern, text.casefold())
+                re.search(pattern, text, flags=re.IGNORECASE)
                 for pattern in patterns
             )
         }
