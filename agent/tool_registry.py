@@ -74,7 +74,21 @@ class ToolRegistry:
         concrete tool and decides whether to call it.
         """
         excluded = excluded_tools or set()
-        capabilities = self.capability_router.detect(task_text)
+        route = self.capability_router.route(task_text)
+
+        if route.mode == "DIRECT":
+            return [
+                tool.schema()
+                for tool in self._tools.values()
+                if tool.name not in excluded and tool.availability == "always"
+            ]
+
+        if route.mode == "OPEN":
+            return [
+                tool.schema()
+                for tool in self._tools.values()
+                if tool.name not in excluded
+            ]
 
         return [
             tool.schema()
@@ -83,7 +97,7 @@ class ToolRegistry:
             and (
                 tool.availability == "always"
                 or any(
-                    capability in capabilities
+                    capability in route.capabilities
                     for capability in tool.capabilities
                 )
             )
