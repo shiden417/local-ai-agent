@@ -35,8 +35,8 @@ class CapabilityRouter:
     Direct mode is intentionally conservative and only covers obvious
     conversational inputs. Scoped mode recognizes strong operational intent
     and exposes the matching capability families. Ambiguous requests use Open
-    mode so the LLM still has access to the complete registered capability
-    set and can decide whether a tool is actually necessary.
+    mode so the Runtime can answer conversationally without exposing operational
+    Tools speculatively.
     """
 
     _DIRECT_PATTERNS: tuple[str, ...] = (
