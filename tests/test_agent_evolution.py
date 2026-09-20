@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from agent.capability_router import Capability, CapabilityRouter, RoutingMode
 from agent.environment import build_environment_context
 from agent.runtime import AgentRuntime
-from agent.session_context import SessionContext
+from agent.session import SessionManager
 from agent.task import TaskState
 from agent.tool_registry import ToolDefinition, ToolRegistry
 from agent.tools import create_default_tool_registry
@@ -37,7 +37,7 @@ def test_direct_conversation_does_not_create_task(monkeypatch, tmp_path: Path):
 
     assert answer == "こんにちは。どうしましたか？"
     assert runtime.list_tasks() == []
-    assert runtime.conversation_manager.recent_messages()[-1]["content"] == answer
+    assert runtime.session_manager.recent_conversation_messages()[-1]["content"] == answer
 
 
 def test_control_tools_are_scoped_to_agent_tasks():
@@ -65,7 +65,7 @@ def test_future_weather_is_action_routed():
 
 
 def test_session_context_keeps_compact_web_facts():
-    context = SessionContext()
+    context = SessionManager()
     context.remember_task(
         "東京の明日の天気を調べて",
         "明日は晴れで、最高気温は28℃です。",
@@ -150,7 +150,7 @@ def test_fetch_web_page_extracts_readable_html(monkeypatch):
 def test_finish_task_requires_a_successful_prior_action(tmp_path: Path):
     runtime = AgentRuntime(tmp_path)
     task = TaskState("ファイルを作成して")
-    error = runtime._verify_finish_task(
+    error = runtime.completion_verifier.verify(
         task,
         {"completion_status": "completed"},
     )
@@ -170,7 +170,7 @@ def test_finish_task_allows_successful_command(tmp_path: Path):
         }
     ]
 
-    assert runtime._verify_finish_task(
+    assert runtime.completion_verifier.verify(
         task,
         {"completion_status": "completed"},
     ) is None
@@ -179,7 +179,7 @@ def test_finish_task_allows_successful_command(tmp_path: Path):
 
 def test_session_context_follow_up_reuses_previous_capability(tmp_path: Path) -> None:
     runtime = AgentRuntime(tmp_path)
-    runtime.session_context.remember_task(
+    runtime.session_manager.remember_task(
         "Python 3.14について調べて",
         "Python 3.14の変更点を確認しました。",
         [
@@ -205,7 +205,7 @@ def test_session_context_follow_up_reuses_previous_capability(tmp_path: Path) ->
 
 def test_stale_previous_answer_is_rejected_after_new_observation(tmp_path: Path) -> None:
     runtime = AgentRuntime(tmp_path)
-    runtime.session_context.last_answer = "前のTaskの回答です。"
+    runtime.session_manager.last_answer = "前のTaskの回答です。"
     task = runtime.task_manager.create("現在のTaskを調べる")
     task.messages = [
         {"role": "user", "content": task.goal},
@@ -226,7 +226,7 @@ def test_previous_answer_without_current_observation_is_not_treated_as_stale(
     tmp_path: Path,
 ) -> None:
     runtime = AgentRuntime(tmp_path)
-    runtime.session_context.last_answer = "同じ説明です。"
+    runtime.session_manager.last_answer = "同じ説明です。"
     task = runtime.task_manager.create("会話する")
 
     assert runtime._is_stale_session_response("同じ説明です。", task) is False
@@ -246,7 +246,7 @@ def test_latest_web_completion_requires_page_fetch(tmp_path: Path) -> None:
         }
     ]
 
-    error = runtime._verify_finish_task(
+    error = runtime.completion_verifier.verify(
         task,
         {"completion_status": "completed"},
     )
@@ -277,7 +277,7 @@ def test_latest_web_completion_accepts_fetched_source(tmp_path: Path) -> None:
         },
     ]
 
-    assert runtime._verify_finish_task(
+    assert runtime.completion_verifier.verify(
         task,
         {"completion_status": "completed"},
     ) is None
@@ -297,7 +297,7 @@ def test_project_investigation_cannot_finish_from_listing_only(tmp_path: Path) -
         }
     ]
 
-    error = runtime._verify_finish_task(
+    error = runtime.completion_verifier.verify(
         task,
         {"completion_status": "completed"},
     )
@@ -324,7 +324,7 @@ def test_project_investigation_accepts_concrete_diagnostic(tmp_path: Path) -> No
         },
     ]
 
-    assert runtime._verify_finish_task(
+    assert runtime.completion_verifier.verify(
         task,
         {"completion_status": "completed"},
     ) is None
@@ -347,7 +347,7 @@ def test_fetch_web_page_blocks_private_ip() -> None:
 
 
 def test_session_context_preserves_facts_for_follow_up(tmp_path: Path) -> None:
-    context = SessionContext()
+    context = SessionManager()
     context.remember_task(
         "Python 3.14について調べて",
         "公式情報を確認しました。",
@@ -379,12 +379,12 @@ def test_session_context_keeps_topic_anchor_across_multiple_follow_ups(
     tmp_path: Path,
 ) -> None:
     runtime = AgentRuntime(tmp_path)
-    runtime.session_context.remember_task(
+    runtime.session_manager.remember_task(
         "Python 3.14について調べて",
         "調査しました。",
         [],
     )
-    runtime.session_context.remember_task(
+    runtime.session_manager.remember_task(
         "その中で重要な変更を3つ教えて",
         "3つまとめました。",
         [],
@@ -448,17 +448,17 @@ def test_completed_task_does_not_pollute_conversation_history(
     runtime = AgentRuntime(tmp_path, tool_registry=registry)
     assert runtime.run("アクションを実行してください") == "調査結果を確認しました。"
 
-    assert runtime.conversation_manager.recent_messages() == []
-    assert runtime.session_context.last_answer == "調査結果を確認しました。"
+    assert runtime.session_manager.recent_conversation_messages() == []
+    assert runtime.session_manager.last_answer == "調査結果を確認しました。"
 
 
 
 def test_clear_session_context_resets_ephemeral_context(tmp_path: Path) -> None:
     runtime = AgentRuntime(tmp_path)
-    runtime.session_context.remember_task("topic", "answer", [])
-    runtime.conversation_manager.add_turn("hello", "world")
+    runtime.session_manager.remember_task("topic", "answer", [])
+    runtime.session_manager.add_conversation_turn("hello", "world")
 
     runtime.clear_session_context()
 
-    assert runtime.session_context.has_context is False
-    assert runtime.conversation_manager.recent_messages() == []
+    assert runtime.session_manager.has_context is False
+    assert runtime.session_manager.recent_conversation_messages() == []
