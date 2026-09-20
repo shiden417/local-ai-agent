@@ -58,9 +58,12 @@ class CapabilityRouter:
             r"\b(edit|modify|fix|change|update|write|create|delete|remove)\b",
         ),
         Capability.PROCESS: (
-            r"(実行|コマンド|テスト|ビルド|起動|停止|インストール).{0,15}",
-            r"\b(run|execute|test|build|install|command|powershell)\b",
-            r"\bgit\b",
+            r"(テスト|pytest).{0,12}(実行|走らせ|回し|して)",
+            r"(ビルド|build).{0,12}(実行|して)?",
+            r"(コマンド|PowerShell).{0,12}(実行|打|走らせ|して)",
+            r"(起動|停止|インストール).{0,12}(して|する|を)",
+            r"\b(pytest|powershell|git)\b",
+            r"\b(run|execute|build|install|command)\b.{0,12}\b(it|this|test|project|command)?",
         ),
         Capability.MEMORY_READ: (
             r"(以前|前回|過去|覚えている|記憶|メモリ).{0,15}(確認|調べ|教え|思い出|検索)?",
