@@ -690,3 +690,14 @@ def test_runtime_keeps_tool_quarantine_inside_task_state(
     assert runtime.run("調査") == "完了しました。"
     assert runtime.task is not None
     assert runtime.task.disabled_tools == set()
+
+
+def test_runtime_normalizes_message_like_final_content() -> None:
+    message_like = {
+        "role": "assistant",
+        "content": "こんにちは！",
+        "tool_calls": [],
+    }
+
+    assert AgentRuntime._normalize_final_content(message_like) == "こんにちは！"
+    assert AgentRuntime._normalize_final_content("  直接回答  ") == "直接回答"
