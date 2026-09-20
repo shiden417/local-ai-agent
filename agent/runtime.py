@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from agent.llm import ask_llm
 from agent.observation import truncate_text
+from agent.safety import requires_confirmation
 from agent.tool_registry import ToolRegistry
 from agent.tools import create_default_tool_registry
 
@@ -20,12 +21,14 @@ SYSTEM_PROMPT = """あなたはローカルAI Agentです。
 - ツール実行結果を確認し、必要なら次のツールを呼び出してください。
 - コマンドが失敗した場合は、エラー内容を分析して別の方法を試してください。
 - Agentの作業ディレクトリの外へアクセスしようとしないでください。
+- edit_fileはユーザー確認後に実行されます。
 - 作業が完了したら、最終結果を通常の文章で説明してください。
 
 現在使用できるツール:
 - list_directory: 作業ディレクトリ内のファイル・ディレクトリ一覧
 - read_file: 作業ディレクトリ内のテキストファイルの読み取り
 - search_files: 作業ディレクトリ内の文字列検索
+- edit_file: 読み取ったファイルの一部分をSEARCH/REPLACE方式で変更
 - execute_command: 作業ディレクトリをカレントディレクトリとしてPowerShellを実行
 
 ファイル操作では、できるだけ専用Toolを優先してください。
@@ -79,13 +82,20 @@ class AgentRuntime:
         working_directory: str | Path,
         max_iterations: int = 10,
         tool_registry: ToolRegistry | None = None,
+        confirm: Callable[[str], bool] | None = None,
     ) -> None:
         self.working_directory = Path(working_directory).resolve()
         self.max_iterations = max_iterations
         self.tool_registry = tool_registry or create_default_tool_registry()
+        self.confirm = confirm or self._default_confirm
         self.messages: list[dict[str, Any]] = [
             {"role": "system", "content": SYSTEM_PROMPT}
         ]
+
+    @staticmethod
+    def _default_confirm(message: str) -> bool:
+        answer = input(f"\n{message}\nProceed? [y/N]: ")
+        return answer.strip().lower() in {"y", "yes"}
 
     def run(self, user_input: str) -> str:
         self.messages.append({"role": "user", "content": user_input})
@@ -122,15 +132,27 @@ class AgentRuntime:
                     )
                     continue
 
-                print(f"\n[Tool] {name}")
-                print(f"[Working Directory] {self.working_directory}")
-                print(f"[Arguments] {json.dumps(arguments, ensure_ascii=False)}")
-
-                result = self.tool_registry.execute(
-                    name,
-                    arguments,
-                    self.working_directory,
-                )
+                if requires_confirmation(name, arguments):
+                    summary = self._confirmation_message(name, arguments)
+                    if not self.confirm(summary):
+                        result = {
+                            "ok": False,
+                            "error": "User rejected the operation.",
+                            "user_rejected": True,
+                        }
+                        print("[Tool] rejected by user")
+                    else:
+                        result = self._execute_tool(
+                            name,
+                            arguments,
+                            call_id,
+                        )
+                else:
+                    result = self._execute_tool(
+                        name,
+                        arguments,
+                        call_id,
+                    )
 
                 serialized = json.dumps(result, ensure_ascii=False, indent=2)
                 bounded, truncated = truncate_text(serialized)
@@ -150,3 +172,41 @@ class AgentRuntime:
                 )
 
         return "Agentの最大反復回数に達したため、処理を終了しました。"
+
+    def _execute_tool(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        call_id: str,
+    ) -> dict[str, Any]:
+        print(f"\n[Tool] {name}")
+        print(f"[Working Directory] {self.working_directory}")
+        print(f"[Arguments] {json.dumps(arguments, ensure_ascii=False)}")
+
+        try:
+            return self.tool_registry.execute(
+                name,
+                arguments,
+                self.working_directory,
+            )
+        except Exception as exc:
+            return {
+                "ok": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+
+    @staticmethod
+    def _confirmation_message(
+        name: str,
+        arguments: dict[str, Any],
+    ) -> str:
+        if name == "edit_file":
+            return (
+                "Agentがファイルを変更しようとしています。\n"
+                f"path: {arguments.get('path', '')}"
+            )
+
+        return (
+            "Agentが破壊的なコマンドを実行しようとしています。\n"
+            f"command: {arguments.get('command', '')}"
+        )
