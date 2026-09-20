@@ -9,7 +9,6 @@ import subprocess
 import sys
 from typing import Any
 
-from agent.capabilities import Capability
 from agent.observation import truncate_text
 from agent.tool_registry import ToolDefinition, ToolRegistry
 
@@ -224,16 +223,6 @@ class PluginManager:
         self._validate_manifest(manifest, plugin_id)
         self._validate_source(source)
 
-        try:
-            capabilities = tuple(
-                Capability(value)
-                for value in manifest.get("capabilities", [])
-            )
-        except ValueError as exc:
-            raise PluginValidationError(
-                f"unsupported plugin capability: {exc}"
-            ) from exc
-
         timeout = int(
             manifest.get(
                 "timeout_seconds",
@@ -250,8 +239,6 @@ class PluginManager:
             requires_confirmation=True,
             use_when=str(manifest.get("use_when", "")),
             avoid_when=str(manifest.get("avoid_when", "")),
-            availability="on_demand",
-            capabilities=capabilities,
             terminal_on_success=bool(manifest.get("terminal_on_success", False)),
         )
 
@@ -316,13 +303,15 @@ class PluginManager:
             raise PluginValidationError(
                 "plugin capabilities must be a non-empty array of strings"
             )
-        for value in capabilities:
-            try:
-                Capability(value)
-            except ValueError as exc:
-                raise PluginValidationError(
-                    f"unsupported plugin capability: {value}"
-                ) from exc
+        supported_capabilities = {"script_execution"}
+        unsupported = [
+            value for value in capabilities
+            if value not in supported_capabilities
+        ]
+        if unsupported:
+            raise PluginValidationError(
+                f"unsupported plugin capability: {unsupported[0]}"
+            )
 
         timeout = manifest.get(
             "timeout_seconds",
