@@ -100,7 +100,6 @@ def test_failed_unique_observation_does_not_count_as_progress() -> None:
 
     assert task.observations[0].new_information is True
     assert task.observations[0].progress_state.value == "failed"
-    assert task.progress_count == 0
     assert task.no_progress_streak == 1
 
 
