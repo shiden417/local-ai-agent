@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import tempfile
@@ -108,6 +109,7 @@ def run_benchmark(root: Path, *, model: str | None, max_iterations: int, output:
 
     from agent.runtime import AgentRuntime
     from agent.llm import MODEL
+    from agent.trace import TraceRecorder
     from agent.trace import TraceRecorder
 
     _seed_workspace(root)
