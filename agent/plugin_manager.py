@@ -177,9 +177,8 @@ class PluginManager:
             description=str(manifest["description"]),
             parameters=dict(manifest["parameters"]),
             handler=self._build_handler(directory, timeout),
-            requires_confirmation=bool(
-                manifest.get("requires_confirmation", True)
-            ),
+            # Plugins always require confirmation in the current trust model.
+            requires_confirmation=True,
             use_when=str(manifest.get("use_when", "")),
             avoid_when=str(manifest.get("avoid_when", "")),
             availability="on_demand",
@@ -242,11 +241,11 @@ class PluginManager:
             )
 
         capabilities = manifest.get("capabilities", [])
-        if not isinstance(capabilities, list) or not all(
+        if not isinstance(capabilities, list) or not capabilities or not all(
             isinstance(value, str) for value in capabilities
         ):
             raise PluginValidationError(
-                "plugin capabilities must be an array of strings"
+                "plugin capabilities must be a non-empty array of strings"
             )
         for value in capabilities:
             try:
