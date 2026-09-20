@@ -14,6 +14,7 @@ class Capability(str, Enum):
     MEMORY_READ = "memory_read"
     MEMORY_WRITE = "memory_write"
     WEB_SEARCH = "web_search"
+    AGENT_CONTROL = "agent_control"
 
 
 class RoutingMode(str, Enum):
@@ -121,6 +122,10 @@ class CapabilityRouter:
                 for pattern in patterns
             )
         }
+
+        # Control tools are available only inside concrete Agent tasks.
+        if capabilities:
+            capabilities.add(Capability.AGENT_CONTROL)
 
         # Explicit requests to add or change the Agent's capabilities
         # are routed to capability management only. Do not expose unrelated
