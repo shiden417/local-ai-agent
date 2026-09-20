@@ -112,3 +112,33 @@ def test_tool_capability_metadata_is_preserved() -> None:
         )
     )
     assert registry.get("memory").capabilities == (Capability.MEMORY_READ,)
+
+
+def test_default_registry_excludes_experimental_plugin_tools() -> None:
+    from agent.tools import create_default_tool_registry
+
+    registry = create_default_tool_registry()
+    names = set(registry.names())
+
+    assert {
+        "list_promotion_candidates",
+        "generate_plugin",
+        "test_plugin_candidate",
+        "stage_plugin",
+        "promote_plugin",
+    }.isdisjoint(names)
+
+
+def test_experimental_registry_can_be_opted_in() -> None:
+    from agent.tools import create_default_tool_registry
+
+    registry = create_default_tool_registry(enable_experimental=True)
+    names = set(registry.names())
+
+    assert {
+        "list_promotion_candidates",
+        "generate_plugin",
+        "test_plugin_candidate",
+        "stage_plugin",
+        "promote_plugin",
+    } <= names
