@@ -9,12 +9,13 @@ from tools.search_files import search_files
 
 
 def create_default_tool_registry() -> ToolRegistry:
+    """Create the default local-PC capability set."""
     registry = ToolRegistry()
 
     registry.register(
         ToolDefinition(
             name="list_directory",
-            description="List files and directories inside the Agent workspace. Use relative paths only.",
+            description="List files and directories inside the current Agent workspace. Use relative paths only.",
             parameters={
                 "type": "object",
                 "properties": {
@@ -33,7 +34,7 @@ def create_default_tool_registry() -> ToolRegistry:
     registry.register(
         ToolDefinition(
             name="read_file",
-            description="Read a text file inside the Agent workspace. Use this before editing code.",
+            description="Read a text file inside the current Agent workspace. Use this when you need local file contents.",
             parameters={
                 "type": "object",
                 "properties": {
@@ -62,7 +63,7 @@ def create_default_tool_registry() -> ToolRegistry:
     registry.register(
         ToolDefinition(
             name="search_files",
-            description="Search text inside files in the Agent workspace. Use this to find symbols, messages, or code references.",
+            description="Search text inside local files in the current Agent workspace.",
             parameters={
                 "type": "object",
                 "properties": {
@@ -89,7 +90,7 @@ def create_default_tool_registry() -> ToolRegistry:
     registry.register(
         ToolDefinition(
             name="edit_file",
-            description="Edit a text file by replacing exactly one matching text block. Read the file first and use an exact search_text block.",
+            description="Replace exactly one matching text block in a local text file. Read the file first and provide an exact search_text block.",
             parameters={
                 "type": "object",
                 "properties": {
@@ -110,13 +111,14 @@ def create_default_tool_registry() -> ToolRegistry:
                 "additionalProperties": False,
             },
             handler=edit_file,
+            requires_confirmation=True,
         )
     )
 
     registry.register(
         ToolDefinition(
             name="execute_command",
-            description="Execute a PowerShell command with the Agent workspace as its current directory. Use this for build, test, Git, and other operations without a dedicated tool.",
+            description="Execute a PowerShell command in the current Agent workspace. Use this for OS operations or tasks without a dedicated Tool.",
             parameters={
                 "type": "object",
                 "properties": {
