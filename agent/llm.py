@@ -7,7 +7,8 @@ from openai import OpenAI
 
 
 LM_STUDIO_BASE_URL = os.getenv("LM_STUDIO_BASE_URL", "http://localhost:1234/v1")
-MODEL = os.getenv("LM_STUDIO_MODEL", "qwen/qwen3-8b")
+DEFAULT_MODEL = "google/gemma-4-e4b-qat"
+MODEL = os.getenv("LM_STUDIO_MODEL", DEFAULT_MODEL)
 
 _client = OpenAI(
     base_url=LM_STUDIO_BASE_URL,
