@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from tools.create_file import create_file
+from tools.delete_file import delete_file
 from tools.list_directory import list_directory
 from tools.read_file import read_file
 
@@ -77,3 +78,36 @@ def test_create_file_creates_parent_directories(tmp_path: Path) -> None:
 
     assert result["ok"] is True
     assert (tmp_path / "nested/site/test.html").exists()
+
+
+def test_delete_file_deletes_existing_file(tmp_path: Path) -> None:
+    target = tmp_path / "test.html"
+    target.write_text("hello", encoding="utf-8")
+
+    result = delete_file(tmp_path, {"path": "test.html"})
+
+    assert result["ok"] is True
+    assert result["deleted"] is True
+    assert not target.exists()
+
+
+def test_delete_file_does_not_delete_directory(tmp_path: Path) -> None:
+    target = tmp_path / "folder"
+    target.mkdir()
+
+    result = delete_file(tmp_path, {"path": "folder"})
+
+    assert result["ok"] is False
+    assert "Not a file" in result["error"]
+    assert target.exists()
+
+
+def test_delete_file_supports_explicit_absolute_local_path(tmp_path: Path) -> None:
+    target = tmp_path / "external.html"
+    target.write_text("hello", encoding="utf-8")
+
+    result = delete_file(tmp_path, {"path": str(target)})
+
+    assert result["ok"] is True
+    assert result["deleted"] is True
+    assert not target.exists()
