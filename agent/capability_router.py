@@ -86,11 +86,22 @@ class CapabilityRouter:
                 capabilities=frozenset(),
             )
 
-        capabilities = frozenset(
+        capabilities = {
             capability
             for capability, patterns in self._PATTERNS.items()
-            if any(re.search(pattern, text.casefold()) for pattern in patterns)
-        )
+            if any(
+                re.search(pattern, text.casefold())
+                for pattern in patterns
+            )
+        }
+
+        # Local file edits normally require inspection first. Keep the
+        # capability scope explicit so the LLM can read the target before
+        # choosing the mutating tool.
+        if Capability.WORKSPACE_WRITE in capabilities:
+            capabilities.add(Capability.WORKSPACE_READ)
+
+        capabilities = frozenset(capabilities)
 
         if capabilities:
             return CapabilityRoute(
