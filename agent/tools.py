@@ -1,16 +1,21 @@
 from pathlib import Path
 
+from agent.memory import MemoryStore
 from agent.tool_registry import ToolDefinition, ToolRegistry
 from tools.edit_file import edit_file
 from tools.execute_command import execute_command
 from tools.list_directory import list_directory
+from tools.memory import save_memory, search_memory
 from tools.read_file import read_file
 from tools.search_files import search_files
 
 
-def create_default_tool_registry() -> ToolRegistry:
-    """Create the default local-PC capability set."""
+def create_default_tool_registry(
+    memory_store: MemoryStore | None = None,
+) -> ToolRegistry:
+    """Create the default local capability set."""
     registry = ToolRegistry()
+    memory = memory_store or MemoryStore()
 
     registry.register(
         ToolDefinition(
@@ -133,6 +138,64 @@ def create_default_tool_registry() -> ToolRegistry:
             handler=lambda working_directory, arguments: execute_command(
                 str(arguments.get("command", "")),
                 working_directory=working_directory,
+            ),
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="save_memory",
+            description="Save a durable fact or preference for future conversations. Do not store sensitive secrets or credentials.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "string",
+                        "description": "A concise fact, preference, or durable piece of information to remember.",
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional short tags for later retrieval.",
+                    },
+                },
+                "required": ["content"],
+                "additionalProperties": False,
+            },
+            handler=lambda working_directory, arguments: save_memory(
+                memory,
+                working_directory,
+                arguments,
+            ),
+            requires_confirmation=True,
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="search_memory",
+            description="Search durable local memory for relevant facts or preferences from previous tasks.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Keywords describing the information you want to recall.",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10,
+                        "description": "Maximum number of memory entries to return.",
+                    },
+                },
+                "required": ["query"],
+                "additionalProperties": False,
+            },
+            handler=lambda working_directory, arguments: search_memory(
+                memory,
+                working_directory,
+                arguments,
             ),
         )
     )
