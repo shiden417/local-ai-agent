@@ -272,3 +272,88 @@ def test_runtime_tracks_multiple_tasks(
     assert tasks[0].status.value == "completed"
     assert tasks[1].goal == "first"
     assert tasks[1].status.value == "completed"
+
+
+def test_runtime_blocks_consecutive_duplicate_tool_calls(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    registry = ToolRegistry()
+    executed = {"count": 0}
+
+    def inspect(_working_directory, _arguments):
+        executed["count"] += 1
+        return {"ok": True, "value": "already inspected"}
+
+    registry.register(
+        ToolDefinition(
+            name="inspect",
+            description="Inspect something",
+            parameters={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+            handler=inspect,
+        )
+    )
+
+    def make_tool_response():
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="",
+                        tool_calls=[
+                            SimpleNamespace(
+                                id="call-inspect",
+                                function=SimpleNamespace(
+                                    name="inspect",
+                                    arguments="{}",
+                                ),
+                            )
+                        ],
+                    )
+                )
+            ]
+        )
+
+    final_response = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    role="assistant",
+                    content="結果を確認しました。",
+                    tool_calls=[],
+                )
+            )
+        ]
+    )
+
+    responses = [
+        make_tool_response(),
+        make_tool_response(),
+        final_response,
+    ]
+
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm",
+        lambda _messages, tools=None: responses.pop(0),
+    )
+
+    runtime = AgentRuntime(
+        tmp_path,
+        tool_registry=registry,
+    )
+
+    result = runtime.run("調査してください")
+
+    assert result == "結果を確認しました。"
+    assert executed["count"] == 1
+    assert any(
+        json.loads(message["content"]).get("repeated_tool_call") is True
+        for message in runtime.messages
+        if message.get("role") == "tool"
+    )
