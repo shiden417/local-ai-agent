@@ -28,7 +28,7 @@ Agent Coreは特定用途に依存せず、Toolを追加することで能力を
     Capability Router
       ├─ Direct: obvious conversation → no tools
       ├─ Scoped: expose relevant capability families
-      └─ Open: ambiguous → expose registered tools
+      └─ Open: ambiguous → no on-demand tools; avoid speculative actions
       ↓
     LLM abstraction
       ↓
@@ -54,7 +54,7 @@ Agent Coreは特定用途に依存せず、Toolを追加することで能力を
 
 現時点では、ローカルPC上でのCoding / Automationを最初の用途として、次のToolを提供しています。
 
-Agent Coreには、1つの依頼を独立して追跡するTaskStateと軽量な実行状態・観測履歴を実装しています。さらに、Action identity（同一Tool呼び出し）、Observation identity（得られた知識）、Progress（目的への前進）を分離して管理します。Runtimeは毎回Task dashboardをLLMへ提示し、Capability RouterでToolの公開範囲だけを調整します。最終的な「Toolを使うか」「どのToolを使うか」はQwen3:8Bが判断します。明らかな会話はDirect、具体的な作業はScoped、曖昧な依頼はOpenとして扱い、汎用性と8Bモデルの安定性を両立します。別Planner Agentを増やさず、Qwen3:8Bへの呼び出し回数を必要以上に増やさない方針です。
+Agent Coreには、1つの依頼を独立して追跡するTaskStateと軽量な実行状態・観測履歴を実装しています。さらに、Action identity（同一Tool呼び出し）、Observation identity（得られた知識）、Progress（目的への前進）を分離して管理します。Runtimeは毎回Task dashboardをLLMへ提示し、Capability RouterでToolの公開範囲だけを調整します。最終的な「Toolを使うか」「どのToolを使うか」はQwen3:8Bが判断します。明らかな会話はDirect、具体的な作業はScoped、曖昧な依頼はOpenとして扱います。Openでは現在、推測によるTool実行を防ぐためon-demand Toolを公開しません。将来、Web/APIなどの追加Capabilityを導入する際に、Openの扱いを拡張できる構造にします。別Planner Agentを増やさず、Qwen3:8Bへの呼び出し回数を必要以上に増やさない方針です。
 
 Long-term MemoryはAgent CoreのTask履歴とは分離し、ユーザーホーム配下のローカルJSONへ永続化します。検索は現在キーワードベースで、外部サービスやクラウドへ送信しません。
 
