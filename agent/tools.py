@@ -208,10 +208,10 @@ def create_default_tool_registry(
             ),
             use_when=(
                 "Current external information is needed, or the user explicitly asks "
-                "for web/internet search.",
+                "for web/internet search."
             ),
             avoid_when=(
-                "The answer is already known from the task context or local workspace.",
+                "The answer is already known from the task context or local workspace."
             ),
             availability="on_demand",
             capabilities=(Capability.WEB_SEARCH,),
