@@ -151,171 +151,171 @@ def register_experimental_tools(
     recipes: RecipeStore,
 ) -> None:
     """Register optional Recipe/Plugin capabilities into a Tool Registry."""
-        registry.register(
-            ToolDefinition(
-                name="list_promotion_candidates",
-                description=(
-                    "List successful temporary Script Recipes that have been used "
-                    "often enough to be considered for persistent Plugin promotion."
-                ),
-                parameters={
-                    "type": "object",
-                    "properties": {
-                        "min_uses": {
-                            "type": "integer",
-                            "minimum": 2,
-                            "maximum": 20,
-                            "description": "Minimum successful uses required. Default is 2.",
-                        }
-                    },
-                    "required": [],
-                    "additionalProperties": False,
+    registry.register(
+        ToolDefinition(
+            name="list_promotion_candidates",
+            description=(
+                "List successful temporary Script Recipes that have been used "
+                "often enough to be considered for persistent Plugin promotion."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "min_uses": {
+                        "type": "integer",
+                        "minimum": 2,
+                        "maximum": 20,
+                        "description": "Minimum successful uses required. Default is 2.",
+                    }
                 },
-                handler=lambda working_directory, arguments: _list_promotion_candidates(
-                    recipes,
-                    arguments,
-                ),
-                use_when=(
-                    "You need to decide whether a repeatedly successful temporary "
-                    "Recipe should become a persistent Plugin."
-                ),
-                avoid_when=(
-                    "You are handling an ordinary task and do not need to manage "
-                    "Agent capabilities."
-                ),
-                availability="on_demand",
-                capabilities=(Capability.CAPABILITY_MANAGEMENT,),
-            )
+                "required": [],
+                "additionalProperties": False,
+            },
+            handler=lambda working_directory, arguments: _list_promotion_candidates(
+                recipes,
+                arguments,
+            ),
+            use_when=(
+                "You need to decide whether a repeatedly successful temporary "
+                "Recipe should become a persistent Plugin."
+            ),
+            avoid_when=(
+                "You are handling an ordinary task and do not need to manage "
+                "Agent capabilities."
+            ),
+            availability="on_demand",
+            capabilities=(Capability.CAPABILITY_MANAGEMENT,),
         )
+    )
     
-        registry.register(
-            ToolDefinition(
-                name="generate_plugin",
-                description=(
-                    "Generate a persistent Plugin candidate from a successful Recipe. "
-                    "The candidate is returned for validation and testing; it is not enabled automatically."
-                ),
-                parameters={
-                    "type": "object",
-                    "properties": {
-                        "recipe_id": {
-                            "type": "string",
-                            "description": "Recipe id selected for promotion.",
-                        }
-                    },
-                    "required": ["recipe_id"],
-                    "additionalProperties": False,
+    registry.register(
+        ToolDefinition(
+            name="generate_plugin",
+            description=(
+                "Generate a persistent Plugin candidate from a successful Recipe. "
+                "The candidate is returned for validation and testing; it is not enabled automatically."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "recipe_id": {
+                        "type": "string",
+                        "description": "Recipe id selected for promotion.",
+                    }
                 },
-                handler=lambda working_directory, arguments: _generate_plugin(
-                    recipes,
-                    arguments,
-                ),
-                use_when="A repeated Recipe should be converted into a reusable persistent capability.",
-                avoid_when="The Recipe has not been identified as a promotion candidate or a temporary script is sufficient.",
-                availability="on_demand",
-                capabilities=(Capability.CAPABILITY_MANAGEMENT,),
-            )
+                "required": ["recipe_id"],
+                "additionalProperties": False,
+            },
+            handler=lambda working_directory, arguments: _generate_plugin(
+                recipes,
+                arguments,
+            ),
+            use_when="A repeated Recipe should be converted into a reusable persistent capability.",
+            avoid_when="The Recipe has not been identified as a promotion candidate or a temporary script is sufficient.",
+            availability="on_demand",
+            capabilities=(Capability.CAPABILITY_MANAGEMENT,),
         )
+    )
     
-        registry.register(
-            ToolDefinition(
-                name="test_plugin_candidate",
-                description=(
-                    "Run a generated Plugin candidate in an isolated child process "
-                    "using its generated test arguments. This does not enable the Plugin."
-                ),
-                parameters={
-                    "type": "object",
-                    "properties": {
-                        "plugin_id": {"type": "string"},
-                        "manifest": {"type": "object"},
-                        "source": {"type": "string"},
-                        "test_arguments": {"type": "object"},
-                    },
-                    "required": ["plugin_id", "manifest", "source", "test_arguments"],
-                    "additionalProperties": False,
+    registry.register(
+        ToolDefinition(
+            name="test_plugin_candidate",
+            description=(
+                "Run a generated Plugin candidate in an isolated child process "
+                "using its generated test arguments. This does not enable the Plugin."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "plugin_id": {"type": "string"},
+                    "manifest": {"type": "object"},
+                    "source": {"type": "string"},
+                    "test_arguments": {"type": "object"},
                 },
-                handler=lambda working_directory, arguments: _test_plugin_candidate(
-                    plugins,
-                    working_directory,
-                    arguments,
-                ),
-                requires_confirmation=True,
-                use_when="A newly generated Plugin candidate must be behaviorally checked before staging.",
-                avoid_when="The candidate has not been generated or the user did not authorize executing generated code.",
-                availability="on_demand",
-                capabilities=(Capability.CAPABILITY_MANAGEMENT,),
-            )
+                "required": ["plugin_id", "manifest", "source", "test_arguments"],
+                "additionalProperties": False,
+            },
+            handler=lambda working_directory, arguments: _test_plugin_candidate(
+                plugins,
+                working_directory,
+                arguments,
+            ),
+            requires_confirmation=True,
+            use_when="A newly generated Plugin candidate must be behaviorally checked before staging.",
+            avoid_when="The candidate has not been generated or the user did not authorize executing generated code.",
+            availability="on_demand",
+            capabilities=(Capability.CAPABILITY_MANAGEMENT,),
         )
+    )
     
-        registry.register(
-            ToolDefinition(
-                name="stage_plugin",
-                description=(
-                    "Stage a new local Agent Plugin in quarantine. "
-                    "The plugin is validated but not enabled until promoted."
-                ),
-                parameters={
-                    "type": "object",
-                    "properties": {
-                        "plugin_id": {
-                            "type": "string",
-                            "description": "Unique local plugin id.",
-                        },
-                        "manifest": {
-                            "type": "object",
-                            "description": "Plugin manifest. Must describe the tool schema and capability.",
-                        },
-                        "source": {
-                            "type": "string",
-                            "description": "Complete plugin.py source defining run(arguments).",
-                        },
+    registry.register(
+        ToolDefinition(
+            name="stage_plugin",
+            description=(
+                "Stage a new local Agent Plugin in quarantine. "
+                "The plugin is validated but not enabled until promoted."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "plugin_id": {
+                        "type": "string",
+                        "description": "Unique local plugin id.",
                     },
-                    "required": ["plugin_id", "manifest", "source"],
-                    "additionalProperties": False,
+                    "manifest": {
+                        "type": "object",
+                        "description": "Plugin manifest. Must describe the tool schema and capability.",
+                    },
+                    "source": {
+                        "type": "string",
+                        "description": "Complete plugin.py source defining run(arguments).",
+                    },
                 },
-                handler=lambda working_directory, arguments: _stage_plugin(
-                    plugins,
-                    arguments,
-                ),
-                requires_confirmation=True,
-                use_when="A new persistent capability should be created and placed into quarantine for promotion.",
-                avoid_when="A temporary script or an existing Tool is sufficient.",
-                availability="on_demand",
-                capabilities=(Capability.CAPABILITY_MANAGEMENT,),
-            )
+                "required": ["plugin_id", "manifest", "source"],
+                "additionalProperties": False,
+            },
+            handler=lambda working_directory, arguments: _stage_plugin(
+                plugins,
+                arguments,
+            ),
+            requires_confirmation=True,
+            use_when="A new persistent capability should be created and placed into quarantine for promotion.",
+            avoid_when="A temporary script or an existing Tool is sufficient.",
+            availability="on_demand",
+            capabilities=(Capability.CAPABILITY_MANAGEMENT,),
         )
+    )
     
-        registry.register(
-            ToolDefinition(
-                name="promote_plugin",
-                description=(
-                    "Promote a quarantined Agent Plugin to the enabled local "
-                    "capability set and load it into the current Tool Registry."
-                ),
-                parameters={
-                    "type": "object",
-                    "properties": {
-                        "plugin_id": {
-                            "type": "string",
-                            "description": "Quarantined plugin id to promote.",
-                        }
-                    },
-                    "required": ["plugin_id"],
-                    "additionalProperties": False,
+    registry.register(
+        ToolDefinition(
+            name="promote_plugin",
+            description=(
+                "Promote a quarantined Agent Plugin to the enabled local "
+                "capability set and load it into the current Tool Registry."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "plugin_id": {
+                        "type": "string",
+                        "description": "Quarantined plugin id to promote.",
+                    }
                 },
-                handler=lambda working_directory, arguments: _promote_plugin(
-                    plugins,
-                    registry,
-                    arguments,
-                ),
-                requires_confirmation=True,
-                use_when="A quarantined plugin has been reviewed and should become a persistent capability.",
-                avoid_when="The plugin has not been staged or the user did not request a persistent capability.",
-                availability="on_demand",
-                capabilities=(Capability.CAPABILITY_MANAGEMENT,),
-            )
+                "required": ["plugin_id"],
+                "additionalProperties": False,
+            },
+            handler=lambda working_directory, arguments: _promote_plugin(
+                plugins,
+                registry,
+                arguments,
+            ),
+            requires_confirmation=True,
+            use_when="A quarantined plugin has been reviewed and should become a persistent capability.",
+            avoid_when="The plugin has not been staged or the user did not request a persistent capability.",
+            availability="on_demand",
+            capabilities=(Capability.CAPABILITY_MANAGEMENT,),
         )
+    )
     
     
 
