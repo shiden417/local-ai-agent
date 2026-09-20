@@ -50,7 +50,6 @@ class CapabilityRouter:
         Capability.WORKSPACE_READ: (
             r"フォルダ.{0,12}(中|一覧|何がある|調べ|確認)",
             r"設定.{0,12}(確認|調べ|内容)",
-            r"(調査|調べ).{0,8}(して|する|してください|お願い)",
             r"ディレクトリ.{0,12}(中|一覧|何がある|調べ|確認)",
             r"ファイル.{0,12}(内容|中身|読ん|開い|読み取|確認|調べ)",
             r"(README|AGENTS\.md|pyproject\.toml|requirements\.txt|\.csproj|\.slnx?)",
@@ -67,7 +66,7 @@ class CapabilityRouter:
         Capability.SCRIPT_EXECUTION: (
             r"(Python|python|スクリプト|script).{0,20}(実行|動か|コード|スクリプト|実行して|動かして)",
             r"(変換|解析|パース|抽出|加工|処理).{0,20}(して|する|したい|してください|お願い)",
-            r"^s*(調査|調べ物|リサーチ|research)s*$",
+            r"^\s*(調査|調べ物|リサーチ|research)\s*$",
             r"\b(convert|parse|extract|transform|process|generate)\b",
         ),
         Capability.CAPABILITY_MANAGEMENT: (
@@ -91,6 +90,7 @@ class CapabilityRouter:
             r"(Web|web|WEB).{0,20}(検索|search|調べ|探して|情報)",
             r"(ネット|インターネット|ネット上).{0,20}(検索|調べ|探して|情報)",
             r"(検索|調べ|探して).{0,20}(Web|web|ネット|インターネット|最新|ニュース|公式サイト)",
+            r".{1,80}(について|に関して).{0,20}(調べ|調査|リサーチ|検索)",
             r"(最新|現在|今日|最近).{0,20}(情報|ニュース).{0,20}(検索|調べ|探して)?",
             r"(今日|現在|今|本日|明日|あす|明後日).{0,20}(天気|気温|降水|雨|雪|台風|警報|気象)",
             r"(天気|気温|降水|雨|雪|台風|警報|気象).{0,20}(今日|現在|今|本日|明日|あす|明後日|最新)",
