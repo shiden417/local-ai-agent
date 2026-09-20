@@ -694,6 +694,8 @@ class AgentRuntime:
                     result=result,
                     duration_ms=self._last_tool_duration_ms,
                     safety_decision=safety_decision,
+                    outcome_status=outcome_status,
+                    progress_state=progress_state.value,
                 )
                 if bool(result.get("ok")) and name in {
                     "file_mutation",
