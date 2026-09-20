@@ -34,3 +34,10 @@ def test_recipe_store_search_and_promotion_candidates(tmp_path: Path) -> None:
 
     store.record("PDFをもう一度変換", "print('pdf')")
     assert [entry.id for entry in store.promotion_candidates()] == [results[0].id]
+
+
+def test_recipe_store_filters_promotion_candidates_by_use_count(tmp_path: Path) -> None:
+    store = RecipeStore(tmp_path / "recipes.json")
+    store.record("one use", "print('one')")
+
+    assert store.promotion_candidates(min_uses=2) == []
