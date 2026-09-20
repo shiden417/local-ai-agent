@@ -14,6 +14,7 @@ class ToolDefinition:
     description: str
     parameters: dict[str, Any]
     handler: ToolHandler
+    requires_confirmation: bool = False
 
     def schema(self) -> dict[str, Any]:
         return {
@@ -27,7 +28,7 @@ class ToolDefinition:
 
 
 class ToolRegistry:
-    """Register tools, expose schemas to the LLM, and dispatch tool calls."""
+    """Registry and dispatcher for agent capabilities."""
 
     def __init__(self) -> None:
         self._tools: dict[str, ToolDefinition] = {}
@@ -40,6 +41,9 @@ class ToolRegistry:
     @property
     def schemas(self) -> list[dict[str, Any]]:
         return [tool.schema() for tool in self._tools.values()]
+
+    def get(self, name: str) -> ToolDefinition | None:
+        return self._tools.get(name)
 
     def execute(
         self,
