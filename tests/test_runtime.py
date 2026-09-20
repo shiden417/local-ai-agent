@@ -112,6 +112,7 @@ def test_runtime_rejects_mutating_tool_before_execution(
                 "required": [],
             },
             handler=mutate,
+            requires_confirmation=True,
         )
     )
 
