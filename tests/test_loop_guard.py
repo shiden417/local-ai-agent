@@ -7,6 +7,9 @@ def test_loop_guard_detects_repeated_call() -> None:
     assert guard.record("list_directory", {"path": "."}) == 1
     assert guard.is_repetition("list_directory", {"path": "."}) is False
 
+    guard.record("search_files", {"query": "x"})
+    assert guard.is_repetition("list_directory", {"path": "."}) is False
+
     assert guard.record("list_directory", {"path": "."}) == 2
     assert guard.is_repetition("list_directory", {"path": "."}) is True
 
