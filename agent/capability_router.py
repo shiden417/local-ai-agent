@@ -139,6 +139,14 @@ class CapabilityRouter:
                 capabilities=frozenset({Capability.CAPABILITY_MANAGEMENT}),
             )
 
+        # Operational investigations may need both process-oriented
+        # actions and workspace inspection. Keep simple action requests narrow.
+        if (
+            Capability.PROCESS in capabilities
+            and re.search(r"(調査|問題点|現在の状態|原因|確認)", text)
+        ):
+            capabilities.add(Capability.WORKSPACE_READ)
+
         # Local file edits normally require inspection first. Keep the
         # capability scope explicit so the LLM can read the target before
         # choosing the mutating tool.
