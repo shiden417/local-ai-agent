@@ -148,6 +148,7 @@ JARVIS v1では、ユーザーの1回の依頼に対して必要なToolを複数
 ## Commands
 
 - /tasks - Task一覧
+- /stats - AgentのLatency / Token / Tool統計
 - /permissions - 学習済み承認ルール
 - /clear-permissions - 承認ルール削除
 - /clear-context - Session Context削除
@@ -155,7 +156,7 @@ JARVIS v1では、ユーザーの1回の依頼に対して必要なToolを複数
 
 ## Performance and Agent evaluation
 
-J.A.R.V.I.S.はデフォルトで `~/.local-ai-agent/traces.jsonl` に軽量な実行Traceを保存します。Prompt本文やTool payloadはデフォルトでは保存せず、性能分析に必要なLatency、Prompt/Schemaサイズ、Token usage、Tool実行時間などを記録します。詳細payloadが必要な一時調査では `JARVIS_TRACE_INCLUDE_PAYLOADS=1` を明示して有効化できます。Traceは10MBでローテーションします。
+J.A.R.V.I.S.はデフォルトで `~/.local-ai-agent/traces.jsonl` に軽量な実行Traceを保存します。Prompt本文やTool payloadはデフォルトでは保存せず、性能分析に必要なLatency、Prompt/Schemaサイズ、Token usage、Tool実行時間などを記録します。詳細payloadが必要な一時調査では `JARVIS_TRACE_INCLUDE_PAYLOADS=1` を明示して有効化できます。Traceは10MBでローテーションします。`/stats`で現在までの統計を確認できます。
 
 Qwen3系でThinking制御を試す場合は `LM_STUDIO_THINKING_MODE=default|think|no_think` を指定できます。デフォルトは `default` で、既存挙動を変えません。モデルがQwen系でない場合、この設定は適用されません。
 
