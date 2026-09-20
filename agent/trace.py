@@ -10,6 +10,7 @@ from uuid import uuid4
 
 DEFAULT_TRACE_PATH = Path.home() / ".local-ai-agent" / "traces.jsonl"
 MAX_TRACE_TEXT = 4_000
+MAX_TRACE_FILE_BYTES = 10_000_000
 
 
 def _compact(value: Any, limit: int = MAX_TRACE_TEXT) -> Any:
@@ -100,8 +101,22 @@ class TraceRecorder:
         }
         try:
             line = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+            self._rotate_if_needed(len(line.encode("utf-8")) + 1)
             with self.path.open("a", encoding="utf-8") as handle:
                 handle.write(line + "\n")
+        except OSError:
+            return
+
+    def _rotate_if_needed(self, incoming_bytes: int) -> None:
+        try:
+            if not self.path.exists():
+                return
+            if self.path.stat().st_size + incoming_bytes <= MAX_TRACE_FILE_BYTES:
+                return
+            rotated = self.path.with_suffix(self.path.suffix + ".1")
+            if rotated.exists():
+                rotated.unlink()
+            self.path.replace(rotated)
         except OSError:
             return
 
