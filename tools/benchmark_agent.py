@@ -28,6 +28,11 @@ def _parse_args() -> argparse.Namespace:
         help="Maximum Agent iterations per task.",
     )
     parser.add_argument(
+        "--thinking-mode",
+        choices=("default", "think", "no_think"),
+        help="Optional Qwen3 Thinking mode for this benchmark run.",
+    )
+    parser.add_argument(
         "--keep-workspace",
         action="store_true",
         help="Keep the temporary benchmark workspace for inspection.",
@@ -109,9 +114,11 @@ def _trace_summary(path: Path) -> dict[str, int]:
             metrics["tool_duration_ms"] += int(event.get("duration_ms", 0) or 0)
     return metrics
 
-def run_benchmark(root: Path, *, model: str | None, max_iterations: int, output: Path | None = None) -> int:
+def run_benchmark(root: Path, *, model: str | None, max_iterations: int, output: Path | None = None, thinking_mode: str | None = None) -> int:
     if model:
         os.environ["LM_STUDIO_MODEL"] = model
+    if thinking_mode:
+        os.environ["LM_STUDIO_THINKING_MODE"] = thinking_mode
 
     from agent.runtime import AgentRuntime
     from agent.llm import MODEL
