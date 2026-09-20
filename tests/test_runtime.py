@@ -917,9 +917,10 @@ def test_runtime_retries_scoped_request_when_model_only_explains(
     tool_call = SimpleNamespace(
         id="call-edit",
         function=SimpleNamespace(
-            name="edit_file",
+            name="file_mutation",
             arguments=json.dumps(
                 {
+                    "operation": "edit",
                     "path": "test.txt",
                     "search_text": "old",
                     "replace_text": "new",
