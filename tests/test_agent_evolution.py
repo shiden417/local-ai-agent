@@ -273,3 +273,50 @@ def test_latest_web_completion_accepts_fetched_source(tmp_path: Path) -> None:
         task,
         {"completion_status": "completed"},
     ) is None
+
+
+
+def test_project_investigation_cannot_finish_from_listing_only(tmp_path: Path) -> None:
+    runtime = AgentRuntime(tmp_path)
+    task = TaskState(
+        "このプロジェクトの現在の状態を確認して、必要なら問題点を調査してください"
+    )
+    task.messages = [
+        {
+            "role": "tool",
+            "name": "list_directory",
+            "content": '{"ok":true,"entries":["agent","tests"]}',
+        }
+    ]
+
+    error = runtime._verify_finish_task(
+        task,
+        {"completion_status": "completed"},
+    )
+
+    assert error is not None
+    assert "diagnostic" in error.lower()
+
+
+def test_project_investigation_accepts_concrete_diagnostic(tmp_path: Path) -> None:
+    runtime = AgentRuntime(tmp_path)
+    task = TaskState(
+        "このプロジェクトの現在の状態を確認して、必要なら問題点を調査してください"
+    )
+    task.messages = [
+        {
+            "role": "tool",
+            "name": "list_directory",
+            "content": '{"ok":true,"entries":["agent","tests"]}',
+        },
+        {
+            "role": "tool",
+            "name": "read_file",
+            "content": '{"ok":true,"path":"README.md","content":"state"}',
+        },
+    ]
+
+    assert runtime._verify_finish_task(
+        task,
+        {"completion_status": "completed"},
+    ) is None
