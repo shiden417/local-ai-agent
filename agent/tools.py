@@ -2,6 +2,7 @@ from pathlib import Path
 
 from agent.capability_router import Capability
 from agent.memory import MemoryStore
+from agent.plugin_generator import PluginGenerationError, generate_plugin_candidate
 from agent.plugin_manager import PluginManager, PluginValidationError
 from agent.recipe_store import RecipeStore
 from agent.tool_registry import ToolDefinition, ToolRegistry
@@ -160,6 +161,66 @@ def create_default_tool_registry(
             availability="on_demand",
             capabilities=(Capability.WORKSPACE_WRITE,),
             terminal_on_success=True,
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="generate_plugin",
+            description=(
+                "Generate a persistent Plugin candidate from a successful Recipe. "
+                "The candidate is returned for validation and testing; it is not enabled automatically."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "recipe_id": {
+                        "type": "string",
+                        "description": "Recipe id selected for promotion.",
+                    }
+                },
+                "required": ["recipe_id"],
+                "additionalProperties": False,
+            },
+            handler=lambda working_directory, arguments: _generate_plugin(
+                recipes,
+                arguments,
+            ),
+            use_when="A repeated Recipe should be converted into a reusable persistent capability.",
+            avoid_when="The Recipe has not been identified as a promotion candidate or a temporary script is sufficient.",
+            availability="on_demand",
+            capabilities=(Capability.CAPABILITY_MANAGEMENT,),
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="test_plugin_candidate",
+            description=(
+                "Run a generated Plugin candidate in an isolated child process "
+                "using its generated test arguments. This does not enable the Plugin."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "plugin_id": {"type": "string"},
+                    "manifest": {"type": "object"},
+                    "source": {"type": "string"},
+                    "test_arguments": {"type": "object"},
+                },
+                "required": ["plugin_id", "manifest", "source", "test_arguments"],
+                "additionalProperties": False,
+            },
+            handler=lambda working_directory, arguments: _test_plugin_candidate(
+                plugins,
+                working_directory,
+                arguments,
+            ),
+            requires_confirmation=True,
+            use_when="A newly generated Plugin candidate must be behaviorally checked before staging.",
+            avoid_when="The candidate has not been generated or the user did not authorize executing generated code.",
+            availability="on_demand",
+            capabilities=(Capability.CAPABILITY_MANAGEMENT,),
         )
     )
 
@@ -407,6 +468,56 @@ def create_default_tool_registry(
 
     plugins.load_enabled(registry)
     return registry
+
+
+def _generate_plugin(
+    store: RecipeStore,
+    arguments: dict,
+) -> dict:
+    recipe_id = str(arguments.get("recipe_id", "")).strip()
+    recipe = store.get(recipe_id)
+    if recipe is None:
+        return {"ok": False, "error": f"Recipe not found: {recipe_id}"}
+
+    try:
+        candidate = generate_plugin_candidate(recipe)
+    except PluginGenerationError as exc:
+        return {"ok": False, "error": str(exc)}
+
+    return {
+        "ok": True,
+        "status": "generated",
+        "recipe_id": recipe.id,
+        "recipe_use_count": recipe.use_count,
+        "candidate": candidate,
+    }
+
+
+def _test_plugin_candidate(
+    manager: PluginManager,
+    working_directory: Path,
+    arguments: dict,
+) -> dict:
+    required = ("plugin_id", "manifest", "source", "test_arguments")
+    missing = [key for key in required if key not in arguments]
+    if missing:
+        return {
+            "ok": False,
+            "error": f"candidate missing: {', '.join(missing)}",
+        }
+
+    try:
+        result = manager.test_candidate(
+            str(arguments["plugin_id"]),
+            arguments["manifest"],
+            str(arguments["source"]),
+            arguments["test_arguments"],
+            working_directory,
+        )
+    except (TypeError, ValueError) as exc:
+        return {"ok": False, "error": str(exc)}
+
+    return result
 
 
 def _stage_plugin(
