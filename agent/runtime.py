@@ -9,6 +9,7 @@ from agent.context import ContextManager
 from agent.llm import ask_llm
 from agent.loop_guard import ToolLoopGuard
 from agent.observation import truncate_text
+from agent.progress import evaluate_progress
 from agent.safety import requires_confirmation
 from agent.task import TaskState
 from agent.task_manager import ManagedTask, TaskManager
@@ -17,25 +18,28 @@ from agent.tools import create_default_tool_registry
 
 
 SYSTEM_PROMPT = """あなたはローカルで動作する汎用AI Agentです。
-ユーザーの目的を達成するために、利用可能なツールを選択し、観測結果を確認しながら段階的に行動してください。
+ユーザーの目的を達成するために、利用可能なToolを選択し、観測結果を確認しながら段階的に行動してください。
 
 実行ルール:
-- まずユーザーの目的を理解し、このTaskで必要な情報や操作を考えてください。
-- Toolは「目的を達成するために必要なもの」だけを使用してください。
-- 現在のworkspaceを調べる依頼では、まずlist_directoryで構造を確認し、既知のファイルはread_fileで内容を確認してください。
-- search_filesは「ファイルの中にある特定の文字列・シンボルを探す」ためのToolです。ファイルの役割や「主要なファイル」のような自然言語カテゴリを検索語にしないでください。
-- search_memoryは現在のworkspaceを見るためのToolではありません。過去の会話や保存済み情報が今回の目的に必要な場合だけ使用してください。
-- save_memoryは今回だけの作業結果ではなく、将来のTaskでも役立つ情報を保存するときだけ使用してください。
-- 既に取得した情報を同じToolで再取得しないでください。RuntimeはTask内の重複操作を検知して停止します。
-- Tool結果に新しい情報がなければ、別の方法を考えるか、取得済み情報だけで回答を完成させてください。
-- Toolが失敗したときは、エラーをそのまま繰り返さず原因を考えて別の方法を試してください。
+- Goalを達成するために必要な最小限のActionだけを選択してください。
+- PLANでは最初の具体的なActionを決め、ACTではそれを実行し、VERIFYでは結果から「目的が達成済みか」「次に何をすべきか」を判断してください。
+- Current task execution stateはRuntimeが管理する事実です。Recent observationsは既知の情報として扱い、同じ情報を再取得しないでください。
+- 同じTool + 同じ引数を繰り返さないでください。Toolが無効化されている場合は別のActionを選択してください。
+- 同じ内容の観測を別の引数で再取得することも避けてください。
+- Toolが失敗した場合は、同じ失敗を繰り返さず、原因を考えて別の方法を試してください。
 - 変更や外部作用を伴うToolは、必要性を確認してから使用してください。
 - ユーザーが求めていない変更を行わないでください。
-- 作業が十分に完了したら、通常の文章で結果を説明してください。空のJSONや「{}」だけを最終回答にしないでください。
+- 目的を達成するための十分な情報が揃ったら、Toolを追加実行せず通常の文章で直接回答してください。
+- 空のJSON、空配列、Tool結果そのもののコピーを最終回答にしないでください。
+
+workspace調査のルール:
+- 現在のworkspaceを調べる依頼では、まずlist_directoryで構造を確認します。
+- 既知のファイルを説明する必要がある場合はread_fileを使います。
+- search_filesは具体的な文字列・シンボル・識別子を探す場合だけ使用します。「主要なファイル」のような自然言語カテゴリを検索語にしないでください。
+- search_memoryは過去の保存情報が今回のGoalに必要な場合だけ使用します。現在のworkspaceの調査には使用しません。
 
 重要:
-- あなたが判断し、RuntimeがToolを実行します。
-- Task stateに含まれるRecent observationsは、これまでに得た事実です。重複した観測を無視して次の行動を選んでください。
+- LLMは判断し、Runtimeが状態・安全性・進捗を管理し、Toolが実際の操作を行います。
 """
 
 
@@ -79,6 +83,32 @@ def _tool_call_values(tool_call: Any) -> tuple[str, str, dict[str, Any]]:
     return str(call_id), str(name), arguments
 
 
+def _observation_fingerprint(
+    tool_name: str,
+    result: dict[str, Any],
+) -> str:
+    """Return a semantic-ish fingerprint for meaningful observation identity."""
+    normalized = dict(result)
+
+    # Different read ranges can produce the same useful information. Do not
+    # treat range metadata alone as a new observation.
+    if tool_name == "read_file":
+        normalized.pop("start_line", None)
+        normalized.pop("end_line", None)
+
+    # Ignore common metadata that does not represent task knowledge.
+    for key in ("timestamp", "created_at", "updated_at", "duration_ms"):
+        normalized.pop(key, None)
+
+    payload = json.dumps(
+        normalized,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 class AgentRuntime:
     def __init__(
         self,
@@ -97,7 +127,6 @@ class AgentRuntime:
         self.task_manager = TaskManager()
         self.current_task: ManagedTask | None = None
         self.task: TaskState | None = None
-        self._disabled_tools: set[str] = set()
 
     @property
     def messages(self) -> list[dict[str, Any]]:
@@ -121,7 +150,6 @@ class AgentRuntime:
         self.current_task = current_task
         self.task = current_task.state
         self.loop_guard.reset()
-        self._disabled_tools.clear()
         self.task.start()
         self.task_manager.update_timestamp(current_task)
 
@@ -135,17 +163,17 @@ class AgentRuntime:
                 {
                     "role": "system",
                     "content": (
-                        "Current task execution state. Treat Recent observations "
-                        "as already-known information.\n"
-                        f"{self.task.snapshot()}\n"
-                        "Choose the smallest next action that advances the goal."
+                        "Current task execution dashboard. "
+                        "Treat this as Runtime-managed state; do not reconstruct "
+                        "progress only from chat history.\n"
+                        f"{self.task.snapshot()}"
                     ),
                 },
             ]
 
             available_tools = self.tool_registry.schemas_for(
                 self.task.goal,
-                excluded_tools=self._disabled_tools,
+                excluded_tools=self.task.disabled_tools,
             )
 
             force_synthesis = (
@@ -175,16 +203,18 @@ class AgentRuntime:
             content = getattr(message, "content", None) or ""
 
             if not tool_calls:
-                if self._is_invalid_final_response(content, current_task.messages):
+                if self._is_invalid_final_response(
+                    content,
+                    current_task.messages,
+                ):
                     current_task.messages.append(_message_to_dict(message))
                     current_task.messages.append(
                         {
                             "role": "system",
                             "content": (
                                 "The previous response was empty or only an empty "
-                                "JSON container. Continue the task using "
-                                "the available observations and provide a "
-                                "direct answer to the user's request."
+                                "JSON container. Continue using the Runtime "
+                                "dashboard and provide a direct answer."
                             ),
                         }
                     )
@@ -207,6 +237,12 @@ class AgentRuntime:
                         succeeded=False,
                         summary=str(exc),
                         signature=f"invalid_tool_call:{type(exc).__name__}:{exc}",
+                        new_information=False,
+                        progress_state=evaluate_progress(
+                            "invalid_tool_call",
+                            {"ok": False, "error": str(exc)},
+                            observation_is_new=False,
+                        ).state,
                     )
                     current_task.messages.append(
                         {
@@ -222,7 +258,7 @@ class AgentRuntime:
 
                 call_count = self.loop_guard.record(name, arguments)
                 if self.loop_guard.is_repetition(name, arguments):
-                    self._disabled_tools.add(name)
+                    self.task.disable_tool(name)
                     result = {
                         "ok": False,
                         "error": self.loop_guard.message(name, arguments),
@@ -244,33 +280,32 @@ class AgentRuntime:
                 else:
                     result = self._execute_tool(name, arguments)
 
-                serialized = json.dumps(result, ensure_ascii=False, sort_keys=True)
-                bounded, truncated = truncate_text(serialized)
-
-                observation_summary = self._observation_summary(result)
-                result_signature = json.dumps(
+                serialized = json.dumps(
                     result,
                     ensure_ascii=False,
                     sort_keys=True,
-                    separators=(",", ":"),
                 )
-                if result.get("repeated_tool_call") or result.get("user_rejected"):
-                    signature = f"{name}:no_progress:{result.get('error', '')}"
-                    observation_is_new = False
-                else:
-                    signature = (
-                        f"{name}:"
-                        + hashlib.sha256(
-                            result_signature.encode("utf-8")
-                        ).hexdigest()
-                    )
-                    observation_is_new = None
+                bounded, truncated = truncate_text(serialized)
+
+                observation_summary = self._observation_summary(result)
+                observation_is_new = (
+                    _observation_fingerprint(name, result)
+                    not in self.task.observation_signatures
+                )
+                evaluation = evaluate_progress(
+                    name,
+                    result,
+                    observation_is_new=observation_is_new,
+                )
+                signature = f"{name}:{_observation_fingerprint(name, result)}"
+
                 self.task.record_tool(
                     name,
                     succeeded=bool(result.get("ok")),
                     summary=observation_summary,
                     signature=signature,
                     new_information=observation_is_new,
+                    progress_state=evaluation.state,
                 )
                 self.task_manager.update_timestamp(current_task)
 
@@ -312,7 +347,6 @@ class AgentRuntime:
 
     @staticmethod
     def _observation_summary(result: dict[str, Any]) -> str:
-        """Create a small deterministic summary for task state."""
         summary = json.dumps(
             result,
             ensure_ascii=False,
@@ -347,7 +381,7 @@ class AgentRuntime:
     ) -> str:
         if name == "edit_file":
             return (
-                "Agentがローカルファイルを変更しようとしています.\n"
+                "Agentがローカルファイルを変更しようとしています。\n"
                 f"path: {arguments.get('path', '')}"
             )
 
