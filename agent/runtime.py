@@ -534,6 +534,12 @@ class AgentRuntime:
                 f"path: {arguments.get('path', '')}"
             )
 
+        if name == "delete_file":
+            return (
+                "Agentがローカルファイルを削除しようとしています。\n"
+                f"path: {arguments.get('path', '')}"
+            )
+
         return (
             "Agentが確認の必要な操作を実行しようとしています。\n"
             f"tool: {name}\n"
