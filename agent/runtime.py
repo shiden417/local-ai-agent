@@ -11,7 +11,6 @@ from agent.completion_verifier import CompletionVerifier
 from agent.llm import ask_llm
 from agent.loop_guard import ToolLoopGuard
 from agent.observation import truncate_text
-from agent.plugin_manager import PluginManager
 from agent.recovery import classify_tool_outcome, recovery_guidance
 from agent.request_classifier import RequestClassifier, RequestMode
 from agent.session import SessionManager
@@ -149,16 +148,16 @@ class AgentRuntime:
         tool_registry: ToolRegistry | None = None,
         confirm: Callable[[str], bool] | None = None,
         session_manager: SessionManager | None = None,
-        plugin_manager: PluginManager | None = None,
+        enable_experimental: bool = False,
         safety_policy: SafetyPolicy | None = None,
         terminal_ui: TerminalUI | None = None,
         ask_user: Callable[[str], str] | None = None,
     ) -> None:
         self.working_directory = Path(working_directory).resolve()
         self.max_iterations = max_iterations
-        self.plugin_manager = plugin_manager or PluginManager()
+        self.enable_experimental = enable_experimental
         self.tool_registry = tool_registry or create_default_tool_registry(
-            plugin_manager=self.plugin_manager,
+            enable_experimental=enable_experimental,
         )
         self.confirm = confirm
         self.safety = safety_policy or SafetyPolicy()
