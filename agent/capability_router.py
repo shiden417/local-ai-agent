@@ -133,7 +133,9 @@ class CapabilityRouter:
         if Capability.CAPABILITY_MANAGEMENT in capabilities:
             return CapabilityRoute(
                 mode=RoutingMode.SCOPED,
-                capabilities=frozenset({Capability.CAPABILITY_MANAGEMENT}),
+                capabilities=frozenset(
+                    {Capability.CAPABILITY_MANAGEMENT, Capability.AGENT_CONTROL}
+                ),
             )
 
         # Local file edits normally require inspection first. Keep the
