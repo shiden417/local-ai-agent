@@ -51,11 +51,15 @@ Agent Coreは特定用途に依存せず、Toolを追加することで能力を
 
 Agent Coreには、1つの依頼を追跡するTaskStateと軽量なImplicit Planningを実装しています。別Planner Agentを増やさず、Qwen3:8Bへの呼び出し回数を増やさない方針です。
 
+Long-term MemoryはAgent CoreのTask履歴とは分離し、ユーザーホーム配下のローカルJSONへ永続化します。検索は現在キーワードベースで、外部サービスやクラウドへ送信しません。
+
 - list_directory - workspace内の一覧取得
 - read_file - テキストファイルの読み取り
 - search_files - ローカルファイル検索
 - edit_file - SEARCH / REPLACE方式の部分編集
 - execute_command - PowerShellコマンド実行
+- save_memory - 将来も利用する情報をローカルMemoryへ保存
+- search_memory - 過去のローカルMemoryを検索
 
 LLMとの通信には、独自JSON文字列プロトコルではなく、LiteLLMのNative Tool Calling形式を使用します。
 
@@ -110,8 +114,9 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 - Agent loopの安定化
 - Task state（1タスクの状態・反復・Tool履歴）
 - Context compaction（実装済みの基礎）
+- Long-term Memory（ローカルJSON + キーワード検索の基礎実装）
 - 複数タスクのtask management
-- Memory
+- Memory（拡張予定）
 - より明確なpermission policy
 
 ### Tools
