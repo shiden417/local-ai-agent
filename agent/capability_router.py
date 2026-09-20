@@ -53,8 +53,9 @@ class CapabilityRouter:
             r"\b(file)\b.{0,20}(read|open|inspect|contents)",
         ),
         Capability.WORKSPACE_WRITE: (
-            r"(編集|変更|修正|書き換え|書換え|追加|削除).{0,8}(ファイル|コード|README|設定)?",
-            r"(ファイル|コード|README|設定).{0,8}(編集|変更|修正|書き換え|追加|削除)",
+            r"(作成|作って|つくって|生成|作り|新規).{0,12}(ファイル|コード|README|HTML|JSON|設定)?",
+            r"(編集|変更|修正|書き換え|書換え|追加|削除|作成|作って|つくって|生成|新規).{0,8}(ファイル|コード|README|HTML|JSON|設定)?",
+            r"(ファイル|コード|README|HTML|JSON|設定).{0,8}(編集|変更|修正|書き換え|追加|削除|作成|生成|新規)",
             r"\b(edit|modify|fix|change|update|write|create|delete|remove)\b",
         ),
         Capability.PROCESS: (
