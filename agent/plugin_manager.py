@@ -79,6 +79,75 @@ class PluginManager:
             "path": str(plugin_dir),
         }
 
+    def test_candidate(
+        self,
+        plugin_id: str,
+        manifest: dict[str, Any],
+        source: str,
+        test_arguments: dict[str, Any],
+        working_directory: str | Path,
+    ) -> dict[str, Any]:
+        plugin_id = _validate_plugin_id(plugin_id)
+        try:
+            self._validate_manifest(manifest, plugin_id)
+            self._validate_source(source)
+        except PluginValidationError as exc:
+            return {"ok": False, "error": str(exc)}
+
+        if not isinstance(test_arguments, dict):
+            return {"ok": False, "error": "test_arguments must be an object"}
+
+        required = manifest.get("parameters", {}).get("required", [])
+        if not isinstance(required, list):
+            return {
+                "ok": False,
+                "error": "plugin parameters required must be an array",
+            }
+        missing = [
+            str(name)
+            for name in required
+            if name not in test_arguments
+        ]
+        if missing:
+            return {
+                "ok": False,
+                "error": f"test_arguments missing required fields: {', '.join(missing)}",
+            }
+
+        import tempfile
+
+        try:
+            with tempfile.TemporaryDirectory(
+                prefix=".agent-plugin-test-",
+                dir=str(self.quarantine_root),
+            ) as temporary_dir:
+                plugin_file = Path(temporary_dir) / "plugin.py"
+                plugin_file.write_text(source, encoding="utf-8")
+                result = _execute_plugin(
+                    plugin_file,
+                    Path(working_directory).resolve(),
+                    test_arguments,
+                    int(
+                        manifest.get(
+                            "timeout_seconds",
+                            DEFAULT_PLUGIN_TIMEOUT_SECONDS,
+                        )
+                    ),
+                )
+        except OSError as exc:
+            return {
+                "ok": False,
+                "error": f"plugin candidate test failed to start: {exc}",
+            }
+
+        return {
+            "ok": bool(result.get("ok")),
+            "status": "tested",
+            "plugin_id": plugin_id,
+            "test_arguments": test_arguments,
+            "result": result,
+        }
+
     def promote(self, plugin_id: str) -> dict[str, Any]:
         plugin_id = _validate_plugin_id(plugin_id)
         source_dir = self.quarantine_root / plugin_id
