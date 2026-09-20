@@ -63,8 +63,7 @@ Long-term MemoryはAgent CoreのTask履歴とは分離し、ユーザーホー�
 - list_directory - workspace内の一覧取得
 - read_file - テキストファイルの読み取り
 - search_files - ローカルファイル検索
-- create_file - 新規テキストファイルの作成
-- edit_file - SEARCH / REPLACE方式の部分編集
+- file_mutation - ローカルファイルの作成・編集・削除
 - execute_command - PowerShellコマンド実行
 - save_memory - 将来も利用する情報をローカルMemoryへ保存
 - search_memory - 過去のローカルMemoryを検索
@@ -80,7 +79,7 @@ Agentの操作には実行環境に応じた安全策を設定します。
 - 作業ディレクトリ内の相対パスはworkspace外へ脱出できないよう制限
 - ユーザーが明示したローカル絶対パスはFile Toolで扱える
 - Toolごとに確認が必要か設定可能
-- create_file / edit_fileは変更前にユーザー確認
+- file_mutationによる変更は実行前にユーザー確認
 - 代表的な破壊・書き込み系PowerShell/Git操作は確認
 - execute_commandは30秒timeout
 - timeout時はPowerShellプロセスツリーを終了
