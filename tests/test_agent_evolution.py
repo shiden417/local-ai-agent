@@ -450,3 +450,15 @@ def test_completed_task_does_not_pollute_conversation_history(
 
     assert runtime.conversation_manager.recent_messages() == []
     assert runtime.session_context.last_answer == "調査結果を確認しました。"
+
+
+
+def test_clear_session_context_resets_ephemeral_context(tmp_path: Path) -> None:
+    runtime = AgentRuntime(tmp_path)
+    runtime.session_context.remember_task("topic", "answer", [])
+    runtime.conversation_manager.add_turn("hello", "world")
+
+    runtime.clear_session_context()
+
+    assert runtime.session_context.has_context is False
+    assert runtime.conversation_manager.recent_messages() == []
