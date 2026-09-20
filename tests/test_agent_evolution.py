@@ -166,3 +166,110 @@ def test_finish_task_allows_successful_command(tmp_path: Path):
         task,
         {"completion_status": "completed"},
     ) is None
+
+
+
+def test_session_context_follow_up_reuses_previous_capability(tmp_path: Path) -> None:
+    runtime = AgentRuntime(tmp_path)
+    runtime.session_context.remember_task(
+        "Python 3.14について調べて",
+        "Python 3.14の変更点を確認しました。",
+        [
+            {
+                "role": "tool",
+                "name": "search_web",
+                "content": (
+                    '{"ok":true,"count":1,"results":['
+                    '{"title":"Python 3.14","url":"https://python.org",'
+                    '"snippet":"Official release information"}]}'
+                ),
+            }
+        ],
+    )
+
+    routing_text = runtime._routing_text("その中で重要な変更を3つ教えて")
+
+    assert "Python 3.14について調べて" in routing_text
+    assert "その中で重要な変更を3つ教えて" in routing_text
+    route = runtime.tool_registry.route_for(routing_text)
+    assert Capability.WEB_SEARCH in route.capabilities
+
+
+def test_stale_previous_answer_is_rejected_after_new_observation(tmp_path: Path) -> None:
+    runtime = AgentRuntime(tmp_path)
+    runtime.session_context.last_answer = "前のTaskの回答です。"
+    task = runtime.task_manager.create("現在のTaskを調べる")
+    task.messages = [
+        {"role": "user", "content": task.goal},
+        {
+            "role": "tool",
+            "name": "list_directory",
+            "content": '{"ok":true,"entries":["new.txt"]}',
+        },
+    ]
+
+    assert runtime._is_stale_session_response(
+        "前のTaskの回答です。",
+        task,
+    ) is True
+
+
+def test_previous_answer_without_current_observation_is_not_treated_as_stale(
+    tmp_path: Path,
+) -> None:
+    runtime = AgentRuntime(tmp_path)
+    runtime.session_context.last_answer = "同じ説明です。"
+    task = runtime.task_manager.create("会話する")
+
+    assert runtime._is_stale_session_response("同じ説明です。", task) is False
+
+
+def test_latest_web_completion_requires_page_fetch(tmp_path: Path) -> None:
+    runtime = AgentRuntime(tmp_path)
+    task = TaskState("Python 3.14の最新情報を調査してください")
+    task.messages = [
+        {
+            "role": "tool",
+            "name": "search_web",
+            "content": (
+                '{"ok":true,"count":2,"results":['
+                '{"title":"result","url":"https://example.com","snippet":"latest"}]}'
+            ),
+        }
+    ]
+
+    error = runtime._verify_finish_task(
+        task,
+        {"completion_status": "completed"},
+    )
+
+    assert error is not None
+    assert "fetch" in error.lower()
+
+
+def test_latest_web_completion_accepts_fetched_source(tmp_path: Path) -> None:
+    runtime = AgentRuntime(tmp_path)
+    task = TaskState("Python 3.14の公式リリース情報を確認")
+    task.messages = [
+        {
+            "role": "tool",
+            "name": "search_web",
+            "content": (
+                '{"ok":true,"count":1,"results":['
+                '{"title":"release","url":"https://python.org","snippet":"release"}]}'
+            ),
+        },
+        {
+            "role": "tool",
+            "name": "fetch_web_page",
+            "content": (
+                '{"ok":true,"status_code":200,"title":"Release",'
+                '"content":"official release information"}'
+            ),
+        },
+    ]
+
+    assert runtime._verify_finish_task(
+        task,
+        {"completion_status": "completed"},
+    ) is None
