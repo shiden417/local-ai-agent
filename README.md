@@ -1,6 +1,8 @@
 # local-ai-agent
 
-LM Studio + Qwen3:8B を基盤にした、無料・ローカル・無制限利用を目標とする汎用AI Agentです。
+LM Studio + ローカルLLMを基盤にした、無料・ローカル・無制限利用を目標とする汎用AI Agentです。
+
+現在の既定モデルは **Gemma 4 E4B QAT** です。モデルは環境変数で変更できます。
 
 ## Goal
 
@@ -24,7 +26,7 @@ LM Studio + Qwen3:8B を基盤にした、無料・ローカル・無制限利�
       ↓
     LM Studio OpenAI-compatible API
       ↓
-    Qwen3:8B
+    Gemma 4 E4B QAT
       ↓
     Tool Calling
       ↓
@@ -100,7 +102,7 @@ The native `lmstudio-python` SDK remains a useful future option for features tha
 - Windows
 - Python 3.12+
 - LM Studio
-- Qwen3:8B
+- Gemma 4 E4B QAT（既定）
 - OpenAI Python SDK
 - ddgs
 
@@ -124,7 +126,7 @@ Agentを操作したい作業ディレクトリで起動します。
 
     You > WpfGisLearningを確認して、テストを実行して問題があれば修正して。
 
-JARVIS v1では、ユーザーの1回の依頼に対して必要なToolを複数回使います。Taskとして分類された依頼では登録済みToolをモデルに提示し、Qwen3:8BのTool Callingに選択を委ね、Runtimeが安全性・実行・観測・回復・完了確認を担当します。
+JARVIS v1では、ユーザーの1回の依頼に対して必要なToolを複数回使います。Taskとして分類された依頼では登録済みToolをモデルに提示し、LM Studio上のローカルLLMのTool Callingに選択を委ね、Runtimeが安全性・実行・観測・回復・完了確認を担当します。
 
 ## Commands
 
