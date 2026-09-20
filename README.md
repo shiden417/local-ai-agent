@@ -25,6 +25,11 @@ Agent Coreは特定用途に依存せず、Toolを追加することで能力を
       ↓
     Agent Runtime
       ↓
+    Capability Router
+      ├─ Direct: obvious conversation → no tools
+      ├─ Scoped: expose relevant capability families
+      └─ Open: ambiguous → expose registered tools
+      ↓
     LLM abstraction
       ↓
     Ollama / Qwen3:8B
@@ -49,7 +54,7 @@ Agent Coreは特定用途に依存せず、Toolを追加することで能力を
 
 現時点では、ローカルPC上でのCoding / Automationを最初の用途として、次のToolを提供しています。
 
-Agent Coreには、1つの依頼を独立して追跡するTaskStateと軽量な実行状態・観測履歴を実装しています。さらに、Action identity（同一Tool呼び出し）、Observation identity（得られた知識）、Progress（目的への前進）を分離して管理します。Runtimeは毎回Task dashboardをLLMへ提示します。別Planner Agentを増やさず、Qwen3:8Bへの呼び出し回数を必要以上に増やさない方針です。
+Agent Coreには、1つの依頼を独立して追跡するTaskStateと軽量な実行状態・観測履歴を実装しています。さらに、Action identity（同一Tool呼び出し）、Observation identity（得られた知識）、Progress（目的への前進）を分離して管理します。Runtimeは毎回Task dashboardをLLMへ提示し、Capability RouterでToolの公開範囲だけを調整します。最終的な「Toolを使うか」「どのToolを使うか」はQwen3:8Bが判断します。明らかな会話はDirect、具体的な作業はScoped、曖昧な依頼はOpenとして扱い、汎用性と8Bモデルの安定性を両立します。別Planner Agentを増やさず、Qwen3:8Bへの呼び出し回数を必要以上に増やさない方針です。
 
 Long-term MemoryはAgent CoreのTask履歴とは分離し、ユーザーホーム配下のローカルJSONへ永続化します。検索は現在キーワードベースで、外部サービスやクラウドへ送信しません。
 
@@ -115,10 +120,12 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 - Task observation ledger（観測結果・新規情報・進捗）
 - Runtime-managed execution dashboard
 - Action / Observation / Progressの分離
+- Direct / Scoped / OpenのCapability routing
 - Task内の重複Tool Call検知・Tool quarantine
 - Context compaction
 - Task Manager
-- Task-aware Tool Capability Routing
+- Task-aware Capability routing
+- Direct / Scoped / Open tool exposure
 - permission policyの強化
 
 ### Tools
@@ -153,7 +160,8 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 - Agent Coreに特定用途のロジックを埋め込まない
 - ToolはRegistry経由で追加できるようにする
 - Tool結果はLLMへ返す前にサイズを制限する
-- Task内容に応じて必要なTool capabilityだけをLLMへ公開する
+- Task内容に応じてTool capabilityの公開範囲だけを調整する
+- 明らかな会話ではToolを公開せず、具体的な作業では該当Capabilityを公開し、曖昧な依頼ではQwen3:8Bへ判断を委ねる
 - 同じTool + 同じ引数のTask内重複実行を検知し、該当ToolをTask単位で一時無効化する
 - Tool結果の意味的な観測同一性を判定し、新しい情報が得られたかを追跡する
 - 観測の新規性と、目的に対する実際のProgressを別々に判定する
