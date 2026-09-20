@@ -43,7 +43,7 @@ def main() -> None:
 
     ui.startup(
         str(runtime.working_directory),
-        f"Auto (learned approvals: {len(runtime.approval_policy.entries())} rules)",
+        f"Auto / LM Studio (learned approvals: {len(runtime.approval_policy.entries())} rules)",
     )
 
     while True:
