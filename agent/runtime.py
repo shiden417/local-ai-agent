@@ -601,6 +601,7 @@ class AgentRuntime:
                     verification_error = self._verify_finish_task(
                         current_task,
                         result,
+                        goal_text=routing_text,
                     )
                     if verification_error is not None:
                         result = {
@@ -795,10 +796,14 @@ class AgentRuntime:
         self,
         task: ManagedTask,
         result: dict[str, Any],
+        *,
+        goal_text: str | None = None,
     ) -> str | None:
         """Verify deterministic execution facts before accepting completion."""
         if str(result.get("completion_status", "")).strip().lower() == "blocked":
             return None
+
+        verification_goal = goal_text or task.goal
 
         messages = getattr(task, "messages", None)
         if messages is None and self.current_task is not None and task is self.current_task.state:
@@ -828,7 +833,7 @@ class AgentRuntime:
         name, payload = successful_tools[-1]
 
         if (
-            self._requires_primary_web_source(task.goal)
+            self._requires_primary_web_source(verification_goal)
             and any(tool_name == "search_web" for tool_name, _ in successful_tools)
             and not any(tool_name == "fetch_web_page" for tool_name, _ in successful_tools)
         ):
