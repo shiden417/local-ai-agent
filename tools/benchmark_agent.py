@@ -125,7 +125,6 @@ def run_benchmark(root: Path, *, model: str | None, max_iterations: int, output:
     from agent.trace import TraceRecorder
     from agent.memory import MemoryStore
     from agent.tools import create_default_tool_registry
-    from agent.trace import TraceRecorder
 
     _seed_workspace(root)
     trace_path = root / "trace.jsonl"
@@ -141,6 +140,8 @@ def run_benchmark(root: Path, *, model: str | None, max_iterations: int, output:
 
     print("J.A.R.V.I.S. Agent Benchmark")
     print(f"Model: {MODEL}")
+    if thinking_mode:
+        print(f"Thinking mode: {thinking_mode}")
     print(f"Workspace: {root}")
     print()
 
@@ -249,10 +250,22 @@ def main() -> int:
     if args.keep_workspace:
         workspace = Path(tempfile.mkdtemp(prefix="jarvis-benchmark-"))
         print(f"Benchmark workspace: {workspace}")
-        return run_benchmark(workspace, model=args.model, max_iterations=args.max_iterations)
+        return run_benchmark(
+            workspace,
+            model=args.model,
+            max_iterations=args.max_iterations,
+            output=args.output,
+            thinking_mode=args.thinking_mode,
+        )
 
     with tempfile.TemporaryDirectory(prefix="jarvis-benchmark-") as temp_dir:
-        return run_benchmark(Path(temp_dir), model=args.model, max_iterations=args.max_iterations)
+        return run_benchmark(
+            Path(temp_dir),
+            model=args.model,
+            max_iterations=args.max_iterations,
+            output=args.output,
+            thinking_mode=args.thinking_mode,
+        )
 
 
 if __name__ == "__main__":
