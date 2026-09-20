@@ -150,7 +150,6 @@ class AgentRuntime:
     ) -> None:
         self.working_directory = Path(working_directory).resolve()
         self.max_iterations = max_iterations
-        self.enable_experimental = enable_experimental
         self.tool_registry = tool_registry or create_default_tool_registry(
             enable_experimental=enable_experimental,
         )
@@ -499,58 +498,50 @@ class AgentRuntime:
                         self.terminal_ui.info(f"Repeated Tool blocked: {name}")
                     else:
                         print("[Tool] repeated call blocked; tool disabled for this task")
-                elif self.safety.requires_confirmation(
-                    name,
-                    arguments,
-                    self.tool_registry,
-                    self.working_directory,
-                ):
-                    auto_decision = self.safety.classify_auto_mode(
-                        name, arguments, self.tool_registry, self.working_directory
+                else:
+                    safety_decision = self.safety.decide(
+                        name,
+                        arguments,
+                        self.tool_registry,
+                        self.working_directory,
                     )
-                    if auto_decision == AUTO_DENY:
+                    if safety_decision == AUTO_DENY:
                         result = {
                             "ok": False,
-                            "error": "Auto Mode blocked this high-risk operation.",
+                            "error": "Safety Policy blocked this high-risk operation.",
                             "auto_mode": "deny",
                         }
                         if self.terminal_ui is not None:
-                            self.terminal_ui.info(f"Auto Mode blocked: {name}")
+                            self.terminal_ui.info(f"Safety Policy blocked: {name}")
                         else:
-                            print(f"[Auto Mode] blocked: {name}")
-                    elif self.confirm is None and auto_decision == AUTO_ALLOW:
+                            print(f"[Safety] blocked: {name}")
+                    elif safety_decision == AUTO_ALLOW:
                         result = self._execute_tool(name, arguments)
                         if self.terminal_ui is not None:
                             self.terminal_ui.info(f"Auto Mode: {name}")
                     else:
                         permission_key = self.safety.approval_key(
-                            name, arguments, self.working_directory
+                            name,
+                            arguments,
+                            self.working_directory,
                         )
-                        if self.safety.is_allowed(permission_key):
+                        summary = self._confirmation_message(name, arguments)
+                        decision = self._request_confirmation(
+                            summary,
+                            permission_key,
+                        )
+                        if not decision:
+                            result = {
+                                "ok": False,
+                                "error": "User rejected the operation.",
+                                "user_rejected": True,
+                            }
                             if self.terminal_ui is not None:
-                                self.terminal_ui.info(f"Learned permission: {name}")
+                                self.terminal_ui.info(f"Approval rejected: {name}")
                             else:
-                                print("[Approval] learned permission")
-                            result = self._execute_tool(name, arguments)
+                                print("[Tool] rejected by user")
                         else:
-                            summary = self._confirmation_message(name, arguments)
-                            decision = self._request_confirmation(
-                                summary, permission_key
-                            )
-                            if not decision:
-                                result = {
-                                    "ok": False,
-                                    "error": "User rejected the operation.",
-                                    "user_rejected": True,
-                                }
-                                if self.terminal_ui is not None:
-                                    self.terminal_ui.info(f"Approval rejected: {name}")
-                                else:
-                                    print("[Tool] rejected by user")
-                            else:
-                                result = self._execute_tool(name, arguments)
-                else:
-                    result = self._execute_tool(name, arguments)
+                            result = self._execute_tool(name, arguments)
 
                 if name == "ask_user" and bool(result.get("ok")):
                     question = str(result.get("question", "")).strip()
