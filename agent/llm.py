@@ -13,9 +13,12 @@ def ask_llm(
     tools: list[dict[str, Any]] | None = None,
 ):
     """Send the conversation to the local Ollama model through LiteLLM."""
-    return completion(
-        model=MODEL,
-        messages=messages,
-        tools=tools or [],
-        temperature=0.3,
-    )
+    kwargs: dict[str, Any] = {
+        "model": MODEL,
+        "messages": messages,
+        "temperature": 0.3,
+    }
+    if tools:
+        kwargs["tools"] = tools
+
+    return completion(**kwargs)
