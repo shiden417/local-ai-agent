@@ -49,6 +49,8 @@ Agent Coreは特定用途に依存せず、Toolを追加することで能力を
 
 現時点では、ローカルPC上でのCoding / Automationを最初の用途として、次のToolを提供しています。
 
+Agent Coreには、1つの依頼を追跡するTaskStateと軽量なImplicit Planningを実装しています。別Planner Agentを増やさず、Qwen3:8Bへの呼び出し回数を増やさない方針です。
+
 - list_directory - workspace内の一覧取得
 - read_file - テキストファイルの読み取り
 - search_files - ローカルファイル検索
