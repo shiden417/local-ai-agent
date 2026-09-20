@@ -74,7 +74,7 @@ def test_context_manager_compacts_old_history() -> None:
 
     manager = ContextManager(
         max_chars=2_000,
-        keep_recent_blocks=2,
+        keep_recent_blocks=3,
     )
 
     compacted = manager.prepare(messages)
