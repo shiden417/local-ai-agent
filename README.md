@@ -20,7 +20,7 @@ LM Studio + Qwen3:8B を基盤にした、無料・ローカル・無制限利�
       ↓
     Agent Runtime
       ↓
-    Capability Router / Tool Exposure Policy
+    Request Classifier (conversation / task only)
       ↓
     LM Studio OpenAI-compatible API
       ↓
@@ -50,7 +50,7 @@ LM Studio + Qwen3:8B を基盤にした、無料・ローカル・無制限利�
 
 LM Studio provides the local model server and OpenAI-compatible API. The Agent Runtime remains responsible for task state, safety, tool execution, and autonomous iteration. LM Studio's OpenAI-compatible API is intentionally used here because it lets the project use LM Studio as the inference layer without transferring safety and workspace policy into the model server.
 
-LM Studio also provides a native Python SDK and an `.act()` automatic multi-round agent API. The current JARVIS core keeps its own Runtime loop instead of delegating execution to `.act()`, because the project needs centralized capability routing, workspace boundaries, approvals, observation tracking, recovery, and task verification. This avoids maintaining two competing execution-control layers.
+LM Studio also provides a native Python SDK and an `.act()` automatic multi-round agent API. The current JARVIS core keeps its own Runtime loop instead of delegating execution to `.act()`, because the project needs centralized workspace boundaries, safety/approval policy, observation and loop control, recovery, and deterministic task verification. This avoids maintaining two competing execution-control layers.
 
 ## Current implementation
 
@@ -125,7 +125,7 @@ Agentを操作したい作業ディレクトリで起動します。
 
     You > WpfGisLearningを確認して、テストを実行して問題があれば修正して。
 
-JARVIS v1では、ユーザーの1回の依頼に対して、必要なToolを複数回使い、観測結果から次のActionを判断する自律実行を重視します。
+JARVIS v1では、ユーザーの1回の依頼に対して必要なToolを複数回使います。Taskとして分類された依頼では登録済みToolをモデルに提示し、Qwen3:8BのTool Callingに選択を委ね、Runtimeが安全性・実行・観測・回復・完了確認を担当します。
 
 ## Commands
 
@@ -162,7 +162,7 @@ GitHub ActionsではWindows Runner上でテストします。
 - Agent loopの収束・安定化
 - Deterministic Completion Verification
 - AGENTS.md階層ルール
-- Capability Routerの簡素化
+- Request Classifierの維持・軽量化
 - Task/Observation状態の簡素化
 - より高度なLong-term Memory
 - Goal / task decomposition
@@ -185,8 +185,8 @@ GitHub ActionsではWindows Runner上でテストします。
 
 ## Design principles
 
-- LLMは判断する
-- Runtimeは状態・安全性・進捗を管理する
+- LLMは判断しToolを選択する
+- Runtimeは状態・安全性・実行・進捗を管理する
 - Toolは明確な責務を持つ
 - Agent Coreに特定用途のロジックを埋め込まない
 - ToolはRegistry経由で追加する
