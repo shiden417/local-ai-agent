@@ -522,7 +522,9 @@ class AgentRuntime:
                     continue
 
                 call_count = self.loop_guard.record(name, arguments)
+                safety_decision = AUTO_ALLOW
                 if self.task.recovery_tool == name:
+                    safety_decision = "recovery_blocked"
                     result = {
                         "ok": False,
                         "error": (
@@ -537,6 +539,7 @@ class AgentRuntime:
                     else:
                         print("[Tool] blocked by recovery quarantine")
                 elif self.loop_guard.is_repetition(name, arguments):
+                    safety_decision = "loop_blocked"
                     self.task.disable_tool(name)
                     result = {
                         "ok": False,
@@ -675,15 +678,59 @@ class AgentRuntime:
                     }
                 )
 
+                self.trace.tool(
+                    run_id,
+                    iteration=self.task.iteration,
+                    name=name,
+                    arguments=arguments,
+                    result=result,
+                    duration_ms=self._last_tool_duration_ms,
+                    safety_decision=safety_decision,
+                )
+                if bool(result.get("ok")) and name in {
+                    "file_mutation",
+                    "execute_command",
+                    "run_python_script",
+                    "stage_plugin",
+                    "promote_plugin",
+                }:
+                    self._environment_revision += 1
+
                 if name == "finish_task" and bool(result.get("ok")):
-                    if str(result.get("completion_status", "completed")) == "blocked":
-                        self.task.fail(
-                            str(result.get("summary", "Task could not be completed."))
+                    summary = str(
+                        result.get(
+                            "summary",
+                            "Task could not be completed.",
                         )
+                    ).strip()
+                    blocked = (
+                        str(result.get("completion_status", "completed"))
+                        == "blocked"
+                    )
+                    if blocked:
+                        self.task.fail(summary)
                     else:
                         self.task.complete()
-                    terminal_synthesis_required = True
-                    break
+
+                    final_content = summary or (
+                        "Task was blocked." if blocked else "Task completed."
+                    )
+                    self.session_manager.remember_task(
+                        user_input,
+                        final_content,
+                        current_task.messages,
+                    )
+                    self.task_manager.update_timestamp(current_task)
+                    self.trace.run_end(
+                        run_id,
+                        task_id=current_task.task_id,
+                        status=self.task.status.value,
+                        iterations=self.task.iteration,
+                        tool_calls=self.task.tool_calls,
+                    )
+                    if self.terminal_ui is not None:
+                        self.terminal_ui.final(final_content)
+                    return final_content
 
                 tool_definition = self.tool_registry.get(name)
                 if (
@@ -695,9 +742,16 @@ class AgentRuntime:
 
         self.task.hit_max_iterations()
         self.task_manager.update_timestamp(current_task)
+        self.trace.run_end(
+            run_id,
+            task_id=current_task.task_id,
+            status=self.task.status.value,
+            iterations=self.task.iteration,
+            tool_calls=self.task.tool_calls,
+        )
         return "Agentの最大反復回数に達したため、処理を終了しました。"
 
-    def _run_conversation(self, user_input: str) -> str:
+    def _run_conversation(self, user_input: str, run_id: str | None = None) -> str:
         """Answer without creating a Task or exposing operational Tools."""
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -902,11 +956,17 @@ class AgentRuntime:
             print(f"[Working Directory] {self.working_directory}")
             print(f"[Arguments] {json.dumps(arguments, ensure_ascii=False)}")
 
-        return self.tool_registry.execute(
-            name,
-            arguments,
-            self.working_directory,
-        )
+        started = time.perf_counter()
+        try:
+            return self.tool_registry.execute(
+                name,
+                arguments,
+                self.working_directory,
+            )
+        finally:
+            self._last_tool_duration_ms = round(
+                (time.perf_counter() - started) * 1000
+            )
 
     @staticmethod
     def _confirmation_message(
