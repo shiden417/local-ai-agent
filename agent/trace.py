@@ -220,6 +220,8 @@ class TraceRecorder:
         result: dict[str, Any],
         duration_ms: int,
         safety_decision: str,
+        outcome_status: str = "",
+        progress_state: str = "",
     ) -> None:
         fields: dict[str, Any] = {
             "run_id": run_id,
@@ -229,6 +231,8 @@ class TraceRecorder:
             "ok": bool(result.get("ok")),
             "result_chars": _json_size(result),
             "safety": safety_decision,
+            "status": outcome_status,
+            "progress": progress_state,
         }
         if self.include_payloads:
             fields["arguments"] = arguments
