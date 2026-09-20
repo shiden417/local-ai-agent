@@ -1,21 +1,21 @@
 from pathlib import Path
 
-from agent.approval import ApprovalPolicy, approval_key
+from agent.safety import SafetyPolicy, approval_key
 
 
 def test_approval_policy_persists_explicit_allow(tmp_path: Path) -> None:
     path = tmp_path / "approvals.json"
-    first = ApprovalPolicy(path)
+    first = SafetyPolicy(path)
     first.allow("file_mutation:edit:workspace", "edit local files")
 
-    second = ApprovalPolicy(path)
+    second = SafetyPolicy(path)
     assert second.is_allowed("file_mutation:edit:workspace") is True
     assert second.is_allowed("file_mutation:delete:abc") is False
     assert second.entries()[0]["description"] == "edit local files"
 
 
 def test_approval_policy_clear_removes_learned_rules(tmp_path: Path) -> None:
-    policy = ApprovalPolicy(tmp_path / "approvals.json")
+    policy = SafetyPolicy(tmp_path / "approvals.json")
     policy.allow("tool:key")
     policy.clear()
 
