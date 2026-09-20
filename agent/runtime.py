@@ -456,10 +456,9 @@ class AgentRuntime:
 
                 current_task.messages.append(_message_to_dict(message))
                 final_content = self._normalize_final_content(content)
-                self.conversation_manager.add_turn(
-                    user_input,
-                    final_content,
-                )
+                # Completed Agent Tasks are represented by Session Context,
+                # not ordinary conversational history. This keeps prior task
+                # answers from being mistaken for the current conversation.
                 self.session_context.remember_task(
                     user_input,
                     final_content,
