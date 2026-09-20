@@ -61,7 +61,9 @@ class CapabilityRouter:
             r"(作成|作って|つくって|生成|作り|新規).{0,12}(ファイル|コード|README|HTML|JSON|設定|ドキュメント)",
             r"(ファイル|コード|README|HTML|JSON|設定|ドキュメント).{0,12}(編集|変更|修正|書き換え|書換え|追加|削除|作成|生成|新規|更新)",
             r"(編集|変更|修正|書き換え|書換え|追加|削除|作成|生成|新規|更新).{0,12}(ファイル|コード|README|HTML|JSON|設定|ドキュメント)",
-            r"\b(edit|modify|fix|change|update|write|create|delete|remove)\b.{0,20}\b(file|code|readme|config|document)\b",
+            r"(バグ|不具合|問題|issue|bug).{0,20}(修正|直して|直す|fix|resolve)",
+            r"(修正|直して|直す|fix|resolve).{0,20}(バグ|不具合|問題|issue|bug)",
+            r"\b(edit|modify|fix|change|update|write|create|delete|remove)\b.{0,20}\b(file|code|readme|config|document|bug|issue)\b",
         ),
         Capability.SCRIPT_EXECUTION: (
             r"(Python|python|スクリプト|script).{0,20}(実行|動か|コード|スクリプト|実行して|動かして)",
