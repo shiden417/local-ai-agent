@@ -64,6 +64,12 @@ def _run_task(runtime, prompt: str) -> tuple[str, float]:
     return result, time.perf_counter() - started
 
 
+def _task_used_tool(runtime, names: set[str]) -> bool:
+    task = runtime.task
+    if task is None:
+        return False
+    return any(observation.tool in names and observation.ok for observation in task.observations)
+
 def _check_exact(path: Path, expected: str) -> bool:
     try:
         return path.read_text(encoding="utf-8") == expected
@@ -110,6 +116,8 @@ def run_benchmark(root: Path, *, model: str | None, max_iterations: int, output:
     from agent.runtime import AgentRuntime
     from agent.llm import MODEL
     from agent.trace import TraceRecorder
+    from agent.memory import MemoryStore
+    from agent.tools import create_default_tool_registry
     from agent.trace import TraceRecorder
 
     _seed_workspace(root)
@@ -117,6 +125,9 @@ def run_benchmark(root: Path, *, model: str | None, max_iterations: int, output:
     runtime = AgentRuntime(
         working_directory=root,
         max_iterations=max_iterations,
+        tool_registry=create_default_tool_registry(
+            memory_store=MemoryStore(root / "memory.json")
+        ),
         confirm=lambda _message: True,
         trace_recorder=TraceRecorder(trace_path),
     )
@@ -129,21 +140,43 @@ def run_benchmark(root: Path, *, model: str | None, max_iterations: int, output:
     tasks = [
         (
             "Task 1: file creation",
-            "このworkspaceに hello.txt を新規作成してください。内容は1行だけで Hello JARVIS としてください。作成したことを確認して完了してください。",
-            lambda: _check_exact(root / "hello.txt", "Hello JARVIS"),
+            "このworkspaceに hello.txt を新規作成してください。内容は1行だけで Hello JARVIS としてください。作成したことを確認してください。",
+            lambda: _check_exact(root / "hello.txt", "Hello JARVIS") and _task_used_tool(runtime, {"file_mutation"}),
         ),
         (
             "Task 2: session follow-up",
-            "そのファイルの2行目に Session Context works を追加してください。既存の1行目は変更しないでください。確認して完了してください。",
-            lambda: _check_exact(root / "hello.txt", "Hello JARVIS\nSession Context works"),
+            "そのファイルの2行目に Session Context works を追加してください。既存の1行目は変更しないでください。確認してください。",
+            lambda: _check_exact(root / "hello.txt", "Hello JARVIS\nSession Context works") and _task_used_tool(runtime, {"file_mutation"}),
         ),
         (
-            "Task 3: investigate, edit, test",
-            "calculator.py を調査してください。add関数にバグがあります。原因を修正し、python -m pytest -q を実行して、全テストが成功することを確認してください。テストコード自体は変更しないでください。",
-            lambda: (
-                _check_exact(root / "calculator.py", "def add(a, b):\n    return a + b\n\ndef multiply(a, b):\n    return a * b\n")
-                and _check_exact(root / "test_calculator.py", "from calculator import add, multiply\n\ndef test_add():\n    assert add(2, 3) == 5\n\ndef test_multiply():\n    assert multiply(2, 3) == 6\n")
-            ),
+            "Task 3: read-only investigation",
+            "calculator.py の add 関数を調査して、現在の実装内容を確認してください。ファイルは変更しないでください。",
+            lambda: _check_exact(root / "calculator.py", "def add(a, b):\n    return a - b\n\ndef multiply(a, b):\n    return a * b\n") and _task_used_tool(runtime, {"read_file", "search_files"}),
+        ),
+        (
+            "Task 4: file search",
+            "workspace内で multiply という語があるファイルを検索して確認してください。ファイルを変更しないでください。",
+            lambda: _task_used_tool(runtime, {"search_files"}),
+        ),
+        (
+            "Task 5: investigate, edit, test",
+            "calculator.py を調査してください。add関数にバグがあります。原因を修正し、python -m pytest -q を実行して、全テストが成功することを確認してください。test_calculator.py は変更しないでください。",
+            lambda: (_check_exact(root / "calculator.py", "def add(a, b):\n    return a + b\n\ndef multiply(a, b):\n    return a * b\n") and _check_exact(root / "test_calculator.py", "from calculator import add, multiply\n\ndef test_add():\n    assert add(2, 3) == 5\n\ndef test_multiply():\n    assert multiply(2, 3) == 6\n") and _task_used_tool(runtime, {"file_mutation"}) and _task_used_tool(runtime, {"execute_command"})),
+        ),
+        (
+            "Task 6: process execution",
+            "このworkspaceで python -c を使って JARVIS benchmark と表示するコマンドを実行し、終了コード0を確認してください。",
+            lambda: _task_used_tool(runtime, {"execute_command"}),
+        ),
+        (
+            "Task 7: file deletion",
+            "hello.txt を削除してください。削除されたことを確認してください。",
+            lambda: (not (root / "hello.txt").exists()) and _task_used_tool(runtime, {"file_mutation"}),
+        ),
+        (
+            "Task 8: memory",
+            "このBenchmarkの識別子 jarvis-benchmark をMemoryに保存し、その後検索して保存できたことを確認してください。",
+            lambda: (root / "memory.json").exists() and _task_used_tool(runtime, {"save_memory", "search_memory"}),
         ),
     ]
 
