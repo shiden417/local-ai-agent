@@ -1,7 +1,6 @@
 import json
 from pathlib import Path
 
-from agent.capabilities import Capability
 from agent.experimental_tools import register_experimental_tools
 from agent.plugin_manager import PluginManager, PluginValidationError
 from agent.recipe_store import RecipeStore
@@ -27,7 +26,7 @@ def manifest(name: str = "double_value") -> dict:
             "required": ["value"],
             "additionalProperties": False,
         },
-        "capabilities": [Capability.SCRIPT_EXECUTION.value],
+        "capabilities": ["script_execution"],
         "requires_confirmation": True,
         "use_when": "Double a supplied integer.",
         "avoid_when": "No numeric transformation is required.",
