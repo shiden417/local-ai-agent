@@ -451,8 +451,16 @@ def create_default_tool_registry(
         from agent.plugin_manager import PluginManager
         from agent.recipe_store import RecipeStore
 
-        plugins = PluginManager(experimental_plugin_root) if experimental_plugin_root else PluginManager()
-        recipes = RecipeStore(experimental_recipe_path) if experimental_recipe_path else RecipeStore()
+        plugins = (
+            PluginManager(experimental_plugin_root)
+            if experimental_plugin_root
+            else PluginManager()
+        )
+        recipes = (
+            RecipeStore(experimental_recipe_path)
+            if experimental_recipe_path
+            else RecipeStore()
+        )
         register_experimental_tools(registry, plugins, recipes)
 
     return registry
