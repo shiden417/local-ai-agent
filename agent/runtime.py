@@ -11,6 +11,7 @@ from agent.conversation import ConversationManager
 from agent.llm import ask_llm
 from agent.loop_guard import ToolLoopGuard
 from agent.observation import truncate_text
+from agent.plugin_manager import PluginManager
 from agent.progress import evaluate_progress
 from agent.recipe_store import RecipeStore
 from agent.safety import requires_confirmation
@@ -34,6 +35,9 @@ SYSTEM_PROMPT = """あなたはローカルで動作する汎用AI Agentです�
 - run_python_scriptは一時的な補助手段です。専用Toolで目的を達成できる場合は、専用Toolを優先してください。
 - Runtimeが提示した過去のRecipeは成功実績のある参考コードですが、パス・入力・出力は現在のTaskに合わせて見直してください。
 - run_python_scriptが成功した場合、そのScriptはRuntimeがRecipeとして自動保存します。これを理由にsave_memoryを追加で呼ばないでください。
+- 新しい永続Capabilityが必要な場合は、まずstage_pluginで検疫へ配置し、必要性を確認してからpromote_pluginで有効化してください。
+- PluginはAgent Coreの代替ではありません。Runtime、Safety、Task、MemoryなどCore自体をPluginで変更しようとしないでください。
+- Pluginを有効化した後は、次の反復で新しいToolがRegistryへ追加されるため、必要ならそのToolを使って元のGoalを続行してください。
 - 現在日時・時刻についてはRuntimeが提供する現在の日時を事実として使用し、推測や古い知識から日付を作らないでください。
 - ユーザーが「作成して」「修正して」「削除して」「実行して」など、実際の操作を明示した場合は、説明やサンプルだけを返さず、適切なToolを使ってください。
 - Toolを使っていない場合、ファイル作成・変更・コマンド実行などが完了したと主張しないでください。
@@ -131,10 +135,14 @@ class AgentRuntime:
         confirm: Callable[[str], bool] | None = None,
         context_manager: ContextManager | None = None,
         recipe_store: RecipeStore | None = None,
+        plugin_manager: PluginManager | None = None,
     ) -> None:
         self.working_directory = Path(working_directory).resolve()
         self.max_iterations = max_iterations
-        self.tool_registry = tool_registry or create_default_tool_registry()
+        self.plugin_manager = plugin_manager or PluginManager()
+        self.tool_registry = tool_registry or create_default_tool_registry(
+            plugin_manager=self.plugin_manager,
+        )
         self.confirm = confirm or self._default_confirm
         self.context_manager = context_manager or ContextManager()
         self.recipe_store = recipe_store or RecipeStore()
@@ -592,6 +600,18 @@ class AgentRuntime:
                 "Agentが一時的なPythonスクリプトを実行しようとしています。\n"
                 "実行環境は子プロセスで時間・出力サイズを制限します。\n"
                 f"timeout_seconds: {arguments.get('timeout_seconds', 15)}"
+            )
+
+        if name == "stage_plugin":
+            return (
+                "Agentが新しいPluginを検疫領域へ作成しようとしています。\n"
+                f"plugin_id: {arguments.get('plugin_id', '')}"
+            )
+
+        if name == "promote_plugin":
+            return (
+                "Agentが検疫済みPluginを永続Capabilityとして有効化しようとしています。\n"
+                f"plugin_id: {arguments.get('plugin_id', '')}"
             )
 
         return (
