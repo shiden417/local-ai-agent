@@ -343,3 +343,32 @@ def test_fetch_web_page_blocks_private_ip() -> None:
 
     assert result["ok"] is False
     assert "private" in result["error"].lower()
+
+
+
+def test_session_context_preserves_facts_for_follow_up(tmp_path: Path) -> None:
+    context = SessionContext()
+    context.remember_task(
+        "Python 3.14について調べて",
+        "公式情報を確認しました。",
+        [
+            {
+                "role": "tool",
+                "name": "search_web",
+                "content": (
+                    '{"ok":true,"results":['
+                    '{"title":"Python 3.14","url":"https://python.org",'
+                    '"snippet":"Official release"}]}'
+                ),
+            }
+        ],
+    )
+    context.remember_task(
+        "その中で重要な変更を3つ教えて",
+        "重要な変更を3つまとめました。",
+        [],
+    )
+
+    prompt = context.prompt_block()
+    assert "Python 3.14" in prompt
+    assert "https://python.org" in prompt
