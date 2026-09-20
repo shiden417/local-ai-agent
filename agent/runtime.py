@@ -186,6 +186,11 @@ class AgentRuntime:
             return [{"role": "system", "content": SYSTEM_PROMPT}]
         return self.current_task.messages
 
+    def clear_session_context(self) -> None:
+        """Clear conversational and cross-task ephemeral context."""
+        self.conversation_manager.clear()
+        self.session_context.clear()
+
     @staticmethod
     def _default_confirm(message: str) -> bool:
         answer = input(f"\n{message}\nProceed? [y/N]: ")
