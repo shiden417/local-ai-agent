@@ -6,17 +6,9 @@ from agent.plugin_manager import PluginManager, PluginValidationError
 from agent.tool_registry import ToolRegistry
 
 
-PLUGIN_SOURCE = '''import json
-
-
-def run(arguments):
+PLUGIN_SOURCE = '''def run(arguments):
     value = int(arguments.get("value", 0))
     return {"ok": True, "value": value * 2}
-
-
-if __name__ == "__main__":
-    payload = json.loads(input())
-    print(json.dumps(run(payload["arguments"]), ensure_ascii=False))
 '''
 
 
