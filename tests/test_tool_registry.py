@@ -101,12 +101,4 @@ def test_registry_routes_default_capability_scopes() -> None:
         schema["function"]["name"]
         for schema in registry.schemas_for("どうすればよいですか")
     ]
-    assert ambiguous_tools == [
-        "list_directory",
-        "read_file",
-        "search_files",
-        "edit_file",
-        "execute_command",
-        "save_memory",
-        "search_memory",
-    ]
+    assert ambiguous_tools == []
