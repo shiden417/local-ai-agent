@@ -20,6 +20,7 @@ def test_runtime_initializes_with_absolute_working_directory(tmp_path: Path) -> 
         "search_files",
         "file_mutation",
         "execute_command",
+        "run_python_script",
         "save_memory",
         "search_memory",
     }
@@ -1065,3 +1066,65 @@ def test_runtime_synthesizes_immediately_after_terminal_tool_success(
     assert len(captured_tools) == 2
     assert captured_tools[0]
     assert captured_tools[1] == []
+
+
+def test_runtime_saves_successful_script_as_recipe(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from agent.recipe_store import RecipeStore
+
+    tool_call = SimpleNamespace(
+        id="call-script",
+        function=SimpleNamespace(
+            name="run_python_script",
+            arguments=json.dumps(
+                {"script": "print('recipe works')"}
+            ),
+        ),
+    )
+    responses = [
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="",
+                        tool_calls=[tool_call],
+                    )
+                )
+            ]
+        ),
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="スクリプトを実行しました。",
+                        tool_calls=[],
+                    )
+                )
+            ]
+        ),
+    ]
+
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm",
+        lambda _messages, tools=None: responses.pop(0),
+    )
+
+    recipe_store = RecipeStore(tmp_path / "recipes.json")
+    runtime = AgentRuntime(
+        tmp_path,
+        recipe_store=recipe_store,
+        confirm=lambda _message: True,
+    )
+
+    result = runtime.run("Pythonスクリプトを実行してください")
+
+    assert result == "スクリプトを実行しました。"
+    recipes = recipe_store.all()
+    assert len(recipes) == 1
+    assert recipes[0].script == "print('recipe works')"
+    assert recipes[0].use_count == 1
