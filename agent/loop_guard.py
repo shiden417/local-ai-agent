@@ -5,42 +5,34 @@ from typing import Any
 
 
 class ToolLoopGuard:
-    """Detect consecutive identical tool calls that make no progress."""
+    """Detect repeated identical tool calls within one task."""
 
     def __init__(self, max_identical_calls: int = 2) -> None:
         if max_identical_calls < 2:
             raise ValueError("max_identical_calls must be at least 2")
 
         self.max_identical_calls = max_identical_calls
-        self._last_key: tuple[str, str] | None = None
-        self._consecutive_count = 0
+        self._counts: dict[tuple[str, str], int] = {}
 
     def record(self, name: str, arguments: dict[str, Any]) -> int:
         key = self._key(name, arguments)
-
-        if key == self._last_key:
-            self._consecutive_count += 1
-        else:
-            self._last_key = key
-            self._consecutive_count = 1
-
-        return self._consecutive_count
+        self._counts[key] = self._counts.get(key, 0) + 1
+        return self._counts[key]
 
     def is_repetition(self, name: str, arguments: dict[str, Any]) -> bool:
         return (
-            self._key(name, arguments) == self._last_key
-            and self._consecutive_count >= self.max_identical_calls
+            self._counts.get(self._key(name, arguments), 0)
+            >= self.max_identical_calls
         )
 
     def reset(self) -> None:
-        self._last_key = None
-        self._consecutive_count = 0
+        self._counts.clear()
 
     def message(self, name: str, arguments: dict[str, Any]) -> str:
         return (
-            "このTool呼び出しは直前にも同じ引数で実行され、"
-            "同じ結果を取得済みです。同じ操作を繰り返さず、"
-            "既に得た結果を使って次の行動を選んでください。"
+            "このTaskでは同じTool呼び出しがすでに実行されています。"
+            "同じ結果を再取得せず、既に得た観測結果を利用するか、"
+            "別の方法で前進してください。"
             f" Tool={name}, arguments={json.dumps(arguments, ensure_ascii=False)}"
         )
 
