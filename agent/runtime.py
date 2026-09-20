@@ -6,6 +6,7 @@ from typing import Any, Callable
 
 from agent.context import ContextManager
 from agent.llm import ask_llm
+from agent.loop_guard import ToolLoopGuard
 from agent.observation import truncate_text
 from agent.safety import requires_confirmation
 from agent.task import TaskState
@@ -24,6 +25,7 @@ SYSTEM_PROMPT = """あなたはローカルで動作する汎用AI Agentです�
 - 不可逆な変更や確認が必要な操作を急いで実行しないでください。
 - ツールを使った結果に基づいて、必要なら追加のツールを呼び出してください。
 - ツールが失敗した場合は、エラー内容を分析して別の方法を検討してください。
+- 同じToolを同じ引数で直前に成功実行している場合は、繰り返さず既に得た結果を利用してください。
 - 1回の判断では必要最小限の操作を選んでください。
 - 現在の作業環境で利用できる範囲を超えてアクセスしようとしないでください。
 - ユーザーの確認が必要な操作は、確認が得られてから実行してください。
@@ -90,6 +92,7 @@ class AgentRuntime:
         self.tool_registry = tool_registry or create_default_tool_registry()
         self.confirm = confirm or self._default_confirm
         self.context_manager = context_manager or ContextManager()
+        self.loop_guard = ToolLoopGuard()
         self.task_manager = TaskManager()
         self.current_task: ManagedTask | None = None
         self.task: TaskState | None = None
@@ -105,6 +108,7 @@ class AgentRuntime:
     def run(self, user_input: str) -> str:
         self.current_task = self.task_manager.create(user_input)
         self.task = self.current_task.state
+        self.loop_guard.reset()
         self.task.start()
         self.messages.append({"role": "user", "content": user_input})
         self.task_manager.update_timestamp(self.current_task)
@@ -161,7 +165,16 @@ class AgentRuntime:
                     )
                     continue
 
-                if requires_confirmation(name, arguments, self.tool_registry):
+                call_count = self.loop_guard.record(name, arguments)
+                if self.loop_guard.is_repetition(name, arguments):
+                    result = {
+                        "ok": False,
+                        "error": self.loop_guard.message(name, arguments),
+                        "repeated_tool_call": True,
+                        "call_count": call_count,
+                    }
+                    print("[Tool] repeated call blocked")
+                elif requires_confirmation(name, arguments, self.tool_registry):
                     summary = self._confirmation_message(name, arguments)
                     if not self.confirm(summary):
                         result = {
