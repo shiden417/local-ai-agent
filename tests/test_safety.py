@@ -17,3 +17,17 @@ def test_destructive_command_requires_confirmation() -> None:
         "execute_command",
         {"command": "git reset --hard HEAD"},
     ) is True
+
+
+def test_power_shell_write_command_requires_confirmation() -> None:
+    assert requires_confirmation(
+        "execute_command",
+        {"command": "Set-Content -Path example.txt -Value hello"},
+    ) is True
+
+
+def test_output_redirection_requires_confirmation() -> None:
+    assert requires_confirmation(
+        "execute_command",
+        {"command": "Get-Date > example.txt"},
+    ) is True
