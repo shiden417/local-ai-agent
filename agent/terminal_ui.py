@@ -76,6 +76,11 @@ class TerminalUI:
         print(f"  {description}")
         return input("  [y] once / [a] always for this action / [n] deny: ").strip().lower()
 
+    def question(self, question: str) -> str:
+        print(self._c("\n  Agent question", YELLOW))
+        print(f"  {question}")
+        return input("  Answer: ").strip()
+
 
 def _compact(arguments: dict[str, Any], max_chars: int = 140) -> str:
     raw = repr(arguments)

@@ -55,9 +55,14 @@ def read_file(
         output = output[:MAX_CHARS]
         output = output.rsplit("\n", 1)[0]
 
+    display_path = to_display_path(working_directory, path)
+    display_directory = to_display_path(working_directory, path.parent)
+
     return {
         "ok": True,
-        "path": to_display_path(working_directory, path),
+        "path": display_path,
+        "directory": display_directory,
+        "relative_reference_base": display_directory,
         "start_line": start_line,
         "end_line": end_line,
         "content": output,

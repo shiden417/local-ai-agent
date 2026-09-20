@@ -14,6 +14,7 @@ from tools.read_file import read_file
 from tools.search_files import search_files
 from tools.search_web import search_web
 from tools.run_python_script import run_python_script
+from tools.control import ask_user, finish_task
 
 
 def create_default_tool_registry(
@@ -23,6 +24,55 @@ def create_default_tool_registry(
 ) -> ToolRegistry:
     """Create the default local capability set."""
     registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="ask_user",
+            description=(
+                "Ask the user one concise clarification question and wait for a reply. "
+                "Use only when an important decision cannot be made safely from the current context."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "question": {
+                        "type": "string",
+                        "description": "One concise question for the user.",
+                    }
+                },
+                "required": ["question"],
+                "additionalProperties": False,
+            },
+            handler=ask_user,
+            availability="always",
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="finish_task",
+            description=(
+                "Explicitly tell the Runtime that the task is complete, or that it "
+                "cannot be completed safely. Do not use this before the goal is actually verified."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "completion_status": {
+                        "type": "string",
+                        "enum": ["completed", "blocked"],
+                    },
+                    "summary": {
+                        "type": "string",
+                        "description": "Concise reason the task is complete or blocked.",
+                    },
+                },
+                "required": ["completion_status", "summary"],
+                "additionalProperties": False,
+            },
+            handler=finish_task,
+            availability="always",
+            terminal_on_success=True,
+        )
+    )
     memory = memory_store or MemoryStore()
     plugins = plugin_manager or PluginManager()
     recipes = recipe_store or RecipeStore()

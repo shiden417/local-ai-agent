@@ -32,6 +32,20 @@ def test_router_scopes_process_tasks() -> None:
     assert route.capabilities == frozenset({Capability.PROCESS})
 
 
+def test_router_detects_current_weather_as_web_search() -> None:
+    route = CapabilityRouter().route("今日の天気を教えてください")
+
+    assert route.mode == RoutingMode.SCOPED
+    assert route.capabilities == frozenset({Capability.WEB_SEARCH})
+
+
+def test_router_detects_current_price_as_web_search() -> None:
+    route = CapabilityRouter().route("現在の価格を調べてください")
+
+    assert route.mode == RoutingMode.SCOPED
+    assert route.capabilities == frozenset({Capability.WEB_SEARCH})
+
+
 def test_router_scopes_memory_tasks() -> None:
     route = CapabilityRouter().route("前回の記憶を確認してください")
 

@@ -61,6 +61,9 @@ class TaskState:
     progress_state: ProgressState = ProgressState.UNKNOWN
     progress_count: int = 0
     recovery_tool: str | None = None
+    failed_tool_history: list[dict[str, str]] = field(default_factory=list)
+    consecutive_failures: int = 0
+    last_failure_status: str | None = None
 
     def start(self) -> None:
         self.status = TaskStatus.RUNNING
@@ -81,6 +84,7 @@ class TaskState:
         signature: str = "",
         new_information: bool | None = None,
         progress_state: ProgressState | None = None,
+        failure_status: str | None = None,
     ) -> None:
         self.tool_calls += 1
         self.last_tool = name
@@ -108,6 +112,21 @@ class TaskState:
 
         if not succeeded:
             self.recovery_tool = name
+            self.consecutive_failures += 1
+            self.last_failure_status = failure_status or "failed"
+            self.failed_tool_history.append(
+                {
+                    "tool": name,
+                    "status": self.last_failure_status,
+                    "error": summary,
+                }
+            )
+            if len(self.failed_tool_history) > 6:
+                self.failed_tool_history.pop(0)
+        else:
+            self.consecutive_failures = 0
+            self.last_failure_status = None
+
         elif self.recovery_tool == name:
             # Keep the failed tool quarantined until a different successful
             # observation gives the model new evidence.
@@ -177,6 +196,8 @@ class TaskState:
             ),
             f"Disabled tools: {disabled}",
             f"Recovery quarantine: {recovery}",
+            f"Consecutive failures: {self.consecutive_failures}; "
+            f"last_failure_status={self.last_failure_status or 'none'}",
             "Execution guidance: "
             "use the smallest action that advances the goal; "
             "after a useful observation, verify whether the goal can already be answered; "

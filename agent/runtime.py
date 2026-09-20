@@ -15,6 +15,7 @@ from agent.loop_guard import ToolLoopGuard
 from agent.observation import truncate_text
 from agent.plugin_manager import PluginManager
 from agent.progress import evaluate_progress
+from agent.recovery import classify_tool_outcome, recovery_guidance
 from agent.recipe_store import RecipeStore
 from agent.terminal_ui import TerminalUI
 from agent.safety import requires_confirmation
@@ -30,12 +31,13 @@ SYSTEM_PROMPT = """あなたはローカルで動作する汎用AI Agentです�
 
 実行ルール:
 - Goalを達成するために必要な最小限のActionだけを選択してください。
+- 1回の判断では、原則として最も直接的なToolを1つだけ選んでください。
 - PLANでは最初の具体的なActionを決め、ACTではそれを実行し、VERIFYでは結果から「目的が達成済みか」「次に何をすべきか」を判断してください。
 - Current task execution stateはRuntimeが管理する事実です。Recent observationsは既知の情報として扱い、同じ情報を再取得しないでください。
 - 同じTool + 同じ引数を繰り返さないでください。Toolが無効化されている場合は別のActionを選択してください。
 - 同じ内容の観測を別の引数で再取得することも避けてください。
-- Toolが失敗した場合は、同じ失敗を繰り返さず、直前の失敗に直接関係する最小の別手段を試してください。
-- search_webは現在の外部情報が必要なときの読み取り専用Web検索です。検索結果のURLとSnippetを根拠として扱い、検索結果だけで確認できない詳細は推測せず、必要なら追加検索を行ってください。
+- Toolが失敗した場合は、同じ失敗を繰り返さず、Runtimeが提示するRecovery Guideを確認して、直前の失敗に直接関係する最小の別手段を試してください。
+- search_webは現在の外部情報が必要なときの読み取り専用Web検索です。今日・現在の天気、最新ニュース、価格、営業時間、運行状況など、現在性が必要な質問では積極的に使用してください。検索結果のURLとSnippetを根拠として扱い、検索結果だけで確認できない詳細は推測せず、必要なら追加検索を行ってください。
 - run_python_scriptは一時的な補助手段です。専用Toolで目的を達成できる場合は、専用Toolを優先してください。
 - Runtimeが提示した過去のRecipeは成功実績のある参考コードですが、パス・入力・出力は現在のTaskに合わせて見直してください。
 - run_python_scriptが成功した場合、そのScriptはRuntimeがRecipeとして自動保存します。これを理由にsave_memoryを追加で呼ばないでください。
@@ -48,6 +50,9 @@ SYSTEM_PROMPT = """あなたはローカルで動作する汎用AI Agentです�
 - コマンド失敗の調査で、実行ポリシー、System32、Windows内部ファイル、ユーザーディレクトリなどの無関係なOS情報を探索しないでください。必要性がユーザーの依頼から明確でない限り、workspace内の原因調査を優先してください。
 - Pythonプロジェクトのテストでは、まず現在のプロジェクト環境を使う「python -m pytest」形式を優先してください。
 - 変更や外部作用を伴うToolは、必要性を確認してから使用してください。
+- finish_taskは、Goalが達成済み、または安全に進められないことが明確になったときだけ使用してください。
+- ask_userは、推測で進めると誤る重要な選択肢が残っている場合だけ使用してください。質問は1つに絞ってください。
+- ファイル内に記載された相対パスは、そのファイルが存在するディレクトリを基準に解決してください。workspace rootを勝手に基準にしてパスを推測しないでください。
 - ユーザーが求めていない変更を行わないでください。
 - 目的を達成するための十分な情報が揃ったら、Toolを追加実行せず通常の文章で直接回答してください。
 - 現在情報が必要なのに、その情報を取得するToolが利用可能でない場合は、推測せず、その制約を明示してください。
@@ -142,6 +147,7 @@ class AgentRuntime:
         plugin_manager: PluginManager | None = None,
         approval_policy: ApprovalPolicy | None = None,
         terminal_ui: TerminalUI | None = None,
+        ask_user: Callable[[str], str] | None = None,
     ) -> None:
         self.working_directory = Path(working_directory).resolve()
         self.max_iterations = max_iterations
@@ -154,6 +160,7 @@ class AgentRuntime:
         self.confirm = confirm
         self.approval_policy = approval_policy or ApprovalPolicy()
         self.terminal_ui = terminal_ui
+        self.ask_user_callback = ask_user
         self.context_manager = context_manager or ContextManager()
         self.loop_guard = ToolLoopGuard()
         self.task_manager = TaskManager()
@@ -325,6 +332,16 @@ class AgentRuntime:
                             "within the workspace, then reassess the goal. "
                             "Do not investigate unrelated OS settings or "
                             "system internals."
+                        ),
+                    }
+                )
+            if self.task.last_failure_status:
+                llm_messages.append(
+                    {
+                        "role": "system",
+                        "content": recovery_guidance(
+                            self.task.last_tool or "unknown",
+                            self.task.last_failure_status,
                         ),
                     }
                 )
@@ -518,6 +535,23 @@ class AgentRuntime:
                 else:
                     result = self._execute_tool(name, arguments)
 
+                if name == "ask_user" and bool(result.get("ok")):
+                    question = str(result.get("question", "")).strip()
+                    answer = self._ask_user(question)
+                    if answer is None:
+                        result = {
+                            "ok": False,
+                            "error": "User did not provide an answer.",
+                            "user_rejected": True,
+                        }
+                    else:
+                        result = {**result, "answer": answer}
+
+                if name == "finish_task" and bool(result.get("ok")):
+                    terminal_synthesis_required = True
+
+                result["status"] = classify_tool_outcome(name, result)
+
                 serialized = json.dumps(
                     result,
                     ensure_ascii=False,
@@ -529,6 +563,7 @@ class AgentRuntime:
                 fingerprint = _observation_fingerprint(name, result)
                 signature = f"{name}:{fingerprint}"
                 observation_is_new = signature not in self.task.observation_signatures
+                outcome_status = classify_tool_outcome(name, result)
                 evaluation = evaluate_progress(
                     name,
                     result,
@@ -542,6 +577,7 @@ class AgentRuntime:
                     signature=signature,
                     new_information=observation_is_new,
                     progress_state=evaluation.state,
+                    failure_status=outcome_status if not bool(result.get("ok")) else None,
                 )
                 self.task_manager.update_timestamp(current_task)
 
@@ -566,6 +602,16 @@ class AgentRuntime:
                         "content": bounded,
                     }
                 )
+
+                if name == "finish_task" and bool(result.get("ok")):
+                    if str(result.get("completion_status", "completed")) == "blocked":
+                        self.task.fail(
+                            str(result.get("summary", "Task could not be completed."))
+                        )
+                    else:
+                        self.task.complete()
+                    terminal_synthesis_required = True
+                    break
 
                 if name == "run_python_script" and bool(result.get("ok")):
                     script = str(arguments.get("script", "")).strip()
@@ -660,6 +706,20 @@ class AgentRuntime:
         )
         summary, _ = truncate_text(summary, 900)
         return summary
+
+    def _ask_user(self, question: str) -> str | None:
+        question = question.strip()
+        if not question:
+            return None
+        if self.ask_user_callback is not None:
+            return str(self.ask_user_callback(question)).strip()
+        if self.terminal_ui is not None:
+            return self.terminal_ui.question(question)
+        print(f"\n[Agent Question] {question}")
+        try:
+            return input("Answer: ").strip()
+        except EOFError:
+            return None
 
     def list_tasks(self) -> list[ManagedTask]:
         return self.task_manager.list_tasks()
