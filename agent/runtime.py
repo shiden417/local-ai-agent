@@ -577,7 +577,19 @@ class AgentRuntime:
                         result = {**result, "answer": answer}
 
                 if name == "finish_task" and bool(result.get("ok")):
-                    terminal_synthesis_required = True
+                    verification_error = self._verify_finish_task(
+                        current_task,
+                        result,
+                    )
+                    if verification_error is not None:
+                        result = {
+                            **result,
+                            "ok": False,
+                            "verification_failed": True,
+                            "error": verification_error,
+                        }
+                    else:
+                        terminal_synthesis_required = True
 
                 result["status"] = classify_tool_outcome(name, result)
 
@@ -705,6 +717,84 @@ class AgentRuntime:
         if self.terminal_ui is not None:
             self.terminal_ui.final(content)
         return content
+
+    @staticmethod
+    def _verify_finish_task(
+        task: ManagedTask,
+        result: dict[str, Any],
+    ) -> str | None:
+        """Verify deterministic execution facts before accepting completion."""
+        if str(result.get("completion_status", "")).strip().lower() == "blocked":
+            return None
+
+        successful_tools: list[tuple[str, dict[str, Any]]] = []
+        for message in task.messages:
+            if message.get("role") != "tool":
+                continue
+            try:
+                payload = json.loads(str(message.get("content", "")))
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict) and payload.get("ok"):
+                name = str(message.get("name", ""))
+                if name and name != "finish_task":
+                    successful_tools.append((name, payload))
+
+        if not successful_tools:
+            return (
+                "System Verification Failed: no successful action has been observed "
+                "before finish_task. Perform the required action first."
+            )
+
+        name, payload = successful_tools[-1]
+
+        if name == "execute_command":
+            if payload.get("exit_code") != 0:
+                return (
+                    "System Verification Failed: the last command did not finish "
+                    "with exit_code 0."
+                )
+            return None
+
+        if name in {"file_mutation", "create_file", "edit_file", "delete_file"}:
+            path = str(payload.get("path", "")).strip()
+            if not path:
+                return (
+                    "System Verification Failed: the file operation did not "
+                    "return a target path."
+                )
+            if payload.get("deleted") is True:
+                if Path(path).exists():
+                    return (
+                        f"System Verification Failed: target file still exists: {path}"
+                    )
+                return None
+            if not Path(path).exists():
+                return (
+                    f"System Verification Failed: target file does not exist: {path}"
+                )
+            return None
+
+        if name == "fetch_web_page":
+            status_code = payload.get("status_code")
+            content = str(payload.get("content", "")).strip()
+            if not content or (
+                isinstance(status_code, int) and not 200 <= status_code < 400
+            ):
+                return (
+                    "System Verification Failed: the fetched page did not return "
+                    "usable content."
+                )
+            return None
+
+        if name == "search_web":
+            if int(payload.get("count", 0) or 0) <= 0:
+                return (
+                    "System Verification Failed: the web search returned no results."
+                )
+            return None
+
+        return None
 
     def _related_paths(self, task: ManagedTask) -> list[str]:
         candidates = extract_related_paths(task.goal)
