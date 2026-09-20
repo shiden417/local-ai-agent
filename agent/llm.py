@@ -9,11 +9,29 @@ from openai import OpenAI
 LM_STUDIO_BASE_URL = os.getenv("LM_STUDIO_BASE_URL", "http://localhost:1234/v1")
 DEFAULT_MODEL = "qwen/qwen3-8b"
 MODEL = os.getenv("LM_STUDIO_MODEL", DEFAULT_MODEL)
+THINKING_MODE = os.getenv("LM_STUDIO_THINKING_MODE", "default").strip().lower()
 
 _client = OpenAI(
     base_url=LM_STUDIO_BASE_URL,
     api_key=os.getenv("LM_STUDIO_API_KEY", "lm-studio"),
 )
+
+
+def _prepare_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if THINKING_MODE not in {"think", "no_think"} or not MODEL.lower().startswith("qwen/"):
+        return messages
+
+    prepared = [dict(message) for message in messages]
+    for index in range(len(prepared) - 1, -1, -1):
+        if prepared[index].get("role") != "user":
+            continue
+        message = prepared[index]
+        content = str(message.get("content", ""))
+        marker = "/think" if THINKING_MODE == "think" else "/no_think"
+        if marker not in content:
+            prepared[index] = {**message, "content": f"{content.rstrip()}\n{marker}"}
+        break
+    return prepared
 
 
 def ask_llm(
@@ -23,7 +41,7 @@ def ask_llm(
     """Call LM Studio's OpenAI-compatible Chat Completions endpoint."""
     kwargs: dict[str, Any] = {
         "model": MODEL,
-        "messages": messages,
+        "messages": _prepare_messages(messages),
     }
     if tools:
         kwargs["tools"] = tools
