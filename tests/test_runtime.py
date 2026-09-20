@@ -19,6 +19,7 @@ def test_runtime_initializes_with_absolute_working_directory(tmp_path: Path) -> 
         "read_file",
         "search_files",
         "edit_file",
+        "create_file",
         "execute_command",
         "save_memory",
         "search_memory",
