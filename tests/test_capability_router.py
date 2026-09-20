@@ -66,6 +66,13 @@ def test_router_does_not_treat_vague_test_as_process_request() -> None:
     assert route.capabilities == frozenset()
 
 
+def test_router_detects_action_execution_request() -> None:
+    route = CapabilityRouter().route("アクションを実行してください")
+
+    assert route.mode == RoutingMode.SCOPED
+    assert Capability.PROCESS in route.capabilities
+
+
 def test_router_detects_explicit_test_execution() -> None:
     route = CapabilityRouter().route("pytestを実行してください")
 
