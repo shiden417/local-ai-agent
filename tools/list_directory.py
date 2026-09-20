@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any
 
-from tools.path_utils import resolve_workspace_path, to_workspace_relative
+from tools.path_utils import resolve_workspace_path, to_display_path
 
 
 MAX_ENTRIES = 200
@@ -11,16 +11,19 @@ def list_directory(
     working_directory: Path,
     arguments: dict[str, Any],
 ) -> dict[str, Any]:
-    relative_path = str(arguments.get("path", "."))
-    directory = resolve_workspace_path(working_directory, relative_path)
+    requested_path = str(arguments.get("path", "."))
+    directory = resolve_workspace_path(working_directory, requested_path)
 
     if not directory.exists():
-        return {"ok": False, "error": f"Directory does not exist: {relative_path}"}
+        return {"ok": False, "error": f"Directory does not exist: {requested_path}"}
 
     if not directory.is_dir():
-        return {"ok": False, "error": f"Not a directory: {relative_path}"}
+        return {"ok": False, "error": f"Not a directory: {requested_path}"}
 
-    entries = sorted(directory.iterdir(), key=lambda item: (not item.is_dir(), item.name.lower()))
+    entries = sorted(
+        directory.iterdir(),
+        key=lambda item: (not item.is_dir(), item.name.lower()),
+    )
     truncated = len(entries) > MAX_ENTRIES
     entries = entries[:MAX_ENTRIES]
 
@@ -39,7 +42,7 @@ def list_directory(
 
     return {
         "ok": True,
-        "path": to_workspace_relative(working_directory, directory),
+        "path": to_display_path(working_directory, directory),
         "entries": result_entries,
         "truncated": truncated,
     }
