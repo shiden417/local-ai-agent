@@ -33,8 +33,7 @@ LM Studio + Qwen3:8B を基盤にした、無料・ローカル・無制限利�
       ├─ PowerShell
       ├─ Web Search / Web Page
       ├─ Python
-      ├─ Memory
-      └─ Capability / Plugin management
+      └─ Memory
       ↓
     Safety Policy / Tool Execution
       ↓
@@ -69,7 +68,7 @@ ToolはToolRegistryに登録され、Runtimeが実際の操作を実行します
 - fetch_web_page - 公開Webページ本文取得
 - run_python_script - 一時Python Script実行
 - save_memory / search_memory - ローカルMemory
-- Recipe / Plugin capability management
+- Recipe / Plugin capability management (opt-in Experimental)
 
 ## LM Studio
 
@@ -195,3 +194,14 @@ GitHub ActionsではWindows Runner上でテストします。
 - workspace外の意図しないアクセスを防ぐ
 - 変更操作は確認可能にする
 - 巨大なAgent Frameworkをそのまま導入せず、必要な機能を段階的に実装する
+
+
+## Experimental capabilities
+
+Recipe/Plugin support is intentionally outside the default JARVIS Core. A normal `python agent.py` startup does not initialize the Plugin directory or load enabled Plugins.
+
+To explicitly use these capabilities from Python, opt in when building the Tool Registry:
+
+    registry = create_default_tool_registry(enable_experimental=True)
+
+The normal Runtime path does not automatically persist successful temporary Python scripts as Recipes or inject Recipe promotion candidates into every task. This keeps the Core focused on model-driven Tool selection, execution safety, observation/recovery, and deterministic completion verification.
