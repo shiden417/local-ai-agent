@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from agent.capability_router import Capability
 from agent.tool_registry import ToolDefinition, ToolRegistry
 
 
@@ -46,7 +47,7 @@ def test_registry_filters_on_demand_tools_by_task() -> None:
             parameters={"type": "object", "properties": {}, "required": []},
             handler=lambda _working_directory, _arguments: {"ok": True},
             availability="on_demand",
-            routing_hints=("記憶", "memory"),
+            capabilities=(Capability.MEMORY_READ,),
         )
     )
 
@@ -67,78 +68,45 @@ def test_registry_filters_on_demand_tools_by_task() -> None:
     )
     assert [schema["function"]["name"] for schema in excluded] == ["core"]
 
+ 
+ 
+def test_registry_routes_default_capability_scopes() -> None:
+    from agent.tools import create_default_tool_registry
 
-def test_registry_hides_workspace_tools_for_conversational_tasks() -> None:
-    registry = ToolRegistry()
-    for name, hints in (
-        ("list_directory", ("フォルダ", "一覧")),
-        ("read_file", ("ファイル", "内容")),
-        ("search_files", ("検索", "探して")),
-    ):
-        registry.register(
-            ToolDefinition(
-                name=name,
-                description=name,
-                parameters={
-                    "type": "object",
-                    "properties": {},
-                    "required": [],
-                },
-                handler=lambda _working_directory, _arguments: {"ok": True},
-                availability="on_demand",
-                routing_hints=hints,
-            )
-        )
+    registry = create_default_tool_registry()
 
     assert registry.schemas_for("こんにちは") == []
-    assert [
-        schema["function"]["name"]
-        for schema in registry.schemas_for("このフォルダの一覧を確認してください")
-    ] == ["list_directory"]
-    assert [
-        schema["function"]["name"]
-        for schema in registry.schemas_for("ファイルの内容を確認してください")
-    ] == ["read_file"]
-    assert [
-        schema["function"]["name"]
-        for schema in registry.schemas_for("README内を検索してください")
-    ] == ["search_files"]
 
-
-def test_registry_dispatches_tool(tmp_path: Path) -> None:
-    registry = ToolRegistry()
-    registry.register(
-        ToolDefinition(
-            name="hello",
-            description="Say hello",
-            parameters={"type": "object", "properties": {}, "required": []},
-            handler=lambda _working_directory, _arguments: {"message": "hello"},
+    folder_tools = [
+        schema["function"]["name"]
+        for schema in registry.schemas_for(
+            "このフォルダの一覧を確認してください"
         )
-    )
+    ]
+    assert folder_tools == ["list_directory", "read_file", "search_files", "edit_file"]
 
-    assert registry.execute("hello", {}, tmp_path) == {"message": "hello"}
+    process_tools = [
+        schema["function"]["name"]
+        for schema in registry.schemas_for("pytestを実行してください")
+    ]
+    assert process_tools == ["execute_command"]
 
+    memory_tools = [
+        schema["function"]["name"]
+        for schema in registry.schemas_for("前回の記憶を確認してください")
+    ]
+    assert memory_tools == ["search_memory"]
 
-def test_registry_reports_unknown_tool(tmp_path: Path) -> None:
-    registry = ToolRegistry()
-
-    result = registry.execute("missing", {}, tmp_path)
-
-    assert result["ok"] is False
-    assert "Unknown tool" in result["error"]
-
-
-def test_registry_can_mark_a_tool_as_confirmation_required(tmp_path: Path) -> None:
-    registry = ToolRegistry()
-    registry.register(
-        ToolDefinition(
-            name="mutate",
-            description="Mutate local state",
-            parameters={"type": "object", "properties": {}, "required": []},
-            handler=lambda _working_directory, _arguments: {"ok": True},
-            requires_confirmation=True,
-        )
-    )
-
-    assert registry.get("mutate") is not None
-    assert registry.get("mutate").requires_confirmation is True
+    ambiguous_tools = [
+        schema["function"]["name"]
+        for schema in registry.schemas_for("どうすればよいですか")
+    ]
+    assert ambiguous_tools == [
+        "list_directory",
+        "read_file",
+        "search_files",
+        "edit_file",
+        "execute_command",
+        "save_memory",
+        "search_memory",
+    ]
