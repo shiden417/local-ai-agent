@@ -464,3 +464,65 @@ def test_runtime_rejects_blank_final_response() -> None:
     assert AgentRuntime._is_invalid_final_response("{}") is True
     assert AgentRuntime._is_invalid_final_response("[]") is True
     assert AgentRuntime._is_invalid_final_response("完了しました") is False
+
+
+def test_runtime_retries_when_model_echoes_tool_result(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    tool_result = {"ok": True, "value": "observed"}
+    tool_call = SimpleNamespace(
+        id="call-1",
+        function=SimpleNamespace(
+            name="inspect",
+            arguments="{}",
+        ),
+    )
+    tool_message = SimpleNamespace(
+        role="assistant",
+        content="",
+        tool_calls=[tool_call],
+    )
+    echoed_final = SimpleNamespace(
+        role="assistant",
+        content=json.dumps(tool_result, ensure_ascii=False, sort_keys=True),
+        tool_calls=[],
+    )
+    real_final = SimpleNamespace(
+        role="assistant",
+        content="観測結果を確認しました。",
+        tool_calls=[],
+    )
+
+    registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="inspect",
+            description="Inspect",
+            parameters={"type": "object", "properties": {}, "required": []},
+            handler=lambda _working_directory, _arguments: tool_result,
+        )
+    )
+
+    responses = [
+        SimpleNamespace(choices=[SimpleNamespace(message=tool_message)]),
+        SimpleNamespace(choices=[SimpleNamespace(message=echoed_final)]),
+        SimpleNamespace(choices=[SimpleNamespace(message=real_final)]),
+    ]
+
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm",
+        lambda _messages, tools=None: responses.pop(0),
+    )
+
+    runtime = AgentRuntime(
+        tmp_path,
+        tool_registry=registry,
+    )
+
+    result = runtime.run("調査してください")
+
+    assert result == "観測結果を確認しました。"
+    assert runtime.task is not None
+    assert runtime.task.status.value == "completed"
