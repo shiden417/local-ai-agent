@@ -372,3 +372,25 @@ def test_session_context_preserves_facts_for_follow_up(tmp_path: Path) -> None:
     prompt = context.prompt_block()
     assert "Python 3.14" in prompt
     assert "https://python.org" in prompt
+
+
+
+def test_session_context_keeps_topic_anchor_across_multiple_follow_ups(
+    tmp_path: Path,
+) -> None:
+    runtime = AgentRuntime(tmp_path)
+    runtime.session_context.remember_task(
+        "Python 3.14について調べて",
+        "調査しました。",
+        [],
+    )
+    runtime.session_context.remember_task(
+        "その中で重要な変更を3つ教えて",
+        "3つまとめました。",
+        [],
+    )
+
+    routing_text = runtime._routing_text("その3つのうち開発で重要なものは？")
+
+    assert "Python 3.14について調べて" in routing_text
+    assert "その3つのうち開発で重要なものは？" in routing_text
