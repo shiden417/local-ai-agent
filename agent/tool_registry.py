@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from agent.capability_router import Capability, CapabilityRouter
+from agent.capability_router import Capability, CapabilityRouter, RoutingMode
 
 
 ToolHandler = Callable[[Path, dict[str, Any]], dict[str, Any]]
@@ -76,14 +76,14 @@ class ToolRegistry:
         excluded = excluded_tools or set()
         route = self.capability_router.route(task_text)
 
-        if route.mode == "DIRECT":
+        if route.mode == RoutingMode.DIRECT:
             return [
                 tool.schema()
                 for tool in self._tools.values()
                 if tool.name not in excluded and tool.availability == "always"
             ]
 
-        if route.mode == "OPEN":
+        if route.mode == RoutingMode.OPEN:
             return [
                 tool.schema()
                 for tool in self._tools.values()
