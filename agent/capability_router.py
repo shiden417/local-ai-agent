@@ -111,6 +111,15 @@ class CapabilityRouter:
             )
         }
 
+        # Explicit requests to add or change the Agent's capabilities
+        # are routed to capability management only. Do not expose unrelated
+        # workspace/script tools at the same time.
+        if Capability.CAPABILITY_MANAGEMENT in capabilities:
+            return CapabilityRoute(
+                mode=RoutingMode.SCOPED,
+                capabilities=frozenset({Capability.CAPABILITY_MANAGEMENT}),
+            )
+
         # Local file edits normally require inspection first. Keep the
         # capability scope explicit so the LLM can read the target before
         # choosing the mutating tool.
