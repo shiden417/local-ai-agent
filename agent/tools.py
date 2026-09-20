@@ -20,7 +20,7 @@ def create_default_tool_registry(
     registry.register(
         ToolDefinition(
             name="list_directory",
-            description="List files and directories inside the current Agent workspace. Use relative paths only.",
+            description="List files and directories inside the current Agent workspace.",
             parameters={
                 "type": "object",
                 "properties": {
@@ -33,13 +33,15 @@ def create_default_tool_registry(
                 "additionalProperties": False,
             },
             handler=list_directory,
+            use_when="Discover the current workspace structure or the entries inside a known directory.",
+            avoid_when="You need the contents of a specific file or need to search for text inside files.",
         )
     )
 
     registry.register(
         ToolDefinition(
             name="read_file",
-            description="Read a text file inside the current Agent workspace. Use this when you need local file contents.",
+            description="Read a text file inside the current Agent workspace.",
             parameters={
                 "type": "object",
                 "properties": {
@@ -62,19 +64,21 @@ def create_default_tool_registry(
                 "additionalProperties": False,
             },
             handler=read_file,
+            use_when="You already know which local file is relevant and need its contents.",
+            avoid_when="You are only trying to discover which files exist, or you need to search unknown files for a specific text.",
         )
     )
 
     registry.register(
         ToolDefinition(
             name="search_files",
-            description="Search text inside local files in the current Agent workspace.",
+            description="Search for a specific text string inside local files in the current Agent workspace.",
             parameters={
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Text to search for.",
+                        "description": "Specific text, symbol, identifier, or phrase to search for.",
                     },
                     "path": {
                         "type": "string",
@@ -89,13 +93,15 @@ def create_default_tool_registry(
                 "additionalProperties": False,
             },
             handler=search_files,
+            use_when="You know a concrete string or symbol to locate in file contents.",
+            avoid_when="You are trying to find important files by role, filename, category, or vague natural-language descriptions.",
         )
     )
 
     registry.register(
         ToolDefinition(
             name="edit_file",
-            description="Replace exactly one matching text block in a local text file. Read the file first and provide an exact search_text block.",
+            description="Replace exactly one matching text block in a local text file.",
             parameters={
                 "type": "object",
                 "properties": {
@@ -117,13 +123,15 @@ def create_default_tool_registry(
             },
             handler=edit_file,
             requires_confirmation=True,
+            use_when="The user explicitly wants a local file changed and you have already inspected the target content.",
+            avoid_when="You have not read the target file yet or the user only asked for an explanation.",
         )
     )
 
     registry.register(
         ToolDefinition(
             name="execute_command",
-            description="Execute a PowerShell command in the current Agent workspace. Use this for OS operations or tasks without a dedicated Tool.",
+            description="Execute a PowerShell command in the current Agent workspace.",
             parameters={
                 "type": "object",
                 "properties": {
@@ -139,13 +147,15 @@ def create_default_tool_registry(
                 str(arguments.get("command", "")),
                 working_directory=working_directory,
             ),
+            use_when="An OS/process/automation operation is required and no more specific Tool exists.",
+            avoid_when="A dedicated read, search, or edit Tool already represents the requested operation.",
         )
     )
 
     registry.register(
         ToolDefinition(
             name="save_memory",
-            description="Save a durable fact or preference for future conversations. Use only for information that should survive the current task. Do not use this for current workspace contents. Do not store sensitive secrets or credentials.",
+            description="Save a durable fact or preference for future tasks.",
             parameters={
                 "type": "object",
                 "properties": {
@@ -168,19 +178,21 @@ def create_default_tool_registry(
                 arguments,
             ),
             requires_confirmation=True,
+            use_when="Information should survive the current task and be useful in future tasks.",
+            avoid_when="You only need information from the current workspace or the current task's tool results.",
         )
     )
 
     registry.register(
         ToolDefinition(
             name="search_memory",
-            description="Search durable local memory for facts or preferences from previous tasks. Use this only to recall past information; do not use it to inspect the current workspace or current task files.",
+            description="Search durable local memory from previous tasks.",
             parameters={
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Keywords describing the information you want to recall.",
+                        "description": "Concrete keywords describing the information you want to recall.",
                     },
                     "limit": {
                         "type": "integer",
@@ -197,6 +209,8 @@ def create_default_tool_registry(
                 working_directory,
                 arguments,
             ),
+            use_when="Past conversations or explicitly saved information are required for the current goal.",
+            avoid_when="The answer can be obtained from the current workspace, current Tool results, or the user's current message.",
         )
     )
 
