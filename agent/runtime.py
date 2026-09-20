@@ -360,10 +360,17 @@ class AgentRuntime:
                 )
                 available_tools = []
 
-            response = ask_llm(
-                llm_messages,
-                tools=available_tools,
-            )
+            if self.terminal_ui is not None:
+                self.terminal_ui.thinking_start()
+
+            try:
+                response = ask_llm(
+                    llm_messages,
+                    tools=available_tools,
+                )
+            finally:
+                if self.terminal_ui is not None:
+                    self.terminal_ui.thinking_stop()
             message = response.choices[0].message
             tool_calls = getattr(message, "tool_calls", None) or []
             content = self._normalize_final_content(

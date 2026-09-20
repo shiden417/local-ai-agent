@@ -4,6 +4,8 @@ import os
 import re
 import shutil
 import sys
+import threading
+import time
 from typing import Any
 
 
@@ -22,6 +24,9 @@ class TerminalUI:
     def __init__(self, model: str) -> None:
         self.model = model
         self.enabled = _supports_color()
+        self._spinner_stop: threading.Event | None = None
+        self._spinner_thread: threading.Thread | None = None
+        self._spinner_lock = threading.Lock()
 
     def _c(self, text: str, color: str) -> str:
         return f"{color}{text}{RESET}" if self.enabled else text
@@ -44,39 +49,100 @@ class TerminalUI:
         print()
 
     def task_start(self, goal: str, task_id: str) -> None:
-        print(self._c(f"┌─ Task {task_id} ─────────────────────────────────", CYAN))
-        print(f"│ {goal}")
-        print(self._c("└────────────────────────────────────────────────", CYAN))
+        print(self._c(f"  Task {task_id}: {goal}", CYAN))
 
     def phase(self, phase: str, iteration: int) -> None:
-        print(self._c(f"  [{phase.upper():8}] iteration {iteration}", YELLOW))
+        # Phase/iteration details are useful internally but too noisy for the
+        # normal interactive UI. The spinner communicates that work is ongoing.
+        return
+
+    def thinking_start(self, label: str = "Thinking") -> None:
+        self.start_activity(label)
+
+    def thinking_stop(self) -> None:
+        self.stop_activity()
 
     def tool_start(self, name: str, arguments: dict[str, Any]) -> None:
-        short = _compact(arguments)
-        suffix = f"  {short}" if short else ""
-        print(self._c(f"  ▶ {name}", CYAN) + suffix)
+        self.start_activity(f"Running {name}")
 
     def tool_result(self, ok: bool, summary: str) -> None:
+        self.stop_activity()
         symbol = "✓" if ok else "✗"
         color = GREEN if ok else RED
-        print(self._c(f"  {symbol} {summary}", color))
+        if ok:
+            print(self._c(f"  {symbol} Done", color))
+        else:
+            compact_summary = " ".join(str(summary).split())
+            if len(compact_summary) > 180:
+                compact_summary = compact_summary[:177] + "..."
+            print(self._c(f"  {symbol} {compact_summary}", color))
+
+    def start_activity(self, label: str) -> None:
+        self.stop_activity()
+        if not self.enabled:
+            return
+
+        stop_event = threading.Event()
+        self._spinner_stop = stop_event
+        self._spinner_thread = threading.Thread(
+            target=self._run_spinner,
+            args=(stop_event, label),
+            name="terminal-spinner",
+            daemon=True,
+        )
+        self._spinner_thread.start()
+
+    def stop_activity(self) -> None:
+        with self._spinner_lock:
+            stop_event = self._spinner_stop
+            thread = self._spinner_thread
+            self._spinner_stop = None
+            self._spinner_thread = None
+
+        if stop_event is None:
+            return
+
+        stop_event.set()
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=0.5)
+
+        if self.enabled:
+            sys.stdout.write("\r\x1b[2K")
+            sys.stdout.flush()
+
+    def _run_spinner(
+        self,
+        stop_event: threading.Event,
+        label: str,
+    ) -> None:
+        frames = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+        index = 0
+        while not stop_event.is_set():
+            frame = frames[index % len(frames)]
+            sys.stdout.write(f"\r\x1b[2K  {frame} {label}")
+            sys.stdout.flush()
+            index += 1
+            stop_event.wait(0.08)
 
     def final(self, content: str) -> None:
         print(self._c("\n● Agent", GREEN))
         print(content)
 
     def error(self, content: str) -> None:
+        self.stop_activity()
         print(self._c(f"✗ {content}", RED))
 
     def info(self, content: str) -> None:
         print(self._c(f"  {content}", GRAY))
 
     def approval(self, description: str) -> str:
+        self.stop_activity()
         print(self._c("\n  Approval required", YELLOW))
         print(f"  {description}")
         return input("  [y] once / [a] always for this action / [n] deny: ").strip().lower()
 
     def question(self, question: str) -> str:
+        self.stop_activity()
         print(self._c("\n  Agent question", YELLOW))
         print(f"  {question}")
         return input("  Answer: ").strip()
