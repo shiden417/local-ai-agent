@@ -69,7 +69,6 @@ def search_files(
         if content is None:
             continue
 
-        haystack = content if case_sensitive else content.lower()
         for number, line in enumerate(content.splitlines(), start=1):
             line_haystack = line if case_sensitive else line.lower()
             if needle in line_haystack:
