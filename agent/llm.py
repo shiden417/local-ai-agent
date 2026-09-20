@@ -1,18 +1,34 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
-from litellm import completion
+from openai import OpenAI
 
 
-MODEL = "ollama/qwen3:8b"
-DEFAULT_MAX_TOKENS = 512
-RECOVERY_MAX_TOKENS = 256
+LM_STUDIO_BASE_URL = os.getenv("LM_STUDIO_BASE_URL", "http://localhost:1234/v1")
+MODEL = os.getenv("LM_STUDIO_MODEL", "qwen/qwen3-8b")
+DEFAULT_MAX_TOKENS = int(os.getenv("JARVIS_MAX_TOKENS", "1024"))
+RECOVERY_MAX_TOKENS = int(os.getenv("JARVIS_RECOVERY_MAX_TOKENS", "512"))
+TEMPERATURE = float(os.getenv("JARVIS_TEMPERATURE", "0.3"))
+
+_client = OpenAI(
+    base_url=LM_STUDIO_BASE_URL,
+    api_key=os.getenv("LM_STUDIO_API_KEY", "lm-studio"),
+)
 
 
-def _is_repeat_limit_error(exc: Exception) -> bool:
+def _is_recoverable_generation_error(exc: Exception) -> bool:
     message = str(exc).lower()
-    return "token repeat limit reached" in message
+    return any(
+        marker in message
+        for marker in (
+            "token repeat limit",
+            "repetitive",
+            "generation aborted",
+            "prediction aborted",
+        )
+    )
 
 
 def _completion(
@@ -21,65 +37,49 @@ def _completion(
     *,
     max_tokens: int,
     temperature: float,
-    think: bool | None = None,
 ):
     kwargs: dict[str, Any] = {
         "model": MODEL,
         "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
-        "extra_body": {
-            "options": {
-                "num_predict": max_tokens,
-                "repeat_penalty": 1.1,
-            }
-        },
     }
     if tools:
         kwargs["tools"] = tools
-    if think is not None:
-        kwargs["think"] = think
-        kwargs["allowed_openai_params"] = ["think"]
 
-    return completion(**kwargs)
+    return _client.chat.completions.create(**kwargs)
 
 
 def ask_llm(
     messages: list[dict[str, Any]],
     tools: list[dict[str, Any]] | None = None,
 ):
-    """Send the conversation to Qwen3 through LiteLLM with repeat protection."""
+    """Send a request to Qwen through LM Studio's OpenAI-compatible API."""
     try:
         return _completion(
             messages,
             tools,
             max_tokens=DEFAULT_MAX_TOKENS,
-            temperature=0.3,
+            temperature=TEMPERATURE,
         )
     except Exception as exc:
-        if not _is_repeat_limit_error(exc):
+        if not _is_recoverable_generation_error(exc):
             raise
 
-        # Ollama can abort a generation when it enters a repetitive loop.
-        # Retry once with a shorter generation budget and slightly stronger
-        # repetition suppression before surfacing the provider error.
         try:
             return _completion(
                 messages,
                 tools,
                 max_tokens=RECOVERY_MAX_TOKENS,
-                temperature=0.2,
+                temperature=max(0.1, TEMPERATURE - 0.1),
             )
         except Exception as recovery_exc:
-            if not _is_repeat_limit_error(recovery_exc):
+            if not _is_recoverable_generation_error(recovery_exc):
                 raise
 
-            # Final emergency fallback for Qwen3: disable thinking so the
-            # bounded recovery budget is spent on a direct response.
             return _completion(
                 messages,
                 tools,
                 max_tokens=RECOVERY_MAX_TOKENS,
                 temperature=0.1,
-                think=False,
             )
