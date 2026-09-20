@@ -17,6 +17,7 @@ class ManagedTask:
 
     task_id: str
     state: TaskState
+    created_order: int
     messages: list[dict] = field(default_factory=list)
     created_at: str = field(default_factory=_now)
     updated_at: str = field(default_factory=_now)
@@ -36,15 +37,18 @@ class TaskManager:
     def __init__(self) -> None:
         self._tasks: dict[str, ManagedTask] = {}
         self._current_task_id: str | None = None
+        self._next_order = 0
 
     def create(self, goal: str) -> ManagedTask:
         goal = goal.strip()
         if not goal:
             raise ValueError("task goal must not be empty")
 
+        self._next_order += 1
         task = ManagedTask(
             task_id=uuid4().hex[:12],
             state=TaskState(goal=goal),
+            created_order=self._next_order,
         )
         self._tasks[task.task_id] = task
         self._current_task_id = task.task_id
@@ -69,7 +73,7 @@ class TaskManager:
     def list_tasks(self) -> list[ManagedTask]:
         return sorted(
             self._tasks.values(),
-            key=lambda task: task.created_at,
+            key=lambda task: task.created_order,
             reverse=True,
         )
 
@@ -100,7 +104,3 @@ class TaskManager:
         if task is None:
             raise KeyError(f"Unknown task: {task_id}")
         return task
-
-
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
