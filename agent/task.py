@@ -28,6 +28,28 @@ class ProgressState(str, Enum):
     FAILED = "failed"
 
 
+def classify_progress(
+    result: dict,
+    observation_is_new: bool,
+) -> ProgressState:
+    """Classify only the Runtime-relevant outcome of one Tool observation."""
+    if result.get("repeated_tool_call") or result.get("user_rejected") or result.get(
+        "recovery_blocked"
+    ):
+        return ProgressState.BLOCKED
+
+    if not result.get("ok", False):
+        return ProgressState.FAILED
+
+    if result.get("entries") == []:
+        return ProgressState.NO_PROGRESS
+
+    if not observation_is_new:
+        return ProgressState.NO_PROGRESS
+
+    return ProgressState.PROGRESSED
+
+
 @dataclass
 class TaskObservation:
     """Compact record of one tool observation."""
@@ -59,9 +81,7 @@ class TaskState:
     disabled_tools: set[str] = field(default_factory=set, repr=False)
     no_progress_streak: int = 0
     progress_state: ProgressState = ProgressState.UNKNOWN
-    progress_count: int = 0
     recovery_tool: str | None = None
-    failed_tool_history: list[dict[str, str]] = field(default_factory=list)
     consecutive_failures: int = 0
     last_failure_status: str | None = None
     last_tool_result_truncated: bool = False
@@ -117,15 +137,6 @@ class TaskState:
             self.recovery_tool = name
             self.consecutive_failures += 1
             self.last_failure_status = failure_status or "failed"
-            self.failed_tool_history.append(
-                {
-                    "tool": name,
-                    "status": self.last_failure_status,
-                    "error": summary,
-                }
-            )
-            if len(self.failed_tool_history) > 6:
-                self.failed_tool_history.pop(0)
         else:
             self.consecutive_failures = 0
             self.last_failure_status = None
@@ -138,7 +149,6 @@ class TaskState:
                 self.recovery_tool = None
 
         if progress_state == ProgressState.PROGRESSED:
-            self.progress_count += 1
             self.no_progress_streak = 0
         else:
             self.no_progress_streak += 1
@@ -193,7 +203,6 @@ class TaskState:
                 f"tool_calls={self.tool_calls}; "
                 f"last_tool={last_tool}; "
                 f"progress_state={self.progress_state.value}; "
-                f"progress_count={self.progress_count}; "
                 f"no_progress_streak={self.no_progress_streak}"
             ),
             f"Disabled tools: {disabled}",
