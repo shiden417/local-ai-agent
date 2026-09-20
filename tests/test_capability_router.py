@@ -138,3 +138,14 @@ def test_router_scopes_bug_fix_without_requiring_a_filename() -> None:
     assert route.mode == RoutingMode.SCOPED
     assert Capability.WORKSPACE_WRITE in route.capabilities
     assert Capability.WORKSPACE_READ in route.capabilities
+
+
+
+def test_router_routes_official_release_research_to_web() -> None:
+    route = CapabilityRouter().route(
+        "Python 3.14の公式リリース情報を確認して、主な変更点を教えて"
+    )
+
+    assert route.mode == RoutingMode.SCOPED
+    assert Capability.WEB_SEARCH in route.capabilities
+    assert Capability.WORKSPACE_WRITE not in route.capabilities
