@@ -357,3 +357,54 @@ def test_runtime_blocks_consecutive_duplicate_tool_calls(
         for message in runtime.messages
         if message.get("role") == "tool"
     )
+
+
+def test_runtime_retries_invalid_empty_final_response(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    invalid_response = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    role="assistant",
+                    content="{}",
+                    tool_calls=[],
+                )
+            )
+        ]
+    )
+    final_response = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    role="assistant",
+                    content="調査結果です。",
+                    tool_calls=[],
+                )
+            )
+        ]
+    )
+    responses = [invalid_response, final_response]
+
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm",
+        lambda _messages, tools=None: responses.pop(0),
+    )
+
+    runtime = AgentRuntime(tmp_path)
+
+    result = runtime.run("調査してください")
+
+    assert result == "調査結果です。"
+    assert runtime.task is not None
+    assert runtime.task.status.value == "completed"
+
+
+def test_runtime_rejects_blank_final_response() -> None:
+    assert AgentRuntime._is_invalid_final_response("") is True
+    assert AgentRuntime._is_invalid_final_response("  ") is True
+    assert AgentRuntime._is_invalid_final_response("{}") is True
+    assert AgentRuntime._is_invalid_final_response("[]") is True
+    assert AgentRuntime._is_invalid_final_response("完了しました") is False
