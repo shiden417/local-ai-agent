@@ -41,7 +41,7 @@ DESTRUCTIVE_COMMAND_PATTERNS = (
 WINDOWS_ABSOLUTE_PATH_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_])(?:[A-Za-z]:\\|\\\\|/(?:mnt|var|etc|tmp)(?:/|$))"
 )
-PARENT_PATH_PATTERN = re.compile(r"(^|[\s'"])(?:\.\.[\\/])+")
+PARENT_PATH_PATTERN = re.compile(r"(^|[\s'\"])(?:\.\.[\\/])+")
 LOCAL_PATH_MUTATING_TOOLS = {"file_mutation"}
 
 HARD_DENY_COMMAND_PATTERNS = (
