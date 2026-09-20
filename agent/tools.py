@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from agent.tool_registry import ToolDefinition, ToolRegistry
+from tools.edit_file import edit_file
 from tools.execute_command import execute_command
 from tools.list_directory import list_directory
 from tools.read_file import read_file
@@ -87,8 +88,35 @@ def create_default_tool_registry() -> ToolRegistry:
 
     registry.register(
         ToolDefinition(
+            name="edit_file",
+            description="Edit a text file by replacing exactly one matching text block. Read the file first and use an exact search_text block.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Relative file path.",
+                    },
+                    "search_text": {
+                        "type": "string",
+                        "description": "Exact text block to replace. It must occur exactly once.",
+                    },
+                    "replace_text": {
+                        "type": "string",
+                        "description": "Replacement text.",
+                    },
+                },
+                "required": ["path", "search_text", "replace_text"],
+                "additionalProperties": False,
+            },
+            handler=edit_file,
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
             name="execute_command",
-            description="Execute a PowerShell command with the Agent workspace as its current directory.",
+            description="Execute a PowerShell command with the Agent workspace as its current directory. Use this for build, test, Git, and other operations without a dedicated tool.",
             parameters={
                 "type": "object",
                 "properties": {
