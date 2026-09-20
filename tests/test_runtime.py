@@ -714,3 +714,34 @@ def test_runtime_normalizes_json_encoded_message_content() -> None:
         AgentRuntime._normalize_final_content(encoded)
         == "こんにちは！何かお手伝いできますか？"
     )
+
+
+def test_runtime_does_not_expose_tools_for_unsupported_live_information(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    captured = []
+
+    final = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    role="assistant",
+                    content="現在の天気情報を取得するToolはありません。",
+                    tool_calls=[],
+                )
+            )
+        ]
+    )
+
+    def fake_ask_llm(messages, tools=None):
+        captured.append(tools)
+        return final
+
+    monkeypatch.setattr(runtime_module, "ask_llm", fake_ask_llm)
+
+    runtime = AgentRuntime(tmp_path)
+    result = runtime.run("今日の天気は？")
+
+    assert result == "現在の天気情報を取得するToolはありません。"
+    assert captured == [[]]
