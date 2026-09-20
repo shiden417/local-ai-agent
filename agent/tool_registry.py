@@ -84,10 +84,14 @@ class ToolRegistry:
             ]
 
         if route.mode == RoutingMode.OPEN:
+            # Keep ambiguous or general conversation tool-free for now.
+            # Concrete operational intent is routed through SCOPED mode.
+            # This prevents an 8B model from inventing a reason to use an
+            # unrelated local tool simply because it is available.
             return [
                 tool.schema()
                 for tool in self._tools.values()
-                if tool.name not in excluded
+                if tool.name not in excluded and tool.availability == "always"
             ]
 
         return [
