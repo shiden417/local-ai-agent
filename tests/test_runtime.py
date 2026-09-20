@@ -723,7 +723,7 @@ def test_runtime_normalizes_json_encoded_message_content() -> None:
     )
 
 
-def test_runtime_does_not_expose_tools_for_unsupported_live_information(
+def test_runtime_exposes_web_tools_for_live_information(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -734,7 +734,7 @@ def test_runtime_does_not_expose_tools_for_unsupported_live_information(
             SimpleNamespace(
                 message=SimpleNamespace(
                     role="assistant",
-                    content="現在の天気情報を取得するToolはありません。",
+                    content="現在の天気情報を取得します。",
                     tool_calls=[],
                 )
             )
@@ -742,7 +742,7 @@ def test_runtime_does_not_expose_tools_for_unsupported_live_information(
     )
 
     def fake_ask_llm(messages, tools=None):
-        captured.append(tools)
+        captured.append(tools or [])
         return final
 
     monkeypatch.setattr(runtime_module, "ask_llm", fake_ask_llm)
@@ -750,8 +750,11 @@ def test_runtime_does_not_expose_tools_for_unsupported_live_information(
     runtime = AgentRuntime(tmp_path)
     result = runtime.run("今日の天気は？")
 
-    assert result == "現在の天気情報を取得するToolはありません。"
-    assert captured == [[]]
+    assert result == "現在の天気情報を取得します。"
+    names = {tool["function"]["name"] for tool in captured[0]}
+    assert "search_web" in names
+    assert "fetch_web_page" in names
+    assert "finish_task" in names
 
 
 def test_runtime_keeps_task_history_isolated_while_sharing_conversation_context(
