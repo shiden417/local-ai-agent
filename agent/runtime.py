@@ -16,27 +16,25 @@ from agent.tools import create_default_tool_registry
 
 
 SYSTEM_PROMPT = """あなたはローカルで動作する汎用AI Agentです。
-ユーザーの目的を達成するために、利用可能なツールを適切に組み合わせて自律的に行動してください。
+ユーザーの目的を達成するために、利用可能なツールを選択し、観測結果を確認しながら段階的に行動してください。
 
-重要なルール:
-- 依頼の目的を理解してから行動してください。
-- 複雑な依頼では、実行前に達成までの手順を内部で小さく分解してください。
-- 必要な情報を調査し、観測結果を確認してから次の行動を判断してください。
-- 不可逆な変更や確認が必要な操作を急いで実行しないでください。
-- ツールを使った結果に基づいて、必要なら追加のツールを呼び出してください。
-- ツールが失敗した場合は、エラー内容を分析して別の方法を検討してください。
-- 同じToolを同じ引数で直前に成功実行している場合は、繰り返さず既に得た結果を利用してください。
-- 1回の判断では必要最小限の操作を選んでください。
-- 現在の作業環境で利用できる範囲を超えてアクセスしようとしないでください。
-- ユーザーの確認が必要な操作は、確認が得られてから実行してください。
-- search_memoryは過去のTaskやユーザーが以前保存した情報を思い出す必要がある場合だけ使用してください。現在のworkspaceのファイル内容を調べるためには使用しないでください。
-- save_memoryは、将来の別Taskでも役立つ重要な事実や明示的な希望を保存する場合だけ使用してください。ただし機密情報、認証情報、パスワード、APIキーなどは保存しないでください。
-- 現在のworkspaceを調査するときは、まずlist_directoryやread_fileを使用してください。list_directoryでファイル名が得られたら、必要なファイルをread_fileで確認してください。
-- ユーザーの自然言語に含まれる「主要なファイル」のような表現を、そのままsearch_filesの検索語にしないでください。
-- 作業が完了したら、結果と重要な変更点を通常の文章で説明してください。
+実行ルール:
+- まずユーザーの目的を理解し、このTaskで必要な情報や操作を考えてください。
+- Toolは「目的を達成するために必要なもの」だけを使用してください。
+- 現在のworkspaceを調べる依頼では、まずlist_directoryで構造を確認し、既知のファイルはread_fileで内容を確認してください。
+- search_filesは「ファイルの中にある特定の文字列・シンボルを探す」ためのToolです。ファイルの役割や「主要なファイル」のような自然言語カテゴリを検索語にしないでください。
+- search_memoryは現在のworkspaceを見るためのToolではありません。過去の会話や保存済み情報が今回の目的に必要な場合だけ使用してください。
+- save_memoryは今回だけの作業結果ではなく、将来のTaskでも役立つ情報を保存するときだけ使用してください。
+- 既に取得した情報を同じToolで再取得しないでください。RuntimeはTask内の重複操作を検知して停止します。
+- Tool結果に新しい情報がなければ、別の方法を考えるか、取得済み情報だけで回答を完成させてください。
+- Toolが失敗したときは、エラーをそのまま繰り返さず原因を考えて別の方法を試してください。
+- 変更や外部作用を伴うToolは、必要性を確認してから使用してください。
+- ユーザーが求めていない変更を行わないでください。
+- 作業が十分に完了したら、通常の文章で結果を説明してください。空のJSONや「{}」だけを最終回答にしないでください。
 
-利用可能なツールは、その時点でRuntimeから提供されます。
-各Toolのdescriptionとparametersを読み、目的に最も適したToolを選択してください。
+重要:
+- あなたが判断し、RuntimeがToolを実行します。
+- Task stateに含まれるRecent observationsは、これまでに得た事実です。重複した観測を無視して次の行動を選んでください。
 """
 
 
@@ -98,9 +96,13 @@ class AgentRuntime:
         self.task_manager = TaskManager()
         self.current_task: ManagedTask | None = None
         self.task: TaskState | None = None
-        self.messages: list[dict[str, Any]] = [
-            {"role": "system", "content": SYSTEM_PROMPT}
-        ]
+
+    @property
+    def messages(self) -> list[dict[str, Any]]:
+        """Return the current task history for compatibility and inspection."""
+        if self.current_task is None:
+            return [{"role": "system", "content": SYSTEM_PROMPT}]
+        return self.current_task.messages
 
     @staticmethod
     def _default_confirm(message: str) -> bool:
@@ -108,27 +110,32 @@ class AgentRuntime:
         return answer.strip().lower() in {"y", "yes"}
 
     def run(self, user_input: str) -> str:
-        self.current_task = self.task_manager.create(user_input)
-        self.task = self.current_task.state
+        current_task = self.task_manager.create(user_input)
+        current_task.messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_input},
+        ]
+
+        self.current_task = current_task
+        self.task = current_task.state
         self.loop_guard.reset()
         self.task.start()
-        self.messages.append({"role": "user", "content": user_input})
-        self.task_manager.update_timestamp(self.current_task)
+        self.task_manager.update_timestamp(current_task)
 
         for _ in range(self.max_iterations):
             self.task.begin_iteration()
-            self.task_manager.update_timestamp(self.current_task)
+            self.task_manager.update_timestamp(current_task)
 
-            context_messages = self.context_manager.prepare(self.messages)
+            context_messages = self.context_manager.prepare(current_task.messages)
             llm_messages = [
                 *context_messages,
                 {
                     "role": "system",
                     "content": (
-                        "Current task state: "
+                        "Current task execution state. Treat Recent observations "
+                        "as already-known information.\n"
                         f"{self.task.snapshot()}\n"
-                        "Use this only as execution state. Do not expose internal "
-                        "task-state details unless the user asks."
+                        "Choose the smallest next action that advances the goal."
                     ),
                 },
             ]
@@ -143,25 +150,26 @@ class AgentRuntime:
 
             if not tool_calls:
                 if self._is_invalid_final_response(content):
-                    self.messages.append(_message_to_dict(message))
-                    self.messages.append(
+                    current_task.messages.append(_message_to_dict(message))
+                    current_task.messages.append(
                         {
                             "role": "system",
                             "content": (
-                                "The previous response was empty or invalid as a final "
-                                "answer. Continue the task using the available tool results "
-                                "and provide a direct answer to the user's request."
+                                "The previous response was empty or only an "
+                                "empty JSON container. Continue the task using "
+                                "the available observations and provide a "
+                                "direct answer to the user's request."
                             ),
                         }
                     )
                     continue
 
-                self.messages.append(_message_to_dict(message))
+                current_task.messages.append(_message_to_dict(message))
                 self.task.complete()
-                self.task_manager.update_timestamp(self.current_task)
+                self.task_manager.update_timestamp(current_task)
                 return content
 
-            self.messages.append(_message_to_dict(message))
+            current_task.messages.append(_message_to_dict(message))
 
             for tool_call in tool_calls:
                 try:
@@ -169,7 +177,7 @@ class AgentRuntime:
                 except (TypeError, ValueError, json.JSONDecodeError) as exc:
                     print(f"[Tool Error] {exc}")
                     self.task.fail(f"Invalid tool call: {exc}")
-                    self.messages.append(
+                    current_task.messages.append(
                         {
                             "role": "tool",
                             "tool_call_id": "",
@@ -204,18 +212,33 @@ class AgentRuntime:
                 else:
                     result = self._execute_tool(name, arguments)
 
-                self.task.record_tool(name, succeeded=bool(result.get("ok")))
-                self.task_manager.update_timestamp(self.current_task)
-
-                serialized = json.dumps(result, ensure_ascii=False, indent=2)
+                serialized = json.dumps(result, ensure_ascii=False, sort_keys=True)
                 bounded, truncated = truncate_text(serialized)
+
+                observation_summary = self._observation_summary(result)
+                signature = (
+                    f"{name}:"
+                    + json.dumps(
+                        result,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
+                )
+                self.task.record_tool(
+                    name,
+                    succeeded=bool(result.get("ok")),
+                    summary=observation_summary,
+                    signature=signature,
+                )
+                self.task_manager.update_timestamp(current_task)
 
                 print("[Result]")
                 print(bounded)
                 if truncated:
                     print("[Result] output truncated before returning to the model.")
 
-                self.messages.append(
+                current_task.messages.append(
                     {
                         "role": "tool",
                         "tool_call_id": call_id,
@@ -225,7 +248,7 @@ class AgentRuntime:
                 )
 
         self.task.hit_max_iterations()
-        self.task_manager.update_timestamp(self.current_task)
+        self.task_manager.update_timestamp(current_task)
         return "Agentの最大反復回数に達したため、処理を終了しました。"
 
     @staticmethod
@@ -233,8 +256,19 @@ class AgentRuntime:
         normalized = content.strip()
         return not normalized or normalized in {"{}", "[]"}
 
+    @staticmethod
+    def _observation_summary(result: dict[str, Any]) -> str:
+        """Create a small deterministic summary for task state."""
+        summary = json.dumps(
+            result,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        summary, _ = truncate_text(summary, 900)
+        return summary
+
     def list_tasks(self) -> list[ManagedTask]:
-        """Return tracked tasks, newest first."""
         return self.task_manager.list_tasks()
 
     def _execute_tool(
