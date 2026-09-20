@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import re
 from pathlib import Path
 from typing import Any, Callable
 
-from agent.capability_router import Capability, CapabilityRouter, RoutingMode
+from agent.capabilities import Capability
 
 
 ToolHandler = Callable[[Path, dict[str, Any]], dict[str, Any]]
@@ -44,12 +43,8 @@ class ToolDefinition:
 class ToolRegistry:
     """Registry and dispatcher for agent capabilities."""
 
-    def __init__(
-        self,
-        capability_router: CapabilityRouter | None = None,
-    ) -> None:
+    def __init__(self) -> None:
         self._tools: dict[str, ToolDefinition] = {}
-        self.capability_router = capability_router or CapabilityRouter()
 
     def register(self, tool: ToolDefinition) -> None:
         if tool.name in self._tools:
@@ -66,66 +61,26 @@ class ToolRegistry:
 
     def schemas_for(
         self,
-        task_text: str,
         excluded_tools: set[str] | None = None,
         include_control_tools: bool = False,
     ) -> list[dict[str, Any]]:
-        """Expose only relevant capability families to the LLM.
+        """Return all registered Tools eligible for this Agent task.
 
-        This is a capability gate, not a decision about whether a tool should
-        actually be used. Once a capability is exposed, the LLM chooses the
-        concrete tool and decides whether to call it.
+        Tool selection is delegated to the model's Tool Calling. The Runtime
+        may still exclude a Tool temporarily during recovery or loop handling.
         """
         excluded = excluded_tools or set()
-        route = self.capability_router.route(task_text)
-        control_tools = {"ask_user", "finish_task"} if include_control_tools else set()
-
-        if route.mode in {RoutingMode.DIRECT, RoutingMode.OPEN}:
-            # Conversation/ambiguous input stays tool-free. The Runtime can
-            # still use the same LLM for the conversational response.
-            return []
-
-        if Capability.WORKSPACE_WRITE in route.capabilities and not self._is_edit_intent(task_text):
-            return [
-                tool.schema()
-                for tool in self._tools.values()
-                if tool.name not in excluded
-                and (
-                    tool.name in control_tools
-                    or tool.availability == "always"
-                    or tool.name == "file_mutation"
-                )
-            ]
+        control_tools = {"ask_user", "finish_task"}
 
         return [
             tool.schema()
             for tool in self._tools.values()
             if tool.name not in excluded
             and (
-                tool.name in control_tools
-                or tool.availability == "always"
-                or any(
-                    capability in route.capabilities
-                    for capability in tool.capabilities
-                )
+                tool.name not in control_tools
+                or include_control_tools
             )
         ]
-
-    @staticmethod
-    def _is_edit_intent(task_text: str) -> bool:
-        return bool(
-            re.search(
-                r"(編集|変更|修正|書き換え|書換え|追加|modify|edit|fix|change|update)",
-                task_text,
-                flags=re.IGNORECASE,
-            )
-        )
-
-    def route_for(self, task_text: str):
-        return self.capability_router.route(task_text)
-
-    def capabilities_for(self, task_text: str) -> set[Capability]:
-        return self.capability_router.detect(task_text)
 
     def get(self, name: str) -> ToolDefinition | None:
         return self._tools.get(name)
