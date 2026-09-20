@@ -2,6 +2,7 @@ from pathlib import Path
 
 from agent.capability_router import Capability
 from agent.memory import MemoryStore
+from agent.recipe_store import RecipeStore
 from agent.tool_registry import ToolDefinition, ToolRegistry
 from tools.file_mutation import file_mutation
 from tools.execute_command import execute_command
@@ -9,14 +10,17 @@ from tools.list_directory import list_directory
 from tools.memory import save_memory, search_memory
 from tools.read_file import read_file
 from tools.search_files import search_files
+from tools.run_python_script import run_python_script
 
 
 def create_default_tool_registry(
     memory_store: MemoryStore | None = None,
+    recipe_store: RecipeStore | None = None,
 ) -> ToolRegistry:
     """Create the default local capability set."""
     registry = ToolRegistry()
     memory = memory_store or MemoryStore()
+    _recipes = recipe_store or RecipeStore()
 
     registry.register(
         ToolDefinition(
@@ -154,6 +158,46 @@ def create_default_tool_registry(
             availability="on_demand",
             capabilities=(Capability.WORKSPACE_WRITE,),
             terminal_on_success=True,
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="run_python_script",
+            description=(
+                "Run a temporary Python script in the Agent workspace in a bounded "
+                "child process. Use this as a fallback when no dedicated Tool can "
+                "perform the requested computation or transformation."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "script": {
+                        "type": "string",
+                        "description": "Python source code to execute temporarily.",
+                    },
+                    "timeout_seconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 30,
+                        "description": "Optional timeout in seconds. Default is 15.",
+                    },
+                },
+                "required": ["script"],
+                "additionalProperties": False,
+            },
+            handler=run_python_script,
+            requires_confirmation=True,
+            use_when=(
+                "A small computation, transformation, parsing task, or other "
+                "temporary Python capability is needed and no dedicated Tool exists."
+            ),
+            avoid_when=(
+                "A dedicated Tool already represents the operation, or the task "
+                "does not require actual local execution."
+            ),
+            availability="on_demand",
+            capabilities=(Capability.SCRIPT_EXECUTION,),
         )
     )
 
