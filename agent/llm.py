@@ -17,4 +17,5 @@ def ask_llm(
         model=MODEL,
         messages=messages,
         tools=tools or [],
+        temperature=0.3,
     )
