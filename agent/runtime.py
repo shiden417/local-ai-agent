@@ -461,6 +461,7 @@ class AgentRuntime:
                         signature=f"invalid_tool_call:{type(exc).__name__}:{exc}",
                         new_information=False,
                         progress_state=classify_progress(
+                            "invalid_tool_call",
                             {"ok": False, "error": str(exc)},
                             observation_is_new=False,
                         ),
@@ -600,6 +601,7 @@ class AgentRuntime:
                 signature = f"{name}:{fingerprint}"
                 observation_is_new = signature not in self.task.observation_signatures
                 progress_state = classify_progress(
+                    name,
                     result,
                     observation_is_new=observation_is_new,
                 )
