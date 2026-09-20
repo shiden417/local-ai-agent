@@ -132,7 +132,7 @@ def extract_related_paths(text: str) -> list[str]:
 
 
 def _resolve_related_path(root: Path, raw_path: str) -> Path | None:
-    value = str(raw_path).strip().strip(""'")
+    value = str(raw_path).strip().strip("'")
     if not value:
         return None
     try:
