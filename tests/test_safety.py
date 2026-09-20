@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from agent.safety import requires_confirmation
+from agent.safety import requires_confirmation, validate_command_scope
 from agent.tool_registry import ToolDefinition, ToolRegistry
 
 
@@ -57,3 +57,45 @@ def test_output_redirection_requires_confirmation() -> None:
         {"command": "Get-Date > example.txt"},
         registry,
     ) is True
+
+
+def test_absolute_external_command_path_requires_confirmation() -> None:
+    registry = ToolRegistry()
+
+    assert requires_confirmation(
+        "execute_command",
+        {"command": "Get-ChildItem C:\\Windows\\System32"},
+        registry,
+    ) is True
+
+
+def test_workspace_absolute_path_does_not_fail_scope_validation(
+    tmp_path: Path,
+) -> None:
+    command = f"Get-ChildItem '{tmp_path.resolve()}'"
+
+    assert validate_command_scope(command, tmp_path) is None
+
+
+def test_external_absolute_path_is_blocked(
+    tmp_path: Path,
+) -> None:
+    assert (
+        validate_command_scope(
+            "Get-ChildItem C:\\Windows\\System32",
+            tmp_path,
+        )
+        is not None
+    )
+
+
+def test_parent_directory_traversal_is_blocked(
+    tmp_path: Path,
+) -> None:
+    assert (
+        validate_command_scope(
+            "Get-ChildItem ..\\outside",
+            tmp_path,
+        )
+        is not None
+    )
