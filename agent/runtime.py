@@ -331,6 +331,7 @@ class AgentRuntime:
             available_tools = self.tool_registry.schemas_for(
                 self.task.goal,
                 excluded_tools=excluded_tools,
+                include_control_tools=True,
             )
 
             force_synthesis = (
@@ -728,8 +729,14 @@ class AgentRuntime:
         if str(result.get("completion_status", "")).strip().lower() == "blocked":
             return None
 
+        messages = getattr(task, "messages", None)
+        if messages is None and self.current_task is not None and task is self.current_task.state:
+            messages = self.current_task.messages
+        if messages is None:
+            messages = []
+
         successful_tools: list[tuple[str, dict[str, Any]]] = []
-        for message in task.messages:
+        for message in messages:
             if message.get("role") != "tool":
                 continue
             try:
