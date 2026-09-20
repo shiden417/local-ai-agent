@@ -68,12 +68,17 @@ class ToolRegistry:
     def schemas(self) -> list[dict[str, Any]]:
         return [tool.schema() for tool in self._tools.values()]
 
-    def schemas_for(self, task_text: str) -> list[dict[str, Any]]:
-        """Expose only the capabilities relevant to the current task."""
+    def schemas_for(
+        self,
+        task_text: str,
+        excluded_tools: set[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Expose relevant capabilities while allowing runtime quarantine."""
+        excluded = excluded_tools or set()
         return [
             tool.schema()
             for tool in self._tools.values()
-            if tool.is_candidate(task_text)
+            if tool.name not in excluded and tool.is_candidate(task_text)
         ]
 
     def get(self, name: str) -> ToolDefinition | None:
