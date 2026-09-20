@@ -40,7 +40,7 @@ class TaskState:
         self.iteration += 1
         if self.phase == TaskPhase.UNDERSTAND:
             self.phase = TaskPhase.PLAN
-        elif self.phase == TaskPhase.PLAN:
+        elif self.phase in {TaskPhase.PLAN, TaskPhase.VERIFY}:
             self.phase = TaskPhase.ACT
 
     def record_tool(self, name: str, succeeded: bool) -> None:
