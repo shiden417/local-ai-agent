@@ -317,6 +317,9 @@ class AgentRuntime:
             current_task.messages.append(_message_to_dict(message))
 
             for tool_call in tool_calls:
+                if terminal_synthesis_required:
+                    break
+
                 try:
                     call_id, name, arguments = _tool_call_values(tool_call)
                 except (TypeError, ValueError, json.JSONDecodeError) as exc:
