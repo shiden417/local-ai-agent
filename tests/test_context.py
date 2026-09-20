@@ -15,6 +15,7 @@ def test_context_manager_keeps_small_history_unchanged() -> None:
 
 def test_context_manager_compacts_old_history() -> None:
     large_output = "x" * 2_000
+    large_output_json = '{"ok": true, "path": "a.py", "content": "' + large_output + '"}'
     messages = [
         {"role": "system", "content": "system"},
         {"role": "user", "content": "first request"},
@@ -31,10 +32,7 @@ def test_context_manager_compacts_old_history() -> None:
         {
             "role": "tool",
             "name": "read_file",
-            "content": (
-                '{"ok": true, "path": "a.py", '
-                f'"content": "{large_output}"}'
-            ),
+            "content": large_output_json,
         },
         {"role": "assistant", "content": "first step"},
         {
