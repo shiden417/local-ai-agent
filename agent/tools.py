@@ -131,6 +131,7 @@ def create_default_tool_registry(
             avoid_when="The target file already exists and should be modified; use edit_file instead.",
             availability="on_demand",
             capabilities=(Capability.WORKSPACE_WRITE,),
+            terminal_on_success=True,
         )
     )
 
@@ -163,6 +164,7 @@ def create_default_tool_registry(
             avoid_when="You have not read the target file yet or the user only asked for an explanation.",
             availability="on_demand",
             capabilities=(Capability.WORKSPACE_WRITE,),
+            terminal_on_success=True,
         )
     )
 
