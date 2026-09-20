@@ -70,7 +70,9 @@ Long-term MemoryはAgent CoreのTask履歴とは分離し、ユーザーホー�
 - save_memory - 将来も利用する情報をローカルMemoryへ保存
 - search_memory - 過去のローカルMemoryを検索
 
-成功したrun_python_scriptはRecipeStoreへ自動保存されます。関連する次のTaskでは、過去に成功したRecipeをLLMへ参考情報として提示します。Recipeは成功実績の再利用を目的としたもので、まだ正式なPluginとして自動昇格はしません。
+成功したrun_python_scriptはRecipeStoreへ自動保存されます。関連する次のTaskでは、過去に成功したRecipeをLLMへ参考情報として提示します。Recipeは成功実績の再利用を目的としたもので、自動で正式Pluginにはしません。
+
+永続Capabilityを作る場合は、Agentがstage_pluginでPluginを検疫領域へ配置し、構文・契約を検証した後、promote_pluginでユーザー確認を経て有効化できます。有効Pluginはプロセス分離された子Pythonプロセスとして実行され、Agent Coreへ直接組み込まれません。
 
 LLMとの通信には、独自JSON文字列プロトコルではなく、LiteLLMのNative Tool Calling形式を使用します。
 
@@ -88,6 +90,8 @@ Agentの操作には実行環境に応じた安全策を設定します。
 - execute_commandは30秒timeout
 - run_python_scriptは15秒timeout（最大30秒）・スクリプト12,000文字・出力8,000文字に制限
 - run_python_scriptは子プロセスで実行し、実行前にユーザー確認
+- Pluginは有効化後も常にユーザー確認が必要
+- Plugin実行は子プロセスで行い、Coreプロセス内ではPluginコードを実行しない
 - timeout時はプロセスを終了
 - Tool結果のサイズを制限してLLMへ返す
 
@@ -145,6 +149,7 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 - Recipe使用回数に基づくPromotion候補検出
 - 検疫付きPlugin生成・検証
 - Capabilityの動的ロード
+- Agentからのstage_plugin / promote_pluginによるCapability獲得
 
 ### Tools
 - Git
