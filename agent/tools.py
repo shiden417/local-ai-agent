@@ -140,7 +140,11 @@ def create_default_tool_registry(
     registry.register(
         ToolDefinition(
             name="execute_command",
-            description="Execute a PowerShell command in the current Agent workspace.",
+            description=(
+                "Execute a PowerShell command in the current Agent workspace. "
+                "Keep file paths inside the workspace. For Python project tests, "
+                "prefer 'python -m pytest' so the active project interpreter is used."
+            ),
             parameters={
                 "type": "object",
                 "properties": {
