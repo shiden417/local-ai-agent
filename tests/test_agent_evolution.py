@@ -47,7 +47,10 @@ def test_control_tools_are_scoped_to_agent_tasks():
     assert router.route("こんにちは").mode == RoutingMode.DIRECT
     assert registry.schemas_for("こんにちは") == []
 
-    scoped = registry.schemas_for("明日の天気を教えて")
+    scoped = registry.schemas_for(
+        "明日の天気を教えて",
+        include_control_tools=True,
+    )
     names = {
         item["function"]["name"]
         for item in scoped
