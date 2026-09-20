@@ -111,3 +111,53 @@ def test_delete_file_supports_explicit_absolute_local_path(tmp_path: Path) -> No
     assert result["ok"] is True
     assert result["deleted"] is True
     assert not target.exists()
+
+
+def test_file_mutation_dispatches_create_edit_and_delete(tmp_path: Path) -> None:
+    from tools.file_mutation import file_mutation
+
+    created = file_mutation(
+        tmp_path,
+        {
+            "operation": "create",
+            "path": "site.html",
+            "content": "<h1>old</h1>",
+        },
+    )
+    assert created["ok"] is True
+
+    edited = file_mutation(
+        tmp_path,
+        {
+            "operation": "edit",
+            "path": "site.html",
+            "search_text": "<h1>old</h1>",
+            "replace_text": "<h1>new</h1>",
+        },
+    )
+    assert edited["ok"] is True
+
+    deleted = file_mutation(
+        tmp_path,
+        {
+            "operation": "delete",
+            "path": "site.html",
+        },
+    )
+    assert deleted["ok"] is True
+    assert not (tmp_path / "site.html").exists()
+
+
+def test_file_mutation_rejects_unknown_operation(tmp_path: Path) -> None:
+    from tools.file_mutation import file_mutation
+
+    result = file_mutation(
+        tmp_path,
+        {
+            "operation": "rename",
+            "path": "site.html",
+        },
+    )
+
+    assert result["ok"] is False
+    assert "Unsupported file mutation operation" in result["error"]
