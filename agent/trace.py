@@ -120,6 +120,55 @@ class TraceRecorder:
         except OSError:
             return
 
+    def summary(self) -> dict[str, int | float]:
+        metrics: dict[str, int | float] = {
+            "llm_calls": 0,
+            "tool_calls": 0,
+            "llm_duration_ms": 0,
+            "tool_duration_ms": 0,
+            "prompt_chars": 0,
+            "tool_schema_chars": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "reasoning_tokens": 0,
+        }
+        if not self.enabled or not self.path.exists():
+            return metrics
+
+        try:
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return metrics
+
+        for line in lines:
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("event") == "llm":
+                metrics["llm_calls"] += 1
+                metrics["llm_duration_ms"] += int(event.get("duration_ms", 0) or 0)
+                metrics["prompt_chars"] += int(event.get("prompt_chars", 0) or 0)
+                metrics["tool_schema_chars"] += int(event.get("tool_schema_chars", 0) or 0)
+                metrics["prompt_tokens"] += int(event.get("prompt_tokens", 0) or 0)
+                metrics["completion_tokens"] += int(event.get("completion_tokens", 0) or 0)
+                metrics["reasoning_tokens"] += int(event.get("reasoning_tokens", 0) or 0)
+            elif event.get("event") == "tool":
+                metrics["tool_calls"] += 1
+                metrics["tool_duration_ms"] += int(event.get("duration_ms", 0) or 0)
+
+        llm_calls = int(metrics["llm_calls"])
+        tool_calls = int(metrics["tool_calls"])
+        metrics["avg_llm_duration_ms"] = (
+            round(int(metrics["llm_duration_ms"]) / llm_calls, 1)
+            if llm_calls else 0
+        )
+        metrics["avg_tool_duration_ms"] = (
+            round(int(metrics["tool_duration_ms"]) / tool_calls, 1)
+            if tool_calls else 0
+        )
+        return metrics
+
     def run_start(
         self,
         run_id: str,
