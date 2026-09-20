@@ -3,6 +3,21 @@ from pathlib import Path
 from agent.runtime import AgentRuntime
 
 
+def print_tasks(runtime: AgentRuntime) -> None:
+    tasks = runtime.list_tasks()
+    if not tasks:
+        print("Taskはありません。")
+        return
+
+    print("\nTasks:")
+    for task in tasks:
+        print(
+            f"- {task.task_id} | "
+            f"{task.status.value} | "
+            f"{task.goal[:80]}"
+        )
+
+
 def main() -> None:
     runtime = AgentRuntime(
         working_directory=Path.cwd(),
@@ -12,6 +27,7 @@ def main() -> None:
     print("Local AI Agent")
     print(f"Working Directory: {runtime.working_directory}")
     print("exit または quit で終了します。")
+    print("/tasks でTask一覧を表示できます。")
 
     while True:
         try:
@@ -20,14 +36,19 @@ def main() -> None:
             print()
             break
 
-        if user_input.strip().lower() in {"exit", "quit"}:
+        command = user_input.strip()
+        if command.lower() in {"exit", "quit"}:
             break
 
-        if not user_input.strip():
+        if command.lower() == "/tasks":
+            print_tasks(runtime)
+            continue
+
+        if not command:
             continue
 
         try:
-            print(runtime.run(user_input))
+            print(runtime.run(command))
         except Exception as exc:
             print(f"Agent error: {exc}")
 
