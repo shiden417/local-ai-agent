@@ -35,16 +35,31 @@ WINDOWS_ABSOLUTE_PATH_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_])(?:[A-Za-z]:\\|\\\\|/(?:mnt|var|etc|tmp)(?:/|$))"
 )
 PARENT_PATH_PATTERN = re.compile(r"(^|[\s'\"])(?:\.\.[\\/])+")
+LOCAL_PATH_TOOLS = {"list_directory", "read_file", "search_files", "edit_file"}
 
 
 def requires_confirmation(
     tool_name: str,
     arguments: dict[str, Any],
     registry: ToolRegistry,
+    working_directory: str | Path | None = None,
 ) -> bool:
     tool = registry.get(tool_name)
     if tool is not None and tool.requires_confirmation:
         return True
+
+    if tool_name in LOCAL_PATH_TOOLS:
+        requested_path = str(arguments.get("path", "")).strip()
+        if _is_absolute_local_path(requested_path):
+            if working_directory is None:
+                return True
+            try:
+                target = Path(requested_path).resolve()
+                cwd = Path(working_directory).resolve()
+            except OSError:
+                return True
+            if not target.is_relative_to(cwd):
+                return True
 
     if tool_name != "execute_command":
         return False
@@ -118,3 +133,12 @@ def _extract_path_token(command: str, start: int) -> str | None:
         return None
 
     return match.group(0)
+
+
+def _is_absolute_local_path(value: str) -> bool:
+    if not value:
+        return False
+    return bool(
+        Path(value).is_absolute()
+        or re.match(r"^(?:[A-Za-z]:[\\/]|\\\\)", value)
+    )
