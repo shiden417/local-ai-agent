@@ -129,7 +129,7 @@ def test_default_registry_excludes_experimental_plugin_tools() -> None:
     }.isdisjoint(names)
 
 
-def test_experimental_registry_can_be_opted_in() -> None:
+def test_experimental_registry_can_be_opted_in(tmp_path: Path) -> None:
     from agent.tools import create_default_tool_registry
 
     registry = create_default_tool_registry(
