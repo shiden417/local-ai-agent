@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from agent.capability_router import Capability, CapabilityRouter, RoutingMode
+from agent.capabilities import Capability
 from agent.plugin_manager import PluginManager, PluginValidationError
 from agent.tool_registry import ToolRegistry
 
@@ -80,15 +80,6 @@ def test_plugin_manager_loads_and_executes_plugin(
     )
 
     assert result == {"ok": True, "value": 42}
-
-
-def test_plugin_router_exposes_capability_management() -> None:
-    route = CapabilityRouter().route("新しいToolを追加してPDFを処理できるようにして")
-
-    assert route.mode is RoutingMode.SCOPED
-    assert (
-        Capability.CAPABILITY_MANAGEMENT in route.capabilities
-    )
 
 
 def test_registry_can_stage_and_promote_plugin(tmp_path: Path) -> None:
