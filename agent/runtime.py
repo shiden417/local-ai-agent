@@ -7,8 +7,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
-from agent.approval import ApprovalPolicy, approval_key
-from agent.command_policy import AUTO_ALLOW, AUTO_DENY, classify_auto_mode
 from agent.completion_verifier import CompletionVerifier
 from agent.llm import ask_llm
 from agent.loop_guard import ToolLoopGuard
@@ -20,7 +18,7 @@ from agent.session import SessionManager
 from agent.environment import build_environment_context, extract_related_paths
 from agent.recipe_store import RecipeStore
 from agent.terminal_ui import TerminalUI
-from agent.safety import requires_confirmation
+from agent.safety import AUTO_ALLOW, AUTO_DENY, SafetyPolicy
 from agent.task import TaskState
 from agent.task_manager import ManagedTask, TaskManager
 from agent.capability_router import Capability
@@ -155,7 +153,7 @@ class AgentRuntime:
         session_manager: SessionManager | None = None,
         recipe_store: RecipeStore | None = None,
         plugin_manager: PluginManager | None = None,
-        approval_policy: ApprovalPolicy | None = None,
+        safety_policy: SafetyPolicy | None = None,
         terminal_ui: TerminalUI | None = None,
         ask_user: Callable[[str], str] | None = None,
     ) -> None:
@@ -168,7 +166,7 @@ class AgentRuntime:
             recipe_store=self.recipe_store,
         )
         self.confirm = confirm
-        self.approval_policy = approval_policy or ApprovalPolicy()
+        self.safety = safety_policy or SafetyPolicy()
         self.terminal_ui = terminal_ui
         self.ask_user_callback = ask_user
         self.session_manager = session_manager or SessionManager()
@@ -210,7 +208,7 @@ class AgentRuntime:
                 "Approval? [y] once / [a] always for this action / [n] deny: "
             ).strip().lower()
         if answer in {"a", "always"}:
-            self.approval_policy.allow(permission_key, summary)
+            self.safety.allow(permission_key, summary)
             print("[Approval] learned")
             return True
         return answer in {"y", "yes"}
@@ -565,13 +563,13 @@ class AgentRuntime:
                         self.terminal_ui.info(f"Repeated Tool blocked: {name}")
                     else:
                         print("[Tool] repeated call blocked; tool disabled for this task")
-                elif requires_confirmation(
+                elif self.safety.requires_confirmation(
                     name,
                     arguments,
                     self.tool_registry,
                     self.working_directory,
                 ):
-                    auto_decision = classify_auto_mode(
+                    auto_decision = self.safety.classify_auto_mode(
                         name, arguments, self.tool_registry, self.working_directory
                     )
                     if auto_decision == AUTO_DENY:
@@ -589,10 +587,10 @@ class AgentRuntime:
                         if self.terminal_ui is not None:
                             self.terminal_ui.info(f"Auto Mode: {name}")
                     else:
-                        permission_key = approval_key(
+                        permission_key = self.safety.approval_key(
                             name, arguments, self.working_directory
                         )
-                        if self.approval_policy.is_allowed(permission_key):
+                        if self.safety.is_allowed(permission_key):
                             if self.terminal_ui is not None:
                                 self.terminal_ui.info(f"Learned permission: {name}")
                             else:
