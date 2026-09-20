@@ -65,8 +65,9 @@ class CapabilityRouter:
             r"\b(edit|modify|fix|change|update|write|create|delete|remove)\b",
         ),
         Capability.SCRIPT_EXECUTION: (
-            r"(Python|python|スクリプト|script).{0,20}(実行|動か|書い|作成|生成|使|試|して|する)",
+            r"(Python|python|スクリプト|script).{0,20}(実行|動か|コード|スクリプト|実行して|動かして)",
             r"(変換|解析|パース|抽出|加工|処理).{0,20}(して|する|したい|してください|お願い)",
+            r"^s*(調査|調べ物|リサーチ|research)s*$",
             r"\b(convert|parse|extract|transform|process|generate)\b",
         ),
         Capability.CAPABILITY_MANAGEMENT: (
@@ -76,6 +77,7 @@ class CapabilityRouter:
         ),
         Capability.PROCESS: (
             r"(作業|タスク).{0,12}(完了|終了|進め|実行|して|してください)",
+            r"^s*(調査|作業|アクション)s*$",
             r"(テスト|pytest).{0,12}(実行|走らせ|回し|して)",
             r"(ビルド|build).{0,12}(実行|して)?",
             r"(コマンド|PowerShell).{0,12}(実行|打|走らせ|して)",
