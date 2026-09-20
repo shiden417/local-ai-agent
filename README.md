@@ -67,12 +67,15 @@ Long-term MemoryはAgent CoreのTask履歴とは分離し、ユーザーホー�
 - file_mutation - ローカルファイルの作成・編集・削除
 - execute_command - PowerShellコマンド実行
 - run_python_script - 専用Toolがない処理を一時Python Scriptとして実行
+- list_promotion_candidates - 繰り返し成功したRecipeをPromotion候補として取得
+- generate_plugin - RecipeからPlugin候補をLLM生成
+- test_plugin_candidate - 生成Pluginを子プロセスで確認付き検証
 - stage_plugin - 新しいPluginを検疫領域へ配置
 - promote_plugin - 検疫済みPluginを確認付きで有効化
 - save_memory - 将来も利用する情報をローカルMemoryへ保存
 - search_memory - 過去のローカルMemoryを検索
 
-成功したrun_python_scriptはRecipeStoreへ自動保存されます。関連する次のTaskでは、過去に成功したRecipeをLLMへ参考情報として提示します。Recipeは成功実績の再利用を目的としたもので、自動で正式Pluginにはしません。
+成功したrun_python_scriptはRecipeStoreへ自動保存されます。関連する次のTaskでは、過去に成功したRecipeをLLMへ参考情報として提示します。Recipeは成功実績の再利用を目的としたもので、自動で正式Pluginにはしません。Capability管理Taskでは、候補を `generate_plugin` でPlugin化し、`test_plugin_candidate` で実行検証した後、`stage_plugin` → `promote_plugin` の順で永続化できます。
 
 永続Capabilityを作る場合は、Agentがstage_pluginでPluginを検疫領域へ配置し、構文・契約を検証した後、promote_pluginでユーザー確認を経て有効化できます。有効Pluginは固定ブートストラップ経由の子Pythonプロセスとして実行され、Agent Coreのプロセス内ではPluginコードを実行しません。
 
@@ -149,8 +152,10 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 - 成功した一時ScriptのRecipe化
 - Recipe再利用
 - Recipe使用回数に基づくPromotion候補検出
+- RecipeからPlugin候補をLLM生成
+- 生成Pluginの構文・契約検証
+- 生成Pluginの子プロセスによる確認付きテスト
 - PluginをQuarantineへStage
-- Pluginの構文・契約検証
 - 確認付きPromotionと動的ロード
 - Agentからのlist_promotion_candidates / stage_plugin / promote_pluginによるCapability獲得
 
