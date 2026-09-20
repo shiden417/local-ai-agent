@@ -43,3 +43,17 @@ def test_router_keeps_ambiguous_requests_open_for_llm_choice() -> None:
     route = CapabilityRouter().route("どうすればよいですか")
 
     assert route.mode == RoutingMode.OPEN
+
+
+def test_router_does_not_treat_vague_test_as_process_request() -> None:
+    route = CapabilityRouter().route("テスト")
+
+    assert route.mode == RoutingMode.OPEN
+    assert route.capabilities == frozenset()
+
+
+def test_router_detects_explicit_test_execution() -> None:
+    route = CapabilityRouter().route("pytestを実行してください")
+
+    assert route.mode == RoutingMode.SCOPED
+    assert route.capabilities == frozenset({Capability.PROCESS})
