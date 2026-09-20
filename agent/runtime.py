@@ -12,9 +12,11 @@ from agent.llm import ask_llm
 from agent.loop_guard import ToolLoopGuard
 from agent.observation import truncate_text
 from agent.progress import evaluate_progress
+from agent.recipe_store import RecipeStore
 from agent.safety import requires_confirmation
 from agent.task import TaskState
 from agent.task_manager import ManagedTask, TaskManager
+from agent.capability_router import Capability
 from agent.tool_registry import ToolRegistry
 from agent.tools import create_default_tool_registry
 
@@ -29,6 +31,9 @@ SYSTEM_PROMPT = """あなたはローカルで動作する汎用AI Agentです�
 - 同じTool + 同じ引数を繰り返さないでください。Toolが無効化されている場合は別のActionを選択してください。
 - 同じ内容の観測を別の引数で再取得することも避けてください。
 - Toolが失敗した場合は、同じ失敗を繰り返さず、直前の失敗に直接関係する最小の別手段を試してください。
+- run_python_scriptは一時的な補助手段です。専用Toolで目的を達成できる場合は、専用Toolを優先してください。
+- Runtimeが提示した過去のRecipeは成功実績のある参考コードですが、パス・入力・出力は現在のTaskに合わせて見直してください。
+- run_python_scriptが成功した場合、そのScriptはRuntimeがRecipeとして自動保存します。これを理由にsave_memoryを追加で呼ばないでください。
 - 現在日時・時刻についてはRuntimeが提供する現在の日時を事実として使用し、推測や古い知識から日付を作らないでください。
 - ユーザーが「作成して」「修正して」「削除して」「実行して」など、実際の操作を明示した場合は、説明やサンプルだけを返さず、適切なToolを使ってください。
 - Toolを使っていない場合、ファイル作成・変更・コマンド実行などが完了したと主張しないでください。
@@ -125,12 +130,14 @@ class AgentRuntime:
         tool_registry: ToolRegistry | None = None,
         confirm: Callable[[str], bool] | None = None,
         context_manager: ContextManager | None = None,
+        recipe_store: RecipeStore | None = None,
     ) -> None:
         self.working_directory = Path(working_directory).resolve()
         self.max_iterations = max_iterations
         self.tool_registry = tool_registry or create_default_tool_registry()
         self.confirm = confirm or self._default_confirm
         self.context_manager = context_manager or ContextManager()
+        self.recipe_store = recipe_store or RecipeStore()
         self.loop_guard = ToolLoopGuard()
         self.task_manager = TaskManager()
         self.conversation_manager = ConversationManager()
@@ -176,6 +183,26 @@ class AgentRuntime:
                     key=lambda item: item.value,
                 )
             ) or "none"
+            recipe_messages: list[dict[str, Any]] = []
+            if Capability.SCRIPT_EXECUTION in route.capabilities:
+                recipes = self.recipe_store.search(self.task.goal, limit=2)
+                if recipes:
+                    recipe_lines = [
+                        "Relevant successful local Recipes (reference only):"
+                    ]
+                    for index, recipe in enumerate(recipes, start=1):
+                        bounded_script, _ = truncate_text(recipe.script, 4_000)
+                        recipe_lines.append(
+                            f"Recipe {index}: use_count={recipe.use_count}, "
+                            f"goal={recipe.goal}"
+                        )
+                        recipe_lines.append(bounded_script)
+                    recipe_messages.append(
+                        {
+                            "role": "system",
+                            "content": "\n".join(recipe_lines),
+                        }
+                    )
 
             task_system_messages = [
                 message
@@ -192,6 +219,7 @@ class AgentRuntime:
 
             llm_messages = [
                 *task_system_messages,
+                *recipe_messages,
                 *prior_conversation,
                 *task_non_system_messages,
                 {
@@ -429,6 +457,21 @@ class AgentRuntime:
                     }
                 )
 
+                if name == "run_python_script" and bool(result.get("ok")):
+                    script = str(arguments.get("script", "")).strip()
+                    if script:
+                        try:
+                            recipe = self.recipe_store.record(
+                                self.task.goal,
+                                script,
+                            )
+                            print(
+                                f"[Recipe] saved {recipe.id} "
+                                f"(use_count={recipe.use_count})"
+                            )
+                        except ValueError as exc:
+                            print(f"[Recipe] skipped: {exc}")
+
                 tool_definition = self.tool_registry.get(name)
                 if (
                     bool(result.get("ok"))
@@ -538,9 +581,17 @@ class AgentRuntime:
             )
 
         if name == "file_mutation":
+            operation = str(arguments.get("operation", "")).strip() or "変更"
             return (
-                "Agentがローカルファイルを削除しようとしています。\n"
+                f"Agentがローカルファイルを{operation}しようとしています。\n"
                 f"path: {arguments.get('path', '')}"
+            )
+
+        if name == "run_python_script":
+            return (
+                "Agentが一時的なPythonスクリプトを実行しようとしています。\n"
+                "実行環境は子プロセスで時間・出力サイズを制限します。\n"
+                f"timeout_seconds: {arguments.get('timeout_seconds', 15)}"
             )
 
         return (
