@@ -16,14 +16,11 @@ LM Studio + Qwen3:8B を基盤にした、無料・ローカル・無制限利�
       ↓
     J.A.R.V.I.S. Terminal UI
       ↓
-    Conversation / Session Context
+    Session Manager
       ↓
     Agent Runtime
       ↓
-    Capability Router
-      ├─ Direct: obvious conversation → no tools
-      ├─ Scoped: expose relevant capability families
-      └─ Open: avoid speculative actions
+    Capability Router / Tool Exposure Policy
       ↓
     LM Studio OpenAI-compatible API
       ↓
@@ -39,7 +36,11 @@ LM Studio + Qwen3:8B を基盤にした、無料・ローカル・無制限利�
       ├─ Memory
       └─ Capability / Plugin management
       ↓
-    Observation / Progress / Loop Guard
+    Safety Policy / Tool Execution
+      ↓
+    Observation / Loop Guard / Recovery
+      ↓
+    Completion Verification
       ↓
     Agent decides next action
       ↓
@@ -53,9 +54,9 @@ LM Studio also provides a native Python SDK and an `.act()` automatic multi-roun
 
 ## Current implementation
 
-Agent Coreには、1つの依頼を独立して追跡するTaskState、実行状態、観測履歴、Progress判定、Loop Guard、Recovery、Session Context、Long-term Memoryを実装しています。
+Agent Coreには、1つの依頼を独立して追跡するTaskState、Session Manager、Loop Guard、Recovery、Safety Policy、Completion Verificationを実装しています。Cross-taskの要点はSession Managerが保持し、長期Memoryは別のCapabilityとして扱います。
 
-ToolはToolRegistryに登録され、Runtimeが実際の操作を実行します。Qwen3:8BはToolを直接実行せず、Tool呼び出しを要求し、Runtimeが実行結果をLLMへ返します。
+ToolはToolRegistryに登録され、Runtimeが実際の操作を実行します。Qwen3:8BはToolを直接実行せず、Tool呼び出しを要求し、Runtimeが安全性を確認したうえで実行結果をLLMへ返します。Session ManagerはTask履歴の圧縮、短い会話履歴、Task間の要点保持を1つの責務にまとめています。
 
 現在の主要Tool:
 
@@ -161,8 +162,8 @@ GitHub ActionsではWindows Runner上でテストします。
 - Agent loopの収束・安定化
 - Deterministic Completion Verification
 - AGENTS.md階層ルール
-- Context compaction
-- Task管理
+- Capability Routerの簡素化
+- Task/Observation状態の簡素化
 - より高度なLong-term Memory
 - Goal / task decomposition
 - Proactive behavior
