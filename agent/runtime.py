@@ -762,12 +762,26 @@ class AgentRuntime:
         ]
         if self.terminal_ui is not None:
             self.terminal_ui.thinking_start()
+        prompt_chars = sum(
+            len(str(message.get("content", ""))) + 40
+            for message in messages
+        )
+        llm_started = time.perf_counter()
         try:
             response = ask_llm(messages, tools=[])
         finally:
             if self.terminal_ui is not None:
                 self.terminal_ui.thinking_stop()
 
+        if run_id is not None:
+            self.trace.llm(
+                run_id,
+                iteration=1,
+                duration_ms=round((time.perf_counter() - llm_started) * 1000),
+                prompt_chars=prompt_chars,
+                tool_schema_chars=0,
+                response=response,
+            )
         message = response.choices[0].message
         content = self._normalize_final_content(
             getattr(message, "content", None) or ""
@@ -776,6 +790,14 @@ class AgentRuntime:
             content = "すみません。うまく回答を生成できませんでした。"
 
         self.session_manager.add_conversation_turn(user_input, content)
+        if run_id is not None:
+            self.trace.run_end(
+                run_id,
+                task_id="conversation",
+                status="completed",
+                iterations=1,
+                tool_calls=0,
+            )
         if self.terminal_ui is not None:
             self.terminal_ui.final(content)
         return content
