@@ -223,6 +223,7 @@ class AgentRuntime:
         if route.mode.value in {"direct", "open"}:
             return self._run_conversation(user_input)
 
+        is_follow_up = routing_text != user_input
         current_task = self.task_manager.create(user_input)
         current_task.messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -299,6 +300,19 @@ class AgentRuntime:
                 for message in context_messages
                 if message.get("role") == "system"
             ]
+            if is_follow_up:
+                task_system_messages.append(
+                    {
+                        "role": "system",
+                        "content": (
+                            "Follow-up Task: the current request refers to the "
+                            "previous topic. Use the Topic anchor and retained "
+                            "facts/references to infer the subject. Do not ask "
+                            "the user to provide search terms, URLs, or source "
+                            "selection when the subject is already clear."
+                        ),
+                    }
+                )
             task_non_system_messages = [
                 message
                 for message in context_messages
