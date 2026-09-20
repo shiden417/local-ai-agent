@@ -35,7 +35,7 @@ def classify_tool_outcome(tool_name: str, result: dict[str, Any]) -> str:
         return STATUS_PERMISSION_DENIED
     if "must be" in error or "invalid" in error or "required" in error:
         return STATUS_INVALID_INPUT
-    if tool_name == "search_web":
+    if tool_name in {"search_web", "fetch_web_page"}:
         return STATUS_EXTERNAL_FAILURE
 
     return STATUS_FAILED
@@ -66,7 +66,9 @@ def recovery_guidance(tool_name: str, status: str) -> str:
         ),
         STATUS_EXTERNAL_FAILURE: (
             "Recovery Guide: The external information lookup failed. "
-            "Do not repeat the identical query more than once. Try one directly relevant alternate query, then reassess."
+            "Do not repeat the identical query or URL more than once. "
+            "For fetch_web_page failures such as 403/404, choose a different relevant URL "
+            "from search_web rather than trying to bypass the site. Then reassess."
         ),
         STATUS_BLOCKED: (
             "Recovery Guide: The previous Tool was blocked by Runtime safety policy. "
