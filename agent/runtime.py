@@ -29,8 +29,10 @@ SYSTEM_PROMPT = """あなたはローカルで動作する汎用AI Agentです�
 - 1回の判断では必要最小限の操作を選んでください。
 - 現在の作業環境で利用できる範囲を超えてアクセスしようとしないでください。
 - ユーザーの確認が必要な操作は、確認が得られてから実行してください。
-- 過去に保存された情報が目的達成に役立つ場合は、search_memoryを使用してください。
-- 将来も役立つ重要な事実や明示的な希望があれば、save_memoryを提案または使用してください。ただし機密情報、認証情報、パスワード、APIキーなどは保存しないでください。
+- search_memoryは過去のTaskやユーザーが以前保存した情報を思い出す必要がある場合だけ使用してください。現在のworkspaceのファイル内容を調べるためには使用しないでください。
+- save_memoryは、将来の別Taskでも役立つ重要な事実や明示的な希望を保存する場合だけ使用してください。ただし機密情報、認証情報、パスワード、APIキーなどは保存しないでください。
+- 現在のworkspaceを調査するときは、まずlist_directoryやread_fileを使用してください。list_directoryでファイル名が得られたら、必要なファイルをread_fileで確認してください。
+- ユーザーの自然言語に含まれる「主要なファイル」のような表現を、そのままsearch_filesの検索語にしないでください。
 - 作業が完了したら、結果と重要な変更点を通常の文章で説明してください。
 
 利用可能なツールは、その時点でRuntimeから提供されます。
@@ -140,6 +142,20 @@ class AgentRuntime:
             content = getattr(message, "content", None) or ""
 
             if not tool_calls:
+                if self._is_invalid_final_response(content):
+                    self.messages.append(_message_to_dict(message))
+                    self.messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "The previous response was empty or invalid as a final "
+                                "answer. Continue the task using the available tool results "
+                                "and provide a direct answer to the user's request."
+                            ),
+                        }
+                    )
+                    continue
+
                 self.messages.append(_message_to_dict(message))
                 self.task.complete()
                 self.task_manager.update_timestamp(self.current_task)
@@ -211,6 +227,11 @@ class AgentRuntime:
         self.task.hit_max_iterations()
         self.task_manager.update_timestamp(self.current_task)
         return "Agentの最大反復回数に達したため、処理を終了しました。"
+
+    @staticmethod
+    def _is_invalid_final_response(content: str) -> bool:
+        normalized = content.strip()
+        return not normalized or normalized in {"{}", "[]"}
 
     def list_tasks(self) -> list[ManagedTask]:
         """Return tracked tasks, newest first."""
