@@ -361,6 +361,43 @@ class PluginManager:
                 "plugin source must define top-level run(arguments)"
             )
 
+        blocked_modules = {
+            "os",
+            "pathlib",
+            "shutil",
+            "socket",
+            "subprocess",
+            "ctypes",
+            "winreg",
+            "requests",
+            "httpx",
+            "urllib",
+        }
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                modules = [alias.name.split(".")[0] for alias in node.names]
+                if any(module in blocked_modules for module in modules):
+                    raise PluginValidationError(
+                        "plugin source imports a blocked module"
+                    )
+            elif isinstance(node, ast.ImportFrom):
+                module = (node.module or "").split(".")[0]
+                if module in blocked_modules:
+                    raise PluginValidationError(
+                        "plugin source imports a blocked module"
+                    )
+            elif isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name) and node.func.id in {
+                    "eval",
+                    "exec",
+                    "compile",
+                    "open",
+                    "__import__",
+                }:
+                    raise PluginValidationError(
+                        f"plugin source uses blocked builtin: {node.func.id}"
+                    )
+
     @staticmethod
     def _read_manifest(plugin_dir: Path) -> dict[str, Any]:
         manifest_path = plugin_dir / "manifest.json"
