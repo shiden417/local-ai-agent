@@ -526,3 +526,167 @@ def test_runtime_retries_when_model_echoes_tool_result(
     assert result == "観測結果を確認しました。"
     assert runtime.task is not None
     assert runtime.task.status.value == "completed"
+
+
+
+def test_runtime_treats_read_ranges_with_same_content_as_same_observation(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    registry = ToolRegistry()
+
+    responses = []
+
+    def make_tool_call(call_id: str, end_line: int | None) -> SimpleNamespace:
+        arguments = {"path": "README.md"}
+        if end_line is not None:
+            arguments["start_line"] = 1
+            arguments["end_line"] = end_line
+        return SimpleNamespace(
+            id=call_id,
+            function=SimpleNamespace(
+                name="read_file",
+                arguments=json.dumps(arguments),
+            ),
+        )
+
+    responses.extend(
+        [
+            SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(
+                            role="assistant",
+                            content="",
+                            tool_calls=[make_tool_call("read-1", 20)],
+                        )
+                    )
+                ]
+            ),
+            SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(
+                            role="assistant",
+                            content="",
+                            tool_calls=[make_tool_call("read-2", 40)],
+                        )
+                    )
+                ]
+            ),
+            SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(
+                            role="assistant",
+                            content="調査結果をまとめました。",
+                            tool_calls=[],
+                        )
+                    )
+                ]
+            ),
+        ]
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="read_file",
+            description="Read file",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"},
+                    "start_line": {"type": "integer"},
+                    "end_line": {"type": "integer"},
+                },
+                "required": ["path"],
+            },
+            handler=lambda _working_directory, _arguments: {
+                "ok": True,
+                "path": "README.md",
+                "start_line": 1,
+                "end_line": _arguments.get("end_line"),
+                "content": "same useful content",
+                "truncated": False,
+            },
+        )
+    )
+
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm",
+        lambda _messages, tools=None: responses.pop(0),
+    )
+
+    runtime = AgentRuntime(
+        tmp_path,
+        tool_registry=registry,
+    )
+
+    assert runtime.run("README.mdを調べてください") == "調査結果をまとめました。"
+    assert runtime.task is not None
+    assert runtime.task.progress_count == 1
+    assert runtime.task.no_progress_streak == 0
+    assert runtime.task.observations[0].new_information is True
+    assert runtime.task.observations[1].new_information is False
+    assert runtime.task.observations[1].progress_state.value == "no_progress"
+
+
+def test_runtime_keeps_tool_quarantine_inside_task_state(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    registry = ToolRegistry()
+    tool_call = SimpleNamespace(
+        id="call-1",
+        function=SimpleNamespace(
+            name="inspect",
+            arguments="{}",
+        ),
+    )
+    final = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    role="assistant",
+                    content="完了しました。",
+                    tool_calls=[],
+                )
+            )
+        ]
+    )
+    responses = [
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="",
+                        tool_calls=[tool_call],
+                    )
+                )
+            ]
+        ),
+        final,
+    ]
+    registry.register(
+        ToolDefinition(
+            name="inspect",
+            description="Inspect",
+            parameters={"type": "object", "properties": {}, "required": []},
+            handler=lambda _working_directory, _arguments: {
+                "ok": True,
+                "value": "done",
+            },
+        )
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm",
+        lambda _messages, tools=None: responses.pop(0),
+    )
+
+    runtime = AgentRuntime(tmp_path, tool_registry=registry)
+    assert runtime.run("調査") == "完了しました。"
+    assert runtime.task is not None
+    assert runtime.task.disabled_tools == set()
