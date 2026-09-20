@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Callable
@@ -176,7 +177,12 @@ class AgentRuntime:
                     call_id, name, arguments = _tool_call_values(tool_call)
                 except (TypeError, ValueError, json.JSONDecodeError) as exc:
                     print(f"[Tool Error] {exc}")
-                    self.task.fail(f"Invalid tool call: {exc}")
+                    self.task.record_tool(
+                        "invalid_tool_call",
+                        succeeded=False,
+                        summary=str(exc),
+                        signature=f"invalid_tool_call:{type(exc).__name__}:{exc}",
+                    )
                     current_task.messages.append(
                         {
                             "role": "tool",
@@ -216,14 +222,17 @@ class AgentRuntime:
                 bounded, truncated = truncate_text(serialized)
 
                 observation_summary = self._observation_summary(result)
+                result_signature = json.dumps(
+                    result,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
                 signature = (
                     f"{name}:"
-                    + json.dumps(
-                        result,
-                        ensure_ascii=False,
-                        sort_keys=True,
-                        separators=(",", ":"),
-                    )
+                    + hashlib.sha256(
+                        result_signature.encode("utf-8")
+                    ).hexdigest()
                 )
                 self.task.record_tool(
                     name,
