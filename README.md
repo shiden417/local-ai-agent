@@ -57,7 +57,7 @@ LM Studio also provides a native Python SDK and an `.act()` automatic multi-roun
 
 Agent Coreには、1つの依頼を独立して追跡するTaskState、Session Manager、Loop Guard、Recovery、Safety Policy、Completion Verificationを実装しています。Cross-taskの要点はSession Managerが保持し、長期Memoryは別のCapabilityとして扱います。
 
-ToolはToolRegistryに登録され、Runtimeが実際の操作を実行します。Qwen3:8BはToolを直接実行せず、Tool呼び出しを要求し、Runtimeが安全性を確認したうえで実行結果をLLMへ返します。Session ManagerはTask履歴の圧縮、短い会話履歴、Task間の要点保持を1つの責務にまとめています。
+ToolはToolRegistryに登録され、Runtimeが実際の操作を実行します。ローカルLLMはToolを直接実行せず、Tool呼び出しを要求し、Runtimeが安全性を確認したうえで実行結果をLLMへ返します。Session ManagerはTask履歴の圧縮、短い会話履歴、Task間の要点保持を1つの責務にまとめています。
 
 現在の主要Tool:
 
@@ -74,16 +74,18 @@ ToolはToolRegistryに登録され、Runtimeが実際の操作を実行します
 
 ## LM Studio
 
-LM StudioのDeveloper tabでServerを起動し、Qwen3:8Bをロードして使用します。
+LM StudioのDeveloper tabでServerを起動し、既定モデルをロードして使用します。
 
-推奨モデル:
+推奨モデル（既定）:
 
-    qwen/qwen3-8b
+    google/gemma-4-e4b-qat
+
+Gemma 4 E4B QATは、Native Function Calling・Reasoning・Visionを備えた小型ローカルモデルです。LM Studio向けQ4_0版は約5.15GBで、ローカルAgentのTool Callingを試しやすい構成です。
 
 APIの既定値:
 
     LM_STUDIO_BASE_URL=http://localhost:1234/v1
-    LM_STUDIO_MODEL=qwen/qwen3-8b
+    LM_STUDIO_MODEL=google/gemma-4-e4b-qat
 
 モデルIDが環境によって異なる場合は、環境変数で変更できます。
 
@@ -127,6 +129,20 @@ Agentを操作したい作業ディレクトリで起動します。
     You > WpfGisLearningを確認して、テストを実行して問題があれば修正して。
 
 JARVIS v1では、ユーザーの1回の依頼に対して必要なToolを複数回使います。Taskとして分類された依頼では登録済みToolをモデルに提示し、LM Studio上のローカルLLMのTool Callingに選択を委ね、Runtimeが安全性・実行・観測・回復・完了確認を担当します。
+
+## Agent benchmark
+
+実機のLM Studio + Local LLMで、自律Taskの最低限の回帰確認を行えます。
+
+    python tools/benchmark_agent.py
+
+ベンチマークは一時workspace上で、ファイル作成、Session Contextを使ったFollow-up、ファイル調査→修正→pytest実行の3 Taskを確認します。確認用workspace内だけを変更し、ベンチマークでは承認コールバックを自動許可するため、Safetyの対話UI自体ではなくAgentのTool選択・実行・完了確認を評価します。
+
+別モデルを比較する場合:
+
+    python tools/benchmark_agent.py --model qwen/qwen3-8b
+
+既定モデルへ戻す場合はLM_STUDIO_MODELを削除するか、Gemma 4 E4B QATを指定します。
 
 ## Commands
 
