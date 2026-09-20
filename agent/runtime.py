@@ -288,16 +288,14 @@ class AgentRuntime:
                 bounded, truncated = truncate_text(serialized)
 
                 observation_summary = self._observation_summary(result)
-                observation_is_new = (
-                    _observation_fingerprint(name, result)
-                    not in self.task.observation_signatures
-                )
+                fingerprint = _observation_fingerprint(name, result)
+                signature = f"{name}:{fingerprint}"
+                observation_is_new = signature not in self.task.observation_signatures
                 evaluation = evaluate_progress(
                     name,
                     result,
                     observation_is_new=observation_is_new,
                 )
-                signature = f"{name}:{_observation_fingerprint(name, result)}"
 
                 self.task.record_tool(
                     name,
