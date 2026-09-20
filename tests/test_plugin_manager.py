@@ -79,6 +79,8 @@ def test_plugin_manager_loads_and_executes_plugin(
     loaded = manager.load_enabled(registry)
 
     assert loaded[0]["tool_name"] == "double_value"
+    assert registry.get("double_value") is not None
+    assert registry.get("double_value").requires_confirmation is True
     result = registry.execute(
         "double_value",
         {"value": 21},
