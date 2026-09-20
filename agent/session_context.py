@@ -22,6 +22,7 @@ class SessionContext:
     """Small structured context retained across Tasks in one agent session."""
 
     current_topic: str = ""
+    anchor_goal: str = ""
     last_goal: str = ""
     last_answer: str = ""
     extracted_facts: list[str] = field(default_factory=list)
@@ -39,6 +40,7 @@ class SessionContext:
 
     def clear(self) -> None:
         self.current_topic = ""
+        self.anchor_goal = ""
         self.last_goal = ""
         self.last_answer = ""
         self.extracted_facts.clear()
@@ -51,6 +53,7 @@ class SessionContext:
         messages: list[dict[str, Any]],
     ) -> None:
         previous_topic = self.current_topic
+        previous_anchor = self.anchor_goal
         previous_facts = list(self.extracted_facts)
         previous_references = list(self.references)
         carry_previous = _is_continuation(goal, previous_topic)
@@ -58,6 +61,11 @@ class SessionContext:
         self.current_topic, _ = truncate_text(
             str(goal).strip(),
             MAX_TOPIC_CHARS,
+        )
+        anchor_source = previous_anchor if carry_previous and previous_anchor else goal
+        self.anchor_goal, _ = truncate_text(
+            str(anchor_source).strip(),
+            MAX_GOAL_CHARS,
         )
         self.last_goal, _ = truncate_text(
             str(goal).strip(),
@@ -136,6 +144,8 @@ class SessionContext:
         )
         if self.current_topic:
             lines.append(f"Current topic: {self.current_topic}")
+        if self.anchor_goal:
+            lines.append(f"Topic anchor: {self.anchor_goal}")
         if self.last_goal:
             lines.append(f"Previous goal: {self.last_goal}")
         if self.extracted_facts:
