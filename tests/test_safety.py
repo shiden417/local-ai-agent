@@ -108,3 +108,35 @@ def test_workspace_absolute_windows_path_with_spaces_is_allowed(
     command = f'Get-ChildItem "{workspace}"'
 
     assert validate_command_scope(command, tmp_path) is None
+
+
+def test_external_local_path_requires_confirmation_for_read_tool(
+    tmp_path: Path,
+) -> None:
+    registry = ToolRegistry()
+
+    assert (
+        requires_confirmation(
+            "list_directory",
+            {"path": r"C:\Users\example\OtherProject"},
+            registry,
+            tmp_path,
+        )
+        is True
+    )
+
+
+def test_workspace_absolute_path_does_not_require_extra_confirmation_for_read_tool(
+    tmp_path: Path,
+) -> None:
+    registry = ToolRegistry()
+
+    assert (
+        requires_confirmation(
+            "list_directory",
+            {"path": str(tmp_path.resolve())},
+            registry,
+            tmp_path,
+        )
+        is False
+    )
