@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from agent.capabilities import Capability
 from agent.plugin_generator import (
     PluginGenerationError,
     generate_plugin_candidate,
@@ -183,8 +182,6 @@ def register_experimental_tools(
                 "You are handling an ordinary task and do not need to manage "
                 "Agent capabilities."
             ),
-            availability="on_demand",
-            capabilities=(Capability.CAPABILITY_MANAGEMENT,),
         )
     )
     
@@ -212,8 +209,6 @@ def register_experimental_tools(
             ),
             use_when="A repeated Recipe should be converted into a reusable persistent capability.",
             avoid_when="The Recipe has not been identified as a promotion candidate or a temporary script is sufficient.",
-            availability="on_demand",
-            capabilities=(Capability.CAPABILITY_MANAGEMENT,),
         )
     )
     
@@ -243,8 +238,6 @@ def register_experimental_tools(
             requires_confirmation=True,
             use_when="A newly generated Plugin candidate must be behaviorally checked before staging.",
             avoid_when="The candidate has not been generated or the user did not authorize executing generated code.",
-            availability="on_demand",
-            capabilities=(Capability.CAPABILITY_MANAGEMENT,),
         )
     )
     
@@ -281,8 +274,6 @@ def register_experimental_tools(
             requires_confirmation=True,
             use_when="A new persistent capability should be created and placed into quarantine for promotion.",
             avoid_when="A temporary script or an existing Tool is sufficient.",
-            availability="on_demand",
-            capabilities=(Capability.CAPABILITY_MANAGEMENT,),
         )
     )
     
@@ -312,8 +303,6 @@ def register_experimental_tools(
             requires_confirmation=True,
             use_when="A quarantined plugin has been reviewed and should become a persistent capability.",
             avoid_when="The plugin has not been staged or the user did not request a persistent capability.",
-            availability="on_demand",
-            capabilities=(Capability.CAPABILITY_MANAGEMENT,),
         )
     )
     
