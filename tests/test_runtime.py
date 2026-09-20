@@ -792,14 +792,14 @@ def test_runtime_keeps_task_history_isolated_while_sharing_conversation_context(
 
     runtime = AgentRuntime(tmp_path)
 
-    assert runtime.run("READMEについて相談したい") == "了解しました。READMEを確認します。"
+    assert runtime.run("最初の話をしたい") == "了解しました。READMEを確認します。"
     first = runtime.current_task
     assert runtime.run("先ほどの話を踏まえて続けて") == "先ほどの話を踏まえて続けます。"
     second = runtime.current_task
 
     assert first is not None
     assert second is not None
-    assert first.messages[1]["content"] == "READMEについて相談したい"
+    assert first.messages[1]["content"] == "最初の話をしたい"
     assert second.messages[1]["content"] == "先ほどの話を踏まえて続けて"
     assert any(
         message.get("content") == "READMEについて相談したい"
