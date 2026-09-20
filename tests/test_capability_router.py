@@ -57,3 +57,13 @@ def test_router_detects_explicit_test_execution() -> None:
 
     assert route.mode == RoutingMode.SCOPED
     assert route.capabilities == frozenset({Capability.PROCESS})
+
+
+def test_router_scopes_file_creation_tasks() -> None:
+    route = CapabilityRouter().route(
+        r"C:\Users\example\TestProgramingにHTMLファイルを作成して"
+    )
+
+    assert route.mode == RoutingMode.SCOPED
+    assert Capability.WORKSPACE_WRITE in route.capabilities
+    assert Capability.WORKSPACE_READ in route.capabilities
