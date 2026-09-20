@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from agent.capability_router import Capability
 from agent.memory import MemoryStore
 from agent.tool_registry import ToolDefinition, ToolRegistry
 from tools.edit_file import edit_file
@@ -36,10 +37,7 @@ def create_default_tool_registry(
             use_when="Discover the current workspace structure or the entries inside a known directory.",
             avoid_when="You need the contents of a specific file or need to search for text inside files.",
             availability="on_demand",
-            routing_hints=(
-                "フォルダ", "ディレクトリ", "一覧", "ファイル一覧", "構成",
-                "何がある", "workspace", "folder", "directory", "list", "files",
-            ),
+            capabilities=(Capability.WORKSPACE_READ,),
         )
     )
 
@@ -72,10 +70,7 @@ def create_default_tool_registry(
             use_when="You already know which local file is relevant and need its contents.",
             avoid_when="You are only trying to discover which files exist, or you need to search unknown files for a specific text.",
             availability="on_demand",
-            routing_hints=(
-                "ファイル", "内容", "中身", "読んで", "読み取", "開いて",
-                "file", "read", "content", "inspect",
-            ),
+            capabilities=(Capability.WORKSPACE_READ,),
         )
     )
 
@@ -106,10 +101,7 @@ def create_default_tool_registry(
             use_when="You know a concrete string or symbol to locate in file contents.",
             avoid_when="You are trying to find important files by role, filename, category, or vague natural-language descriptions.",
             availability="on_demand",
-            routing_hints=(
-                "検索", "探して", "文字列", "シンボル", "検索して",
-                "search", "find", "locate", "symbol", "text",
-            ),
+            capabilities=(Capability.WORKSPACE_READ,),
         )
     )
 
@@ -141,7 +133,7 @@ def create_default_tool_registry(
             use_when="The user explicitly wants a local file changed and you have already inspected the target content.",
             avoid_when="You have not read the target file yet or the user only asked for an explanation.",
             availability="on_demand",
-            routing_hints=("編集", "変更", "修正", "書き換え", "更新", "追加", "modify", "edit", "change", "update", "fix"),
+            capabilities=(Capability.WORKSPACE_READ, Capability.WORKSPACE_WRITE),
         )
     )
 
@@ -167,7 +159,7 @@ def create_default_tool_registry(
             use_when="An OS/process/automation operation is required and no more specific Tool exists.",
             avoid_when="A dedicated read, search, or edit Tool already represents the requested operation.",
             availability="on_demand",
-            routing_hints=("実行", "コマンド", "テスト", "ビルド", "起動", "停止", "インストール", "git", "powershell", "run", "execute", "test", "build", "install"),
+            capabilities=(Capability.PROCESS,),
         )
     )
 
@@ -200,7 +192,7 @@ def create_default_tool_registry(
             use_when="Information should survive the current task and be useful in future tasks.",
             avoid_when="You only need information from the current workspace or the current task's tool results.",
             availability="on_demand",
-            routing_hints=("覚えて", "記憶", "メモリ", "保存して", "今後も", "覚えさせ", "remember", "memory", "save this", "for future"),
+            capabilities=(Capability.MEMORY_WRITE,),
         )
     )
 
@@ -233,7 +225,7 @@ def create_default_tool_registry(
             use_when="Past conversations or explicitly saved information are required for the current goal.",
             avoid_when="The answer can be obtained from the current workspace, current Tool results, or the user's current message.",
             availability="on_demand",
-            routing_hints=("以前", "前回", "過去", "記憶", "覚えて", "メモリ", "覚えている", "remember", "previous", "past", "memory"),
+            capabilities=(Capability.MEMORY_READ,),
         )
     )
 
