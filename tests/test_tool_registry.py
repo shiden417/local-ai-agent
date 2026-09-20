@@ -68,6 +68,43 @@ def test_registry_filters_on_demand_tools_by_task() -> None:
     assert [schema["function"]["name"] for schema in excluded] == ["core"]
 
 
+def test_registry_hides_workspace_tools_for_conversational_tasks() -> None:
+    registry = ToolRegistry()
+    for name, hints in (
+        ("list_directory", ("フォルダ", "一覧")),
+        ("read_file", ("ファイル", "内容")),
+        ("search_files", ("検索", "探して")),
+    ):
+        registry.register(
+            ToolDefinition(
+                name=name,
+                description=name,
+                parameters={
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                },
+                handler=lambda _working_directory, _arguments: {"ok": True},
+                availability="on_demand",
+                routing_hints=hints,
+            )
+        )
+
+    assert registry.schemas_for("こんにちは") == []
+    assert [
+        schema["function"]["name"]
+        for schema in registry.schemas_for("このフォルダの一覧を確認してください")
+    ] == ["list_directory"]
+    assert [
+        schema["function"]["name"]
+        for schema in registry.schemas_for("ファイルの内容を確認してください")
+    ] == ["read_file"]
+    assert [
+        schema["function"]["name"]
+        for schema in registry.schemas_for("README内を検索してください")
+    ] == ["search_files"]
+
+
 def test_registry_dispatches_tool(tmp_path: Path) -> None:
     registry = ToolRegistry()
     registry.register(
