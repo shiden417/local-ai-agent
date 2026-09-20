@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -159,7 +160,7 @@ def test_runtime_rejects_mutating_tool_before_execution(
     assert executed["value"] is False
     assert confirmations
     assert any(
-        message.get("user_rejected") is True
+        json.loads(message["content"]).get("user_rejected") is True
         for message in runtime.messages
         if message.get("role") == "tool"
     )
