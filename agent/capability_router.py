@@ -9,6 +9,7 @@ class Capability(str, Enum):
     WORKSPACE_READ = "workspace_read"
     WORKSPACE_WRITE = "workspace_write"
     PROCESS = "process"
+    SCRIPT_EXECUTION = "script_execution"
     MEMORY_READ = "memory_read"
     MEMORY_WRITE = "memory_write"
 
@@ -57,6 +58,11 @@ class CapabilityRouter:
             r"(編集|変更|修正|書き換え|書換え|追加|削除|作成|作って|つくって|生成|新規).{0,8}(ファイル|コード|README|HTML|JSON|設定)?",
             r"(ファイル|コード|README|HTML|JSON|設定).{0,8}(編集|変更|修正|書き換え|追加|削除|作成|生成|新規)",
             r"\b(edit|modify|fix|change|update|write|create|delete|remove)\b",
+        ),
+        Capability.SCRIPT_EXECUTION: (
+            r"(Python|python|スクリプト|script).{0,20}(実行|動か|書い|作成|生成|使|試|して|する)",
+            r"(変換|解析|パース|抽出|加工|処理).{0,20}(して|する|したい|してください|お願い)",
+            r"\b(convert|parse|extract|transform|process|generate)\b",
         ),
         Capability.PROCESS: (
             r"(テスト|pytest).{0,12}(実行|走らせ|回し|して)",
