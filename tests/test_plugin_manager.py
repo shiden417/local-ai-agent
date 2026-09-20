@@ -120,3 +120,49 @@ def test_registry_can_stage_and_promote_plugin(tmp_path: Path) -> None:
         {"value": 7},
         tmp_path,
     ) == {"ok": True, "value": 14}
+
+def test_plugin_manager_rejects_blocked_module(tmp_path: Path) -> None:
+    manager = PluginManager(tmp_path / "plugins")
+    blocked = "import subprocess\ndef run(arguments): return {'ok': True}"
+
+    try:
+        manager.stage(
+            "blocked",
+            manifest("blocked"),
+            blocked,
+        )
+    except PluginValidationError as exc:
+        assert "blocked module" in str(exc)
+    else:
+        raise AssertionError("blocked import was accepted")
+
+
+def test_plugin_manager_rejects_blocked_builtin(tmp_path: Path) -> None:
+    manager = PluginManager(tmp_path / "plugins")
+    blocked = "def run(arguments): return open('secret.txt').read()"
+
+    try:
+        manager.stage(
+            "blocked-builtin",
+            manifest("blocked_builtin"),
+            blocked,
+        )
+    except PluginValidationError as exc:
+        assert "blocked builtin" in str(exc)
+    else:
+        raise AssertionError("blocked builtin was accepted")
+
+
+def test_plugin_manager_tests_candidate_without_persisting(tmp_path: Path) -> None:
+    manager = PluginManager(tmp_path / "plugins")
+    result = manager.test_candidate(
+        "double-value",
+        manifest(),
+        PLUGIN_SOURCE,
+        {"value": 5},
+        tmp_path,
+    )
+
+    assert result["ok"] is True
+    assert result["status"] == "tested"
+    assert not (tmp_path / "plugins" / "quarantine" / "double-value").exists()
