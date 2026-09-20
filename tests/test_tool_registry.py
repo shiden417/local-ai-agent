@@ -153,7 +153,11 @@ def test_registry_exposes_capability_management_tools_for_plugin_requests() -> N
         for schema in registry.schemas_for("新しいToolを追加してPDFを処理できるようにして")
     ]
 
-    assert tools == ["stage_plugin", "promote_plugin"]
+    assert tools == [
+        "list_promotion_candidates",
+        "stage_plugin",
+        "promote_plugin",
+    ]
 
 
 def test_registry_exposes_promotion_candidate_tool() -> None:
