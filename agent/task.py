@@ -66,18 +66,22 @@ class TaskState:
         succeeded: bool,
         summary: str = "",
         signature: str = "",
+        new_information: bool | None = None,
     ) -> None:
         self.tool_calls += 1
         self.last_tool = name
         self.phase = TaskPhase.VERIFY
 
-        new_information = (
-            not signature or signature not in self.observation_signatures
-        )
+        if new_information is None:
+            new_information = (
+                not signature or signature not in self.observation_signatures
+            )
         if signature:
             if new_information:
                 self.observation_signatures.add(signature)
                 self.no_progress_streak = 0
+            else:
+                self.no_progress_streak += 1
             else:
                 self.no_progress_streak += 1
         else:
