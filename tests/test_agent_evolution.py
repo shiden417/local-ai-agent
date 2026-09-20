@@ -3,7 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-from agent.capability_router import Capability, CapabilityRouter, RoutingMode
+from agent.capabilities import Capability
+from agent.request_classifier import RequestClassifier, RequestMode
 from agent.environment import build_environment_context
 from agent.runtime import AgentRuntime
 from agent.session import SessionManager
@@ -40,28 +41,23 @@ def test_direct_conversation_does_not_create_task(monkeypatch, tmp_path: Path):
     assert runtime.session_manager.recent_conversation_messages()[-1]["content"] == answer
 
 
-def test_control_tools_are_scoped_to_agent_tasks():
+def test_request_classifier_separates_obvious_conversation_from_agent_tasks():
+    classifier = RequestClassifier()
+
+    assert classifier.classify("こんにちは").mode == RequestMode.DIRECT
+    assert classifier.classify("明日の天気を教えて").mode == RequestMode.TASK
+
+
+def test_agent_tasks_receive_registered_tools_for_model_selection():
     registry = create_default_tool_registry()
-    router = CapabilityRouter()
 
-    assert router.route("こんにちは").mode == RoutingMode.DIRECT
-    assert registry.schemas_for("こんにちは") == []
-
-    scoped = registry.schemas_for(
-        "明日の天気を教えて",
-        include_control_tools=True,
-    )
     names = {
         item["function"]["name"]
-        for item in scoped
+        for item in registry.schemas_for(include_control_tools=True)
     }
+
     assert {"search_web", "fetch_web_page", "ask_user", "finish_task"} <= names
-
-
-def test_future_weather_is_action_routed():
-    route = CapabilityRouter().route("明日の東京の天気を教えて")
-    assert route.mode == RoutingMode.SCOPED
-    assert Capability.WEB_SEARCH in route.capabilities
+    assert "run_python_script" in names
 
 
 def test_session_context_keeps_compact_web_facts():
@@ -199,8 +195,6 @@ def test_session_context_follow_up_reuses_previous_capability(tmp_path: Path) ->
 
     assert "Python 3.14について調べて" in routing_text
     assert "その中で重要な変更を3つ教えて" in routing_text
-    route = runtime.tool_registry.route_for(routing_text)
-    assert Capability.WEB_SEARCH in route.capabilities
 
 
 def test_stale_previous_answer_is_rejected_after_new_observation(tmp_path: Path) -> None:

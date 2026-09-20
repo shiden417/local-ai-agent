@@ -9,7 +9,7 @@ import subprocess
 import sys
 from typing import Any
 
-from agent.capability_router import Capability
+from agent.capabilities import Capability
 from agent.observation import truncate_text
 from agent.tool_registry import ToolDefinition, ToolRegistry
 
