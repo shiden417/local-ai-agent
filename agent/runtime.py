@@ -97,6 +97,7 @@ class AgentRuntime:
         self.task_manager = TaskManager()
         self.current_task: ManagedTask | None = None
         self.task: TaskState | None = None
+        self._disabled_tools: set[str] = set()
 
     @property
     def messages(self) -> list[dict[str, Any]]:
@@ -120,6 +121,7 @@ class AgentRuntime:
         self.current_task = current_task
         self.task = current_task.state
         self.loop_guard.reset()
+        self._disabled_tools.clear()
         self.task.start()
         self.task_manager.update_timestamp(current_task)
 
@@ -141,9 +143,29 @@ class AgentRuntime:
                 },
             ]
 
+            available_tools = self.tool_registry.schemas_for(
+                self.task.goal,
+                excluded_tools=self._disabled_tools,
+            )
+
+            if self.task.no_progress_streak >= 2:
+                llm_messages.append(
+                    {
+                        "role": "system",
+                        "content": (
+                            "The task has not made progress in the last "
+                            f"{self.task.no_progress_streak} observations. "
+                            "Do not call any more tools in this turn. "
+                            "Synthesize the best direct answer from the "
+                            "observations already available."
+                        ),
+                    }
+                )
+                available_tools = []
+
             response = ask_llm(
                 llm_messages,
-                tools=self.tool_registry.schemas_for(self.task.goal),
+                tools=available_tools,
             )
             message = response.choices[0].message
             tool_calls = getattr(message, "tool_calls", None) or []
@@ -156,7 +178,7 @@ class AgentRuntime:
                         {
                             "role": "system",
                             "content": (
-                                "The previous response was empty or only an "
+                                "The previous response was empty, only an empty "
                                 "empty JSON container. Continue the task using "
                                 "the available observations and provide a "
                                 "direct answer to the user's request."
@@ -197,13 +219,14 @@ class AgentRuntime:
 
                 call_count = self.loop_guard.record(name, arguments)
                 if self.loop_guard.is_repetition(name, arguments):
+                    self._disabled_tools.add(name)
                     result = {
                         "ok": False,
                         "error": self.loop_guard.message(name, arguments),
                         "repeated_tool_call": True,
                         "call_count": call_count,
                     }
-                    print("[Tool] repeated call blocked")
+                    print("[Tool] repeated call blocked; tool disabled for this task")
                 elif requires_confirmation(name, arguments, self.tool_registry):
                     summary = self._confirmation_message(name, arguments)
                     if not self.confirm(summary):
@@ -222,23 +245,42 @@ class AgentRuntime:
                 bounded, truncated = truncate_text(serialized)
 
                 observation_summary = self._observation_summary(result)
-                result_signature = json.dumps(
-                    result,
-                    ensure_ascii=False,
-                    sort_keys=True,
-                    separators=(",", ":"),
-                )
-                signature = (
-                    f"{name}:"
-                    + hashlib.sha256(
-                        result_signature.encode("utf-8")
-                    ).hexdigest()
-                )
+                if result.get("repeated_tool_call") or result.get("user_rejected"):
+                    signature = f"{name}:no_progress:{result.get('error', '')}"
+                    observation_is_new = False
+                elif result.get("ok") is False:
+                    signature = (
+                        f"{name}:error:"
+                        + hashlib.sha256(
+                            json.dumps(
+                                result,
+                                ensure_ascii=False,
+                                sort_keys=True,
+                                separators=(",", ":"),
+                            ).encode("utf-8")
+                        ).hexdigest()
+                    )
+                    observation_is_new = True
+                else:
+                    result_signature = json.dumps(
+                        result,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
+                    signature = (
+                        f"{name}:"
+                        + hashlib.sha256(
+                            result_signature.encode("utf-8")
+                        ).hexdigest()
+                    )
+                    observation_is_new = True
                 self.task.record_tool(
                     name,
                     succeeded=bool(result.get("ok")),
                     summary=observation_summary,
                     signature=signature,
+                    new_information=observation_is_new,
                 )
                 self.task_manager.update_timestamp(current_task)
 
