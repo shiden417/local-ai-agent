@@ -110,7 +110,7 @@ def test_workspace_absolute_windows_path_with_spaces_is_allowed(
     assert validate_command_scope(command, tmp_path) is None
 
 
-def test_external_local_path_requires_confirmation_for_read_tool(
+def test_external_local_path_is_allowed_for_read_tool_without_confirmation(
     tmp_path: Path,
 ) -> None:
     registry = ToolRegistry()
@@ -119,6 +119,26 @@ def test_external_local_path_requires_confirmation_for_read_tool(
         requires_confirmation(
             "list_directory",
             {"path": r"C:\Users\example\OtherProject"},
+            registry,
+            tmp_path,
+        )
+        is False
+    )
+
+
+def test_external_local_path_requires_confirmation_for_mutating_tool(
+    tmp_path: Path,
+) -> None:
+    registry = ToolRegistry()
+
+    assert (
+        requires_confirmation(
+            "edit_file",
+            {
+                "path": r"C:\Users\example\OtherProject\test.txt",
+                "search_text": "old",
+                "replace_text": "new",
+            },
             registry,
             tmp_path,
         )
