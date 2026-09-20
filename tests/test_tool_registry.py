@@ -218,4 +218,4 @@ def test_registry_exposes_web_search_only_for_web_task() -> None:
         for schema in registry.schemas_for("WebでPython 3.14の最新情報を検索してください")
     ]
 
-    assert names == ["search_web"]
+    assert names == ["search_web", "fetch_web_page"]
