@@ -145,7 +145,7 @@ def create_default_tool_registry(
     registry.register(
         ToolDefinition(
             name="save_memory",
-            description="Save a durable fact or preference for future conversations. Do not store sensitive secrets or credentials.",
+            description="Save a durable fact or preference for future conversations. Use only for information that should survive the current task. Do not use this for current workspace contents. Do not store sensitive secrets or credentials.",
             parameters={
                 "type": "object",
                 "properties": {
@@ -174,7 +174,7 @@ def create_default_tool_registry(
     registry.register(
         ToolDefinition(
             name="search_memory",
-            description="Search durable local memory for relevant facts or preferences from previous tasks.",
+            description="Search durable local memory for facts or preferences from previous tasks. Use this only to recall past information; do not use it to inspect the current workspace or current task files.",
             parameters={
                 "type": "object",
                 "properties": {
