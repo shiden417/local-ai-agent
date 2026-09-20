@@ -30,6 +30,7 @@ SYSTEM_PROMPT = """あなたはローカルで動作する汎用AI Agentです�
 - 変更や外部作用を伴うToolは、必要性を確認してから使用してください。
 - ユーザーが求めていない変更を行わないでください。
 - 目的を達成するための十分な情報が揃ったら、Toolを追加実行せず通常の文章で直接回答してください。
+- 現在情報が必要なのに、その情報を取得するToolが利用可能でない場合は、推測せず、その制約を明示してください。
 - 空のJSON、空配列、Tool結果そのもののコピーを最終回答にしないでください。
 
 workspace調査のルール:
@@ -235,7 +236,7 @@ class AgentRuntime:
                 current_task.messages.append(_message_to_dict(message))
                 self.task.complete()
                 self.task_manager.update_timestamp(current_task)
-                return content
+                return self._normalize_final_content(content)
 
             current_task.messages.append(_message_to_dict(message))
 
@@ -336,6 +337,19 @@ class AgentRuntime:
         self.task.hit_max_iterations()
         self.task_manager.update_timestamp(current_task)
         return "Agentの最大反復回数に達したため、処理を終了しました。"
+
+    @staticmethod
+    def _normalize_final_content(content: Any) -> str:
+        """Convert model content/message-like payloads into plain user text."""
+        if isinstance(content, str):
+            return content.strip()
+
+        if isinstance(content, dict):
+            nested = content.get("content")
+            if isinstance(nested, str):
+                return nested.strip()
+
+        return str(content).strip()
 
     @staticmethod
     def _is_invalid_final_response(
