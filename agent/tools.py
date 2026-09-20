@@ -3,6 +3,7 @@ from pathlib import Path
 from agent.capability_router import Capability
 from agent.memory import MemoryStore
 from agent.plugin_manager import PluginManager, PluginValidationError
+from agent.recipe_store import RecipeStore
 from agent.tool_registry import ToolDefinition, ToolRegistry
 from tools.file_mutation import file_mutation
 from tools.execute_command import execute_command
@@ -16,11 +17,13 @@ from tools.run_python_script import run_python_script
 def create_default_tool_registry(
     memory_store: MemoryStore | None = None,
     plugin_manager: PluginManager | None = None,
+    recipe_store: RecipeStore | None = None,
 ) -> ToolRegistry:
     """Create the default local capability set."""
     registry = ToolRegistry()
     memory = memory_store or MemoryStore()
     plugins = plugin_manager or PluginManager()
+    recipes = recipe_store or RecipeStore()
     registry.register(
         ToolDefinition(
             name="list_directory",
@@ -157,6 +160,43 @@ def create_default_tool_registry(
             availability="on_demand",
             capabilities=(Capability.WORKSPACE_WRITE,),
             terminal_on_success=True,
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="list_promotion_candidates",
+            description=(
+                "List successful temporary Script Recipes that have been used "
+                "often enough to be considered for persistent Plugin promotion."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "min_uses": {
+                        "type": "integer",
+                        "minimum": 2,
+                        "maximum": 20,
+                        "description": "Minimum successful uses required. Default is 2.",
+                    }
+                },
+                "required": [],
+                "additionalProperties": False,
+            },
+            handler=lambda working_directory, arguments: _list_promotion_candidates(
+                recipes,
+                arguments,
+            ),
+            use_when=(
+                "You need to decide whether a repeatedly successful temporary "
+                "Recipe should become a persistent Plugin."
+            ),
+            avoid_when=(
+                "You are handling an ordinary task and do not need to manage "
+                "Agent capabilities."
+            ),
+            availability="on_demand",
+            capabilities=(Capability.CAPABILITY_MANAGEMENT,),
         )
     )
 
@@ -421,3 +461,31 @@ def _promote_plugin(
 
     result["registered"] = True
     return result
+
+
+def _list_promotion_candidates(
+    store: RecipeStore,
+    arguments: dict,
+) -> dict:
+    try:
+        min_uses = int(arguments.get("min_uses", 2))
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "min_uses must be an integer"}
+
+    if not 2 <= min_uses <= 20:
+        return {"ok": False, "error": "min_uses must be between 2 and 20"}
+
+    entries = store.promotion_candidates(min_uses=min_uses)
+    return {
+        "ok": True,
+        "min_uses": min_uses,
+        "candidates": [
+            {
+                "id": entry.id,
+                "goal": entry.goal,
+                "use_count": entry.use_count,
+                "script": entry.script,
+            }
+            for entry in entries[:5]
+        ],
+    }
