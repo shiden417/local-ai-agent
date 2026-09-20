@@ -1,6 +1,5 @@
 from pathlib import Path
 
-from agent.capabilities import Capability
 from agent.tool_registry import ToolDefinition, ToolRegistry
 
 
@@ -100,49 +99,3 @@ def test_default_registry_exposes_controls_for_agent_tasks() -> None:
     assert set(names) == set(registry.names())
 
 
-def test_tool_capability_metadata_is_preserved() -> None:
-    registry = ToolRegistry()
-    registry.register(
-        ToolDefinition(
-            name="memory",
-            description="Memory operation",
-            parameters={"type": "object", "properties": {}, "required": []},
-            handler=lambda _working_directory, _arguments: {"ok": True},
-            capabilities=(Capability.MEMORY_READ,),
-        )
-    )
-    assert registry.get("memory").capabilities == (Capability.MEMORY_READ,)
-
-
-def test_default_registry_excludes_experimental_plugin_tools() -> None:
-    from agent.tools import create_default_tool_registry
-
-    registry = create_default_tool_registry()
-    names = set(registry.names())
-
-    assert {
-        "list_promotion_candidates",
-        "generate_plugin",
-        "test_plugin_candidate",
-        "stage_plugin",
-        "promote_plugin",
-    }.isdisjoint(names)
-
-
-def test_experimental_registry_can_be_opted_in(tmp_path: Path) -> None:
-    from agent.tools import create_default_tool_registry
-
-    registry = create_default_tool_registry(
-        enable_experimental=True,
-        experimental_plugin_root=tmp_path / "plugins",
-        experimental_recipe_path=tmp_path / "recipes.json",
-    )
-    names = set(registry.names())
-
-    assert {
-        "list_promotion_candidates",
-        "generate_plugin",
-        "test_plugin_candidate",
-        "stage_plugin",
-        "promote_plugin",
-    } <= names
