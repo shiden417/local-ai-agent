@@ -158,6 +158,14 @@ class AgentRuntime:
             self.task_manager.update_timestamp(current_task)
 
             context_messages = self.context_manager.prepare(current_task.messages)
+            route = self.tool_registry.route_for(self.task.goal)
+            capability_text = ", ".join(
+                capability.value for capability in sorted(
+                    route.capabilities,
+                    key=lambda item: item.value,
+                )
+            ) or "none"
+
             llm_messages = [
                 *context_messages,
                 {
@@ -166,7 +174,11 @@ class AgentRuntime:
                         "Current task execution dashboard. "
                         "Treat this as Runtime-managed state; do not reconstruct "
                         "progress only from chat history.\n"
-                        f"{self.task.snapshot()}"
+                        f"Tool scope={route.mode.value}; "
+                        f"capabilities={capability_text}\n"
+                        f"{self.task.snapshot()}\n"
+                        "Tool use is optional. In scoped/open modes, call a tool "
+                        "only when it advances the goal; otherwise answer directly."
                     ),
                 },
             ]
