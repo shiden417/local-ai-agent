@@ -198,3 +198,24 @@ def test_registry_exposes_full_plugin_promotion_pipeline() -> None:
         "stage_plugin",
         "promote_plugin",
     ]
+
+from agent.capability_router import Capability
+from agent.tools import create_default_tool_registry
+
+
+def test_router_detects_web_search() -> None:
+    registry = create_default_tool_registry()
+    route = registry.route_for("最新のPython 3.14の情報をWeb検索してください")
+
+    assert route.mode.value == "scoped"
+    assert Capability.WEB_SEARCH in route.capabilities
+
+
+def test_registry_exposes_web_search_only_for_web_task() -> None:
+    registry = create_default_tool_registry()
+    names = [
+        schema["function"]["name"]
+        for schema in registry.schemas_for("WebでPython 3.14の最新情報を検索してください")
+    ]
+
+    assert names == ["search_web"]
