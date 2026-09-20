@@ -5,47 +5,46 @@ from typing import Any
 
 
 DEFAULT_MAX_CHARS = 48_000
-DEFAULT_KEEP_RECENT = 8
+DEFAULT_KEEP_RECENT_BLOCKS = 4
 SUMMARY_MAX_CHARS = 6_000
 
 
 class ContextManager:
-    """Keep the LLM context bounded while preserving recent decisions."""
+    """Keep LLM context bounded without breaking tool-call message sequences."""
 
     def __init__(
         self,
         max_chars: int = DEFAULT_MAX_CHARS,
-        keep_recent_messages: int = DEFAULT_KEEP_RECENT,
+        keep_recent_blocks: int = DEFAULT_KEEP_RECENT_BLOCKS,
     ) -> None:
         if max_chars <= 0:
             raise ValueError("max_chars must be positive")
-        if keep_recent_messages < 2:
-            raise ValueError("keep_recent_messages must be at least 2")
+        if keep_recent_blocks < 1:
+            raise ValueError("keep_recent_blocks must be at least 1")
 
         self.max_chars = max_chars
-        self.keep_recent_messages = keep_recent_messages
+        self.keep_recent_blocks = keep_recent_blocks
 
     def prepare(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if self._estimate_chars(messages) <= self.max_chars:
             return list(messages)
 
-        if not messages:
-            return []
-
         system_messages = [
             message for message in messages if message.get("role") == "system"
         ]
-        non_system = [
+        conversational = [
             message for message in messages if message.get("role") != "system"
         ]
 
-        if len(non_system) <= self.keep_recent_messages:
-            return self._trim_tool_messages(
-                system_messages + non_system,
-            )
+        blocks = self._split_blocks(conversational)
 
-        old_messages = non_system[:-self.keep_recent_messages]
-        recent_messages = non_system[-self.keep_recent_messages:]
+        if len(blocks) <= self.keep_recent_blocks:
+            return self._trim_tool_messages(system_messages + conversational)
+
+        old_blocks = blocks[:-self.keep_recent_blocks]
+        recent_blocks = blocks[-self.keep_recent_blocks:]
+        old_messages = [message for block in old_blocks for message in block]
+        recent_messages = [message for block in recent_blocks for message in block]
 
         summary = self._build_summary(old_messages)
         compacted = system_messages + [
@@ -61,6 +60,24 @@ class ContextManager:
         ]
 
         return self._trim_tool_messages(compacted)
+
+    def _split_blocks(
+        self,
+        messages: list[dict[str, Any]],
+    ) -> list[list[dict[str, Any]]]:
+        blocks: list[list[dict[str, Any]]] = []
+
+        for message in messages:
+            role = message.get("role")
+
+            if role in {"user", "assistant"}:
+                blocks.append([message])
+            elif role == "tool" and blocks:
+                blocks[-1].append(message)
+            else:
+                blocks.append([message])
+
+        return blocks
 
     def _build_summary(self, messages: list[dict[str, Any]]) -> str:
         lines: list[str] = []
@@ -99,14 +116,15 @@ class ContextManager:
                     if "exit_code" in result:
                         parts.append(f"exit_code={result['exit_code']}")
                     if "error" in result:
-                        parts.append(f"error={_single_line(str(result['error']), 300)}")
+                        parts.append(
+                            f"error={_single_line(str(result['error']), 300)}"
+                        )
                     if "path" in result:
                         parts.append(f"path={result['path']}")
                     lines.append("tool: " + ", ".join(parts))
                 else:
                     lines.append(
-                        "tool: "
-                        + _single_line(str(content), 300)
+                        "tool: " + _single_line(str(content), 300)
                     )
 
             if sum(len(line) + 1 for line in lines) >= SUMMARY_MAX_CHARS:
@@ -119,6 +137,7 @@ class ContextManager:
         messages: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         result = [dict(message) for message in messages]
+
         while self._estimate_chars(result) > self.max_chars:
             candidate = next(
                 (
