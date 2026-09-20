@@ -1063,3 +1063,159 @@ def test_runtime_synthesizes_immediately_after_terminal_tool_success(
     assert captured_tools[1] == []
 
 
+
+
+def test_runtime_finishes_without_extra_llm_synthesis_after_finish_task(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="inspect",
+            description="Inspect",
+            parameters={"type": "object", "properties": {}, "required": []},
+            handler=lambda _working_directory, _arguments: {
+                "ok": True,
+                "value": "verified",
+            },
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="finish_task",
+            description="Finish",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "completion_status": {"type": "string", "enum": ["completed", "blocked"]},
+                    "summary": {"type": "string"},
+                },
+                "required": ["completion_status", "summary"],
+            },
+            handler=lambda _working_directory, arguments: {
+                "ok": True,
+                "completion_status": arguments["completion_status"],
+                "summary": arguments["summary"],
+            },
+        )
+    )
+
+    responses = [
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="",
+                        tool_calls=[
+                            SimpleNamespace(
+                                id="inspect-1",
+                                function=SimpleNamespace(
+                                    name="inspect",
+                                    arguments="{}",
+                                ),
+                            )
+                        ],
+                    )
+                )
+            ]
+        ),
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="",
+                        tool_calls=[
+                            SimpleNamespace(
+                                id="finish-1",
+                                function=SimpleNamespace(
+                                    name="finish_task",
+                                    arguments='{"completion_status":"completed","summary":"検証して完了しました。"}',
+                                ),
+                            )
+                        ],
+                    )
+                )
+            ]
+        ),
+    ]
+
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm",
+        lambda _messages, tools=None: responses.pop(0),
+    )
+
+    runtime = AgentRuntime(tmp_path, tool_registry=registry)
+    assert runtime.run("調査して完了してください。") == "検証して完了しました。"
+    assert runtime.task is not None
+    assert runtime.task.status.value == "completed"
+    assert runtime.task.iteration == 2
+
+
+def test_runtime_reuses_environment_snapshot_between_unchanged_iterations(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="inspect",
+            description="Inspect",
+            parameters={"type": "object", "properties": {}, "required": []},
+            handler=lambda _working_directory, _arguments: {
+                "ok": True,
+                "value": "verified",
+            },
+        )
+    )
+    responses = [
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="",
+                        tool_calls=[
+                            SimpleNamespace(
+                                id="inspect-1",
+                                function=SimpleNamespace(
+                                    name="inspect",
+                                    arguments="{}",
+                                ),
+                            )
+                        ],
+                    )
+                )
+            ]
+        ),
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="確認結果です。",
+                        tool_calls=[],
+                    )
+                )
+            ]
+        ),
+    ]
+    calls = {"count": 0}
+
+    def fake_environment(_workspace, _paths=()):
+        calls["count"] += 1
+        return "[Environment]\nWorkspace: test"
+
+    monkeypatch.setattr(runtime_module, "build_environment_context", fake_environment)
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm",
+        lambda _messages, tools=None: responses.pop(0),
+    )
+
+    runtime = AgentRuntime(tmp_path, tool_registry=registry)
+    assert runtime.run("調査してください") == "確認結果です。"
+    assert calls["count"] == 1
