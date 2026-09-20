@@ -12,7 +12,7 @@ from agent.observation import truncate_text
 
 
 MAX_URL_CHARS = 2_000
-MAX_CONTENT_CHARS = 12_000
+MAX_CONTENT_CHARS = 6_000
 DEFAULT_TIMEOUT_SECONDS = 10
 
 
