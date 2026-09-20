@@ -41,8 +41,9 @@ Agent Coreは特定用途に依存せず、Toolを追加することで能力を
     Tool Registry / Dispatcher
       ├─ Local File tools
       ├─ Process / OS tools
+      ├─ Temporary Script capability
       ├─ Coding tools
-      └─ future tools
+      └─ future capabilities
       ↓
     Observation / Context Management
       ↓
@@ -65,8 +66,11 @@ Long-term MemoryはAgent CoreのTask履歴とは分離し、ユーザーホー�
 - search_files - ローカルファイル検索
 - file_mutation - ローカルファイルの作成・編集・削除
 - execute_command - PowerShellコマンド実行
+- run_python_script - 専用Toolがない処理を一時Python Scriptとして実行
 - save_memory - 将来も利用する情報をローカルMemoryへ保存
 - search_memory - 過去のローカルMemoryを検索
+
+成功したrun_python_scriptはRecipeStoreへ自動保存されます。関連する次のTaskでは、過去に成功したRecipeをLLMへ参考情報として提示します。Recipeは成功実績の再利用を目的としたもので、まだ正式なPluginとして自動昇格はしません。
 
 LLMとの通信には、独自JSON文字列プロトコルではなく、LiteLLMのNative Tool Calling形式を使用します。
 
@@ -82,7 +86,9 @@ Agentの操作には実行環境に応じた安全策を設定します。
 - file_mutationによる変更は実行前にユーザー確認
 - 代表的な破壊・書き込み系PowerShell/Git操作は確認
 - execute_commandは30秒timeout
-- timeout時はPowerShellプロセスツリーを終了
+- run_python_scriptは15秒timeout（最大30秒）・スクリプト12,000文字・出力8,000文字に制限
+- run_python_scriptは子プロセスで実行し、実行前にユーザー確認
+- timeout時はプロセスを終了
 - Tool結果のサイズを制限してLLMへ返す
 
 Safety判定は現在は保守的なヒューリスティックであり、完全なセキュリティサンドボックスではありません。
@@ -132,6 +138,13 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 - Task-aware Capability routing
 - Direct / Scoped / Open tool exposure
 - permission policyの強化
+
+### Capability learning
+- 成功した一時ScriptのRecipe化
+- Recipe再利用
+- Recipe使用回数に基づくPromotion候補検出
+- 検疫付きPlugin生成・検証
+- Capabilityの動的ロード
 
 ### Tools
 - Git
