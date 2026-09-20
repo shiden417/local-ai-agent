@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
@@ -28,6 +29,9 @@ SYSTEM_PROMPT = """あなたはローカルで動作する汎用AI Agentです�
 - 同じTool + 同じ引数を繰り返さないでください。Toolが無効化されている場合は別のActionを選択してください。
 - 同じ内容の観測を別の引数で再取得することも避けてください。
 - Toolが失敗した場合は、同じ失敗を繰り返さず、直前の失敗に直接関係する最小の別手段を試してください。
+- 現在日時・時刻についてはRuntimeが提供する現在の日時を事実として使用し、推測や古い知識から日付を作らないでください。
+- ユーザーが「作成して」「修正して」「削除して」「実行して」など、実際の操作を明示した場合は、説明やサンプルだけを返さず、適切なToolを使ってください。
+- Toolを使っていない場合、ファイル作成・変更・コマンド実行などが完了したと主張しないでください。
 - コマンド失敗の調査で、実行ポリシー、System32、Windows内部ファイル、ユーザーディレクトリなどの無関係なOS情報を探索しないでください。必要性がユーザーの依頼から明確でない限り、workspace内の原因調査を優先してください。
 - Pythonプロジェクトのテストでは、まず現在のプロジェクト環境を使う「python -m pytest」形式を優先してください。
 - 変更や外部作用を伴うToolは、必要性を確認してから使用してください。
@@ -183,6 +187,8 @@ class AgentRuntime:
                 if message.get("role") != "system"
             ]
 
+            current_datetime = datetime.now().astimezone().isoformat(timespec="seconds")
+
             llm_messages = [
                 *task_system_messages,
                 *prior_conversation,
@@ -190,6 +196,8 @@ class AgentRuntime:
                 {
                     "role": "system",
                     "content": (
+                        "Current local date/time (Runtime authoritative): "
+                        f"{current_datetime}\n"
                         "Current task execution dashboard. "
                         "Treat this as Runtime-managed state; do not reconstruct "
                         "progress only from chat history.\n"
@@ -256,6 +264,27 @@ class AgentRuntime:
             )
 
             if not tool_calls:
+                if (
+                    route.mode.value == "scoped"
+                    and self.task.tool_calls == 0
+                    and self.task.iteration == 1
+                ):
+                    current_task.messages.append(_message_to_dict(message))
+                    current_task.messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "The user gave an operational request. "
+                                "Do not answer with instructions, examples, or a "
+                                "claim that the work is complete without executing "
+                                "the appropriate Tool. Use a Tool now. If the "
+                                "request lacks one required detail, ask only a "
+                                "concise clarification question."
+                            ),
+                        }
+                    )
+                    continue
+
                 if self._is_invalid_final_response(
                     content,
                     current_task.messages,
@@ -335,7 +364,12 @@ class AgentRuntime:
                         "call_count": call_count,
                     }
                     print("[Tool] repeated call blocked; tool disabled for this task")
-                elif requires_confirmation(name, arguments, self.tool_registry):
+                elif requires_confirmation(
+                    name,
+                    arguments,
+                    self.tool_registry,
+                    self.working_directory,
+                ):
                     summary = self._confirmation_message(name, arguments)
                     if not self.confirm(summary):
                         result = {
