@@ -38,6 +38,7 @@ def search_files(
 
     relative_path = str(arguments.get("path", "."))
     root = resolve_workspace_path(working_directory, relative_path)
+    workspace_root = Path(working_directory).resolve()
 
     if not root.exists():
         return {"ok": False, "error": f"Path does not exist: {relative_path}"}
@@ -53,23 +54,32 @@ def search_files(
             break
         if not path.is_file():
             continue
-        if any(part in IGNORED_DIRECTORIES for part in path.parts):
+
+        try:
+            resolved_path = path.resolve()
+        except OSError:
             continue
 
-        content = _read_text(path)
+        if not resolved_path.is_relative_to(workspace_root):
+            continue
+        if any(part in IGNORED_DIRECTORIES for part in resolved_path.parts):
+            continue
+
+        content = _read_text(resolved_path)
         if content is None:
             continue
 
         haystack = content if case_sensitive else content.lower()
-        line_number = None
         for number, line in enumerate(content.splitlines(), start=1):
             line_haystack = line if case_sensitive else line.lower()
             if needle in line_haystack:
-                line_number = number
                 matches.append(
                     {
-                        "path": to_workspace_relative(working_directory, path),
-                        "line": line_number,
+                        "path": to_workspace_relative(
+                            working_directory,
+                            resolved_path,
+                        ),
+                        "line": number,
                         "text": line[:500],
                     }
                 )
@@ -78,9 +88,7 @@ def search_files(
     return {
         "ok": True,
         "query": query,
-        "path": to_workspace_relative(working_directory, root)
-        if root.is_dir()
-        else to_workspace_relative(working_directory, root.parent),
+        "path": to_workspace_relative(working_directory, root),
         "matches": matches,
         "truncated": len(matches) >= MAX_RESULTS,
     }
