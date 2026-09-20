@@ -99,3 +99,12 @@ def test_parent_directory_traversal_is_blocked(
         )
         is not None
     )
+
+
+def test_workspace_absolute_windows_path_with_spaces_is_allowed(
+    tmp_path: Path,
+) -> None:
+    workspace = str(tmp_path.resolve())
+    command = f'Get-ChildItem "{workspace}"'
+
+    assert validate_command_scope(command, tmp_path) is None
