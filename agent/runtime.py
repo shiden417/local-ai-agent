@@ -202,15 +202,35 @@ class AgentRuntime:
                 },
             ]
 
+            excluded_tools = set(self.task.disabled_tools)
+            if self.task.recovery_tool:
+                excluded_tools.add(self.task.recovery_tool)
+
             available_tools = self.tool_registry.schemas_for(
                 self.task.goal,
-                excluded_tools=self.task.disabled_tools,
+                excluded_tools=excluded_tools,
             )
 
             force_synthesis = (
                 self.task.no_progress_streak >= 2
                 or not available_tools
             )
+            if self.task.recovery_tool:
+                llm_messages.append(
+                    {
+                        "role": "system",
+                        "content": (
+                            f"Recovery mode: the previous Tool "
+                            f"'{self.task.recovery_tool}' failed. "
+                            "Do not use that Tool in the next step. "
+                            "Use a directly relevant alternative observation "
+                            "within the workspace, then reassess the goal. "
+                            "Do not investigate unrelated OS settings or "
+                            "system internals."
+                        ),
+                    }
+                )
+
             if force_synthesis:
                 llm_messages.append(
                     {
@@ -295,7 +315,18 @@ class AgentRuntime:
                     continue
 
                 call_count = self.loop_guard.record(name, arguments)
-                if self.loop_guard.is_repetition(name, arguments):
+                if self.task.recovery_tool == name:
+                    result = {
+                        "ok": False,
+                        "error": (
+                            f"Tool '{name}' is temporarily blocked during "
+                            "failure recovery. Use a directly relevant "
+                            "alternative Tool first."
+                        ),
+                        "recovery_blocked": True,
+                    }
+                    print("[Tool] blocked by recovery quarantine")
+                elif self.loop_guard.is_repetition(name, arguments):
                     self.task.disable_tool(name)
                     result = {
                         "ok": False,
