@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -37,6 +38,8 @@ SYSTEM_PROMPT = """あなたはローカルで動作する汎用AI Agentです�
 - PLANでは最初の具体的なActionを決め、ACTではそれを実行し、VERIFYでは結果から「目的が達成済みか」「次に何をすべきか」を判断してください。
 - Current task execution stateはRuntimeが管理する事実です。Recent observationsは既知の情報として扱い、同じ情報を再取得しないでください。
 - Session Contextは前のTaskから引き継いだ要点です。現在のユーザー発言と矛盾する場合は現在の発言を優先してください。
+- Session ContextのPrevious answerは参考情報であり、現在のTaskの観測結果ではありません。現在のTaskで確認していない事実を「確認済み」と表現しないでください。
+- 「その」「それ」「先ほど」「前回」などの参照表現は、Session Contextと直近の会話から自然に解決してください。直前の話題が明確なら、ユーザーに同じ説明をやり直させないでください。
 - EnvironmentはRuntimeが取得した現在の実行環境の事実です。Workspace、現在日時、Git状態、AGENTS.mdのルールを推測で置き換えないでください。
 - 同じTool + 同じ引数を繰り返さないでください。Toolが無効化されている場合は別のActionを選択してください。
 - 同じ内容の観測を別の引数で再取得することも避けてください。
@@ -208,7 +211,8 @@ class AgentRuntime:
             return True
         return answer in {"y", "yes"}
     def run(self, user_input: str) -> str:
-        route = self.tool_registry.route_for(user_input)
+        routing_text = self._routing_text(user_input)
+        route = self.tool_registry.route_for(routing_text)
         if route.mode.value in {"direct", "open"}:
             return self._run_conversation(user_input)
 
@@ -236,7 +240,7 @@ class AgentRuntime:
             context_messages = self.context_manager.prepare(current_task.messages)
             prior_conversation = self.conversation_manager.recent_messages()
             related_paths = self._related_paths(current_task)
-            route = self.tool_registry.route_for(self.task.goal)
+            route = self.tool_registry.route_for(routing_text)
             capability_text = ", ".join(
                 capability.value for capability in sorted(
                     route.capabilities,
@@ -329,7 +333,7 @@ class AgentRuntime:
                 excluded_tools.add(self.task.recovery_tool)
 
             available_tools = self.tool_registry.schemas_for(
-                self.task.goal,
+                routing_text,
                 excluded_tools=excluded_tools,
                 include_control_tools=True,
             )
@@ -413,6 +417,21 @@ class AgentRuntime:
                                 "the appropriate Tool. Use a Tool now. If the "
                                 "request lacks one required detail, ask only a "
                                 "concise clarification question."
+                            ),
+                        }
+                    )
+                    continue
+
+                if self._is_stale_session_response(content, current_task):
+                    current_task.messages.append(_message_to_dict(message))
+                    current_task.messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "The previous answer appears to be copied from an earlier "
+                                "task. Re-answer using only the current task goal and the "
+                                "latest observations. Do not reuse stale file paths, values, "
+                                "or completion claims."
                             ),
                         }
                     )
@@ -720,6 +739,58 @@ class AgentRuntime:
             self.terminal_ui.final(content)
         return content
 
+    def _routing_text(self, user_input: str) -> str:
+        """Reuse the previous task's capability scope for clear follow-up references."""
+        route = self.tool_registry.route_for(user_input)
+        if route.mode.value == "scoped" or not self.session_context.has_context:
+            return user_input
+
+        if not self._is_session_follow_up(user_input):
+            return user_input
+
+        previous_goal = self.session_context.last_goal.strip()
+        if not previous_goal:
+            return user_input
+
+        previous_route = self.tool_registry.route_for(previous_goal)
+        if previous_route.mode.value != "scoped":
+            return user_input
+
+        return f"{previous_goal}\nFollow-up request: {user_input}"
+
+    @staticmethod
+    def _is_session_follow_up(user_input: str) -> bool:
+        text = user_input.strip()
+        return bool(
+            re.search(
+                r"^(?:その|それ|この|前回|先ほど|さっき|上記|上述|前の|that|those|these|previous)\b",
+                text,
+                flags=re.IGNORECASE,
+            )
+        )
+
+    def _is_stale_session_response(
+        self,
+        content: str,
+        task: ManagedTask,
+    ) -> bool:
+        previous = self.session_context.last_answer.strip()
+        current = content.strip()
+        if not previous or not current:
+            return False
+
+        def normalize(value: str) -> str:
+            return " ".join(value.split()).casefold()
+
+        if normalize(previous) != normalize(current):
+            return False
+
+        return any(
+            message.get("role") == "tool"
+            and message.get("name") != "finish_task"
+            for message in task.messages
+        )
+
     def _verify_finish_task(
         self,
         task: ManagedTask,
@@ -755,6 +826,17 @@ class AgentRuntime:
             )
 
         name, payload = successful_tools[-1]
+
+        if (
+            self._requires_primary_web_source(task.goal)
+            and any(tool_name == "search_web" for tool_name, _ in successful_tools)
+            and not any(tool_name == "fetch_web_page" for tool_name, _ in successful_tools)
+        ):
+            return (
+                "System Verification Failed: this request asks for current, official, "
+                "release, or change-specific information. Fetch a relevant source page "
+                "after search_web before declaring completion."
+            )
 
         if name == "execute_command":
             if payload.get("exit_code") != 0:
@@ -807,6 +889,16 @@ class AgentRuntime:
             return None
 
         return None
+
+    @staticmethod
+    def _requires_primary_web_source(goal: str) -> bool:
+        text = str(goal).casefold()
+        return bool(
+            re.search(
+                r"(最新|最新版|現在|公式|公式情報|リリース|release|変更点|主な変更|what'?s new|latest|current)",
+                text,
+            )
+        )
 
     def _related_paths(self, task: ManagedTask) -> list[str]:
         candidates = extract_related_paths(task.goal)
