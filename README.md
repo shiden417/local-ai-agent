@@ -39,10 +39,10 @@ Agent Coreは特定用途に依存せず、Toolを追加することで能力を
     Native Tool Calling
       ↓
     Tool Registry / Dispatcher
-      ├─ Local File tools
-      ├─ Process / OS tools
+      ├─ Built-in Tools
       ├─ Temporary Script capability
-      ├─ Coding tools
+      ├─ Capability Management
+      │    └─ Quarantine → Promote → Load
       └─ future capabilities
       ↓
     Observation / Context Management
@@ -67,12 +67,14 @@ Long-term MemoryはAgent CoreのTask履歴とは分離し、ユーザーホー�
 - file_mutation - ローカルファイルの作成・編集・削除
 - execute_command - PowerShellコマンド実行
 - run_python_script - 専用Toolがない処理を一時Python Scriptとして実行
+- stage_plugin - 新しいPluginを検疫領域へ配置
+- promote_plugin - 検疫済みPluginを確認付きで有効化
 - save_memory - 将来も利用する情報をローカルMemoryへ保存
 - search_memory - 過去のローカルMemoryを検索
 
 成功したrun_python_scriptはRecipeStoreへ自動保存されます。関連する次のTaskでは、過去に成功したRecipeをLLMへ参考情報として提示します。Recipeは成功実績の再利用を目的としたもので、自動で正式Pluginにはしません。
 
-永続Capabilityを作る場合は、Agentがstage_pluginでPluginを検疫領域へ配置し、構文・契約を検証した後、promote_pluginでユーザー確認を経て有効化できます。有効Pluginはプロセス分離された子Pythonプロセスとして実行され、Agent Coreへ直接組み込まれません。
+永続Capabilityを作る場合は、Agentがstage_pluginでPluginを検疫領域へ配置し、構文・契約を検証した後、promote_pluginでユーザー確認を経て有効化できます。有効Pluginは固定ブートストラップ経由の子Pythonプロセスとして実行され、Agent Coreのプロセス内ではPluginコードを実行しません。
 
 LLMとの通信には、独自JSON文字列プロトコルではなく、LiteLLMのNative Tool Calling形式を使用します。
 
@@ -147,8 +149,9 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 - 成功した一時ScriptのRecipe化
 - Recipe再利用
 - Recipe使用回数に基づくPromotion候補検出
-- 検疫付きPlugin生成・検証
-- Capabilityの動的ロード
+- PluginをQuarantineへStage
+- Pluginの構文・契約検証
+- 確認付きPromotionと動的ロード
 - Agentからのstage_plugin / promote_pluginによるCapability獲得
 
 ### Tools
