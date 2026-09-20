@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any, Callable
 
+from agent.context import ContextManager
 from agent.llm import ask_llm
 from agent.observation import truncate_text
 from agent.safety import requires_confirmation
@@ -79,11 +80,13 @@ class AgentRuntime:
         max_iterations: int = 10,
         tool_registry: ToolRegistry | None = None,
         confirm: Callable[[str], bool] | None = None,
+        context_manager: ContextManager | None = None,
     ) -> None:
         self.working_directory = Path(working_directory).resolve()
         self.max_iterations = max_iterations
         self.tool_registry = tool_registry or create_default_tool_registry()
         self.confirm = confirm or self._default_confirm
+        self.context_manager = context_manager or ContextManager()
         self.task: TaskState | None = None
         self.messages: list[dict[str, Any]] = [
             {"role": "system", "content": SYSTEM_PROMPT}
@@ -102,8 +105,9 @@ class AgentRuntime:
         for _ in range(self.max_iterations):
             self.task.begin_iteration()
 
+            context_messages = self.context_manager.prepare(self.messages)
             llm_messages = [
-                *self.messages,
+                *context_messages,
                 {
                     "role": "system",
                     "content": (
