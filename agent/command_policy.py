@@ -35,7 +35,7 @@ WINDOWS_ABSOLUTE_PATH_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_])(?:[A-Za-z]:\\|\\\\|/(?:mnt|var|etc|tmp)(?:/|$))"
 )
 PARENT_PATH_PATTERN = re.compile(r"(^|[\s'\"])(?:\.\.[\\/])+")
-LOCAL_PATH_TOOLS = {"list_directory", "read_file", "search_files", "edit_file"}
+LOCAL_PATH_MUTATING_TOOLS = {"edit_file", "create_file"}
 
 
 def requires_confirmation(
@@ -48,7 +48,7 @@ def requires_confirmation(
     if tool is not None and tool.requires_confirmation:
         return True
 
-    if tool_name in LOCAL_PATH_TOOLS:
+    if tool_name in LOCAL_PATH_MUTATING_TOOLS:
         requested_path = str(arguments.get("path", "")).strip()
         if _is_absolute_local_path(requested_path):
             if working_directory is None:
