@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 import difflib
 
-from tools.path_utils import resolve_workspace_path, to_workspace_relative
+from tools.path_utils import resolve_workspace_path, to_display_path
 
 
 MAX_FILE_SIZE = 1_000_000
@@ -25,21 +25,21 @@ def edit_file(
     working_directory: Path,
     arguments: dict[str, Any],
 ) -> dict[str, Any]:
-    """Replace exactly one occurrence of search_text in a workspace file."""
-    relative_path = str(arguments.get("path", ""))
+    """Replace exactly one occurrence of search_text in a local text file."""
+    requested_path = str(arguments.get("path", ""))
     search_text = str(arguments.get("search_text", ""))
     replace_text = str(arguments.get("replace_text", ""))
 
     if not search_text:
         return {"ok": False, "error": "search_text must not be empty"}
 
-    path = resolve_workspace_path(working_directory, relative_path)
+    path = resolve_workspace_path(working_directory, requested_path)
 
     if not path.exists():
-        return {"ok": False, "error": f"File does not exist: {relative_path}"}
+        return {"ok": False, "error": f"File does not exist: {requested_path}"}
 
     if not path.is_file():
-        return {"ok": False, "error": f"Not a file: {relative_path}"}
+        return {"ok": False, "error": f"Not a file: {requested_path}"}
 
     try:
         if path.stat().st_size > MAX_FILE_SIZE:
@@ -77,14 +77,14 @@ def edit_file(
         difflib.unified_diff(
             content.splitlines(keepends=True),
             new_content.splitlines(keepends=True),
-            fromfile=relative_path,
-            tofile=relative_path,
+            fromfile=requested_path,
+            tofile=requested_path,
         )
     )
 
     return {
         "ok": True,
-        "path": to_workspace_relative(working_directory, path),
+        "path": to_display_path(working_directory, path),
         "replacements": 1,
         "diff": diff,
     }
