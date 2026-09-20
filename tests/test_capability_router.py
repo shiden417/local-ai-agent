@@ -111,3 +111,14 @@ def test_router_keeps_generic_workspace_research_local() -> None:
     assert Capability.WORKSPACE_READ in route.capabilities
 
 
+
+
+
+def test_router_adds_workspace_read_to_project_investigation() -> None:
+    route = CapabilityRouter().route(
+        "このプロジェクトの現在の状態を確認して、必要なら問題点を調査してください"
+    )
+
+    assert route.mode == RoutingMode.SCOPED
+    assert Capability.PROCESS in route.capabilities
+    assert Capability.WORKSPACE_READ in route.capabilities
