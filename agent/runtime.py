@@ -47,6 +47,7 @@ SYSTEM_PROMPT = """あなたはローカルで動作する汎用AI Agentです�
 - 現在日時・時刻についてはRuntimeが提供する現在の日時を事実として使用し、推測や古い知識から日付を作らないでください。
 - ユーザーが「作成して」「修正して」「削除して」「実行して」など、実際の操作を明示した場合は、説明やサンプルだけを返さず、適切なToolを使ってください。
 - Toolを使っていない場合、ファイル作成・変更・コマンド実行などが完了したと主張しないでください。
+- Direct/Openの通常会話では、Toolを使おうとせず、ユーザーの発言に自然な文章で回答してください。
 - コマンド失敗の調査で、実行ポリシー、System32、Windows内部ファイル、ユーザーディレクトリなどの無関係なOS情報を探索しないでください。必要性がユーザーの依頼から明確でない限り、workspace内の原因調査を優先してください。
 - Pythonプロジェクトのテストでは、まず現在のプロジェクト環境を使う「python -m pytest」形式を優先してください。
 - 変更や外部作用を伴うToolは、必要性を確認してから使用してください。
@@ -201,6 +202,10 @@ class AgentRuntime:
             return True
         return answer in {"y", "yes"}
     def run(self, user_input: str) -> str:
+        route = self.tool_registry.route_for(user_input)
+        if route.mode.value in {"direct", "open"}:
+            return self._run_conversation(user_input)
+
         current_task = self.task_manager.create(user_input)
         current_task.messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -654,6 +659,33 @@ class AgentRuntime:
         self.task.hit_max_iterations()
         self.task_manager.update_timestamp(current_task)
         return "Agentの最大反復回数に達したため、処理を終了しました。"
+
+    def _run_conversation(self, user_input: str) -> str:
+        """Answer without creating a Task or exposing operational Tools."""
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            *self.conversation_manager.recent_messages(),
+            {"role": "user", "content": user_input.strip()},
+        ]
+        if self.terminal_ui is not None:
+            self.terminal_ui.thinking_start()
+        try:
+            response = ask_llm(messages, tools=[])
+        finally:
+            if self.terminal_ui is not None:
+                self.terminal_ui.thinking_stop()
+
+        message = response.choices[0].message
+        content = self._normalize_final_content(
+            getattr(message, "content", None) or ""
+        )
+        if not content:
+            content = "すみません。うまく回答を生成できませんでした。"
+
+        self.conversation_manager.add_turn(user_input, content)
+        if self.terminal_ui is not None:
+            self.terminal_ui.final(content)
+        return content
 
     @staticmethod
     def _normalize_final_content(content: Any) -> str:
