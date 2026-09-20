@@ -18,6 +18,7 @@ Ollama + Qwen3:8B + LiteLLM を使ったローカルAI Agentです。
       ├─ list_directory
       ├─ read_file
       ├─ search_files
+      ├─ edit_file
       └─ execute_command
       ↓
     Observation
@@ -55,6 +56,7 @@ Agent Runtimeは起動時のカレントディレクトリを作業ディレク�
 - list_directory - ワークスペース内の一覧取得
 - read_file - テキストファイルの読み取り
 - search_files - テキスト検索
+- edit_file - SEARCH / REPLACE方式の部分編集
 - execute_command - PowerShellコマンド実行
 
 ## Tool design
@@ -65,36 +67,29 @@ ToolはToolRegistryに登録し、RuntimeはTool名から実装をディスパ�
 
 ファイル系Toolは相対パスのみを受け付け、解決後のパスがAgent workspace外へ出ないことを確認します。シンボリックリンク等で解決後のパスがworkspace外になる場合も拒否します。
 
-execute_commandには30秒のデフォルトタイムアウトと、LLMへ返す出力のサイズ上限があります。WindowsのPowerShell出力はUTF-8へ寄せて扱います。
+edit_fileは検索文字列がちょうど1回だけ一致する場合に変更し、変更結果としてdiffを返します。変更前にCLIでユーザー確認を行います。
+
+execute_commandには30秒のデフォルトタイムアウト、タイムアウト時のプロセスツリー終了、LLMへ返す出力のサイズ上限があります。WindowsのPowerShell出力はUTF-8へ寄せて扱います。代表的な破壊・書き込みコマンドは実行前に確認します。
 
 ## Development
 
-    pytest
+    python -m pytest -q
+
+GitHub ActionsでもWindows Runner上でテストを実行します。
 
 ## Current status
 
-現在は次の基盤まで実装しています。
-
-- Native Tool Calling
-- Tool Registry / Dispatcher
-- list_directory
-- read_file
-- search_files
-- execute_command
-- Agent Loop
-- Tool observationの出力制限
-- workspace path traversal対策
-- command timeout
+現在は「Native Tool Calling + Tool Registry + 読み取り + 部分編集 + コマンド実行 + 基本的な自律ループ」までを実装しています。
 
 まだ以下は未実装です。
 
-- edit_file
 - write_file
-- Safety / confirmation
+- より厳密なcommand sandbox / permission policy
 - Git専用Tool
 - Context compaction
 - Repo Map
 - Background / interactive process management
+- 複数ターンにまたがる永続タスク状態
 
 ## Roadmap
 
@@ -117,4 +112,5 @@ execute_commandには30秒のデフォルトタイムアウトと、LLMへ返す
 - Toolは明確な責務を持つ
 - Tool結果はLLMへ返す前にサイズを制限する
 - workspace外のファイルへアクセスさせない
+- 変更操作は確認可能にする
 - 複雑な機能は基本ループが安定してから追加する
