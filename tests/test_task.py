@@ -102,3 +102,23 @@ def test_failed_unique_observation_does_not_count_as_progress() -> None:
     assert task.observations[0].progress_state.value == "failed"
     assert task.progress_count == 0
     assert task.no_progress_streak == 1
+
+
+def test_failed_tool_enters_recovery_quarantine_and_is_cleared_by_progress() -> None:
+    task = TaskState(goal="復旧")
+    task.start()
+
+    task.record_tool("execute_command", succeeded=False, summary="pytest failed")
+
+    assert task.recovery_tool == "execute_command"
+    assert "Recovery quarantine: execute_command" in task.snapshot()
+
+    task.record_tool(
+        "read_file",
+        succeeded=True,
+        summary="project configuration",
+        signature="read_file:config",
+        new_information=True,
+    )
+
+    assert task.recovery_tool is None
