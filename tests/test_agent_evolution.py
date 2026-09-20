@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-from agent.capabilities import Capability
 from agent.request_classifier import RequestClassifier, RequestMode
 from agent.environment import build_environment_context
 from agent.runtime import AgentRuntime
@@ -410,7 +409,6 @@ def test_completed_task_does_not_pollute_conversation_history(
                 "required": [],
             },
             handler=run_action,
-            capabilities=(Capability.PROCESS,),
         )
     )
 
