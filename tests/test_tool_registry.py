@@ -141,3 +141,16 @@ def test_registry_exposes_delete_file_for_deletion_request() -> None:
     ]
 
     assert tools == ["file_mutation"]
+
+
+def test_registry_exposes_capability_management_tools_for_plugin_requests() -> None:
+    from agent.tools import create_default_tool_registry
+
+    registry = create_default_tool_registry()
+
+    tools = [
+        schema["function"]["name"]
+        for schema in registry.schemas_for("新しいToolを追加してPDFを処理できるようにして")
+    ]
+
+    assert tools == ["stage_plugin", "promote_plugin"]
