@@ -34,7 +34,12 @@ class ManagedTask:
 class TaskManager:
     """Manage multiple independent Agent tasks in memory."""
 
-    def __init__(self) -> None:
+    DEFAULT_MAX_TASKS = 100
+
+    def __init__(self, max_tasks: int = DEFAULT_MAX_TASKS) -> None:
+        if max_tasks < 1:
+            raise ValueError("max_tasks must be at least 1")
+        self.max_tasks = max_tasks
         self._tasks: dict[str, ManagedTask] = {}
         self._current_task_id: str | None = None
         self._next_order = 0
@@ -52,6 +57,7 @@ class TaskManager:
         )
         self._tasks[task.task_id] = task
         self._current_task_id = task.task_id
+        self._trim_history()
         return task
 
     def get(self, task_id: str) -> ManagedTask | None:
@@ -98,6 +104,26 @@ class TaskManager:
         task.state.fail(error)
         self.update_timestamp(task)
         return task
+
+    def _trim_history(self) -> None:
+        if len(self._tasks) <= self.max_tasks:
+            return
+
+        removable = [
+            task
+            for task in self._tasks.values()
+            if task.status in {
+                TaskStatus.COMPLETED,
+                TaskStatus.FAILED,
+                TaskStatus.MAX_ITERATIONS,
+            }
+            and task.task_id != self._current_task_id
+        ]
+        removable.sort(key=lambda task: task.created_order)
+
+        while len(self._tasks) > self.max_tasks and removable:
+            task = removable.pop(0)
+            self._tasks.pop(task.task_id, None)
 
     def _require(self, task_id: str) -> ManagedTask:
         task = self.get(task_id)
