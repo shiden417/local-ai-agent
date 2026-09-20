@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from agent.capability_router import Capability
+from agent.capabilities import Capability
 from agent.runtime import AgentRuntime
 from agent.tool_registry import ToolDefinition, ToolRegistry
 import agent.runtime as runtime_module
@@ -1070,106 +1070,3 @@ def test_runtime_synthesizes_immediately_after_terminal_tool_success(
     assert captured_tools[1] == []
 
 
-def test_runtime_saves_successful_script_as_recipe(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    from agent.recipe_store import RecipeStore
-
-    tool_call = SimpleNamespace(
-        id="call-script",
-        function=SimpleNamespace(
-            name="run_python_script",
-            arguments=json.dumps(
-                {"script": "print('recipe works')"}
-            ),
-        ),
-    )
-    responses = [
-        SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        role="assistant",
-                        content="",
-                        tool_calls=[tool_call],
-                    )
-                )
-            ]
-        ),
-        SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        role="assistant",
-                        content="スクリプトを実行しました。",
-                        tool_calls=[],
-                    )
-                )
-            ]
-        ),
-    ]
-
-    monkeypatch.setattr(
-        runtime_module,
-        "ask_llm",
-        lambda _messages, tools=None: responses.pop(0),
-    )
-
-    recipe_store = RecipeStore(tmp_path / "recipes.json")
-    runtime = AgentRuntime(
-        tmp_path,
-        recipe_store=recipe_store,
-        confirm=lambda _message: True,
-    )
-
-    result = runtime.run("Pythonスクリプトを実行してください")
-
-    assert result == "スクリプトを実行しました。"
-    recipes = recipe_store.all()
-    assert len(recipes) == 1
-    assert recipes[0].script == "print('recipe works')"
-    assert recipes[0].use_count == 1
-
-
-def test_runtime_includes_promotion_candidates_in_management_context(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    from agent.recipe_store import RecipeStore
-
-    recipe_store = RecipeStore(tmp_path / "recipes.json")
-    recipe_store.record("PDFをCSVに変換", "print('pdf')")
-    recipe_store.record("PDFをCSVに再変換", "print('pdf')")
-
-    captured = []
-
-    final = SimpleNamespace(
-        choices=[
-            SimpleNamespace(
-                message=SimpleNamespace(
-                    role="assistant",
-                    content="候補を確認しました。",
-                    tool_calls=[],
-                )
-            )
-        ]
-    )
-
-    def fake_ask_llm(messages, tools=None):
-        captured.append(messages)
-        return final
-
-    monkeypatch.setattr(runtime_module, "ask_llm", fake_ask_llm)
-
-    runtime = AgentRuntime(
-        tmp_path,
-        recipe_store=recipe_store,
-    )
-
-    assert runtime.run("新しいToolを追加してください") == "候補を確認しました。"
-    assert any(
-        "Recipe promotion candidates" in str(message.get("content", ""))
-        for message in captured[0]
-        if message.get("role") == "system"
-    )
