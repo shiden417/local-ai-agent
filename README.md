@@ -23,6 +23,8 @@ Agent Coreは特定用途に依存せず、Toolを追加することで能力を
 
     User
       ↓
+    Conversation Context
+      ↓
     Agent Runtime
       ↓
     Capability Router
@@ -116,7 +118,8 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 
 ### Agent Core
 - Agent loopの収束・安定化
-- Taskごとの独立した会話履歴
+- Taskごとの独立した実行履歴
+- セッション内の会話コンテキスト
 - Task observation ledger（観測結果・新規情報・進捗）
 - Runtime-managed execution dashboard
 - Action / Observation / Progressの分離
@@ -166,7 +169,8 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 - Tool結果の意味的な観測同一性を判定し、新しい情報が得られたかを追跡する
 - 観測の新規性と、目的に対する実際のProgressを別々に判定する
 - Runtime-managed dashboardでGoal / Phase / Progress / Recent observations / Disabled toolsをLLMへ明示する
-- Task間の会話履歴を混在させない
+- Task間の実行履歴を混在させない
+- セッション会話はTask履歴とは別に保持し、直近の会話だけをLLMへ渡す
 - ContextはTool CallとTool Resultの会話ブロックを壊さずに圧縮する
 - workspace外のアクセスを許可しない
 - 変更操作は確認可能にする
