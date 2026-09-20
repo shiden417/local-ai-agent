@@ -166,6 +166,43 @@ def create_default_tool_registry(
 
     registry.register(
         ToolDefinition(
+            name="list_promotion_candidates",
+            description=(
+                "List successful temporary Script Recipes that have been used "
+                "often enough to be considered for persistent Plugin promotion."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "min_uses": {
+                        "type": "integer",
+                        "minimum": 2,
+                        "maximum": 20,
+                        "description": "Minimum successful uses required. Default is 2.",
+                    }
+                },
+                "required": [],
+                "additionalProperties": False,
+            },
+            handler=lambda working_directory, arguments: _list_promotion_candidates(
+                recipes,
+                arguments,
+            ),
+            use_when=(
+                "You need to decide whether a repeatedly successful temporary "
+                "Recipe should become a persistent Plugin."
+            ),
+            avoid_when=(
+                "You are handling an ordinary task and do not need to manage "
+                "Agent capabilities."
+            ),
+            availability="on_demand",
+            capabilities=(Capability.CAPABILITY_MANAGEMENT,),
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
             name="generate_plugin",
             description=(
                 "Generate a persistent Plugin candidate from a successful Recipe. "
@@ -219,43 +256,6 @@ def create_default_tool_registry(
             requires_confirmation=True,
             use_when="A newly generated Plugin candidate must be behaviorally checked before staging.",
             avoid_when="The candidate has not been generated or the user did not authorize executing generated code.",
-            availability="on_demand",
-            capabilities=(Capability.CAPABILITY_MANAGEMENT,),
-        )
-    )
-
-    registry.register(
-        ToolDefinition(
-            name="list_promotion_candidates",
-            description=(
-                "List successful temporary Script Recipes that have been used "
-                "often enough to be considered for persistent Plugin promotion."
-            ),
-            parameters={
-                "type": "object",
-                "properties": {
-                    "min_uses": {
-                        "type": "integer",
-                        "minimum": 2,
-                        "maximum": 20,
-                        "description": "Minimum successful uses required. Default is 2.",
-                    }
-                },
-                "required": [],
-                "additionalProperties": False,
-            },
-            handler=lambda working_directory, arguments: _list_promotion_candidates(
-                recipes,
-                arguments,
-            ),
-            use_when=(
-                "You need to decide whether a repeatedly successful temporary "
-                "Recipe should become a persistent Plugin."
-            ),
-            avoid_when=(
-                "You are handling an ordinary task and do not need to manage "
-                "Agent capabilities."
-            ),
             availability="on_demand",
             capabilities=(Capability.CAPABILITY_MANAGEMENT,),
         )
