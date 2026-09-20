@@ -60,6 +60,7 @@ class TaskState:
     no_progress_streak: int = 0
     progress_state: ProgressState = ProgressState.UNKNOWN
     progress_count: int = 0
+    recovery_tool: str | None = None
 
     def start(self) -> None:
         self.status = TaskStatus.RUNNING
@@ -104,6 +105,16 @@ class TaskState:
             )
 
         self.progress_state = progress_state
+
+        if not succeeded:
+            self.recovery_tool = name
+        elif self.recovery_tool == name:
+            # Keep the failed tool quarantined until a different successful
+            # observation gives the model new evidence.
+            self.recovery_tool = None
+        elif progress_state == ProgressState.PROGRESSED:
+            # A useful alternative observation completes the recovery step.
+            self.recovery_tool = None
 
         if progress_state == ProgressState.PROGRESSED:
             self.progress_count += 1
@@ -152,6 +163,7 @@ class TaskState:
     def snapshot(self) -> str:
         last_tool = self.last_tool or "none"
         disabled = ", ".join(sorted(self.disabled_tools)) or "none"
+        recovery = self.recovery_tool or "none"
         lines = [
             (
                 f"Task status={self.status.value}; "
@@ -164,6 +176,7 @@ class TaskState:
                 f"no_progress_streak={self.no_progress_streak}"
             ),
             f"Disabled tools: {disabled}",
+            f"Recovery quarantine: {recovery}",
             "Execution guidance: "
             "use the smallest action that advances the goal; "
             "after a useful observation, verify whether the goal can already be answered; "
