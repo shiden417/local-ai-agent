@@ -2,32 +2,76 @@
 
 Ollama + Qwen3:8B + LiteLLM を使ったローカルAI Agentです。
 
+## Goal
+
+最初の実用ユースケースはソフトウェア開発支援ですが、最終的にはJ.A.R.V.I.S.のような汎用Local AI Agentへ発展させることを目標にします。
+
+Agent Coreは特定用途に依存せず、Toolを追加することで能力を拡張できる構成を採用します。
+
+想定する将来の能力:
+
+- ローカルファイル・PC操作
+- ソフトウェア開発
+- Web / API
+- データベース
+- Git
+- スケジュール・自動化
+- 音声入出力
+- Memory / Task management
+
 ## Architecture
 
     User
       ↓
     Agent Runtime
       ↓
-    LiteLLM
+    LLM abstraction
       ↓
     Ollama / Qwen3:8B
       ↓
     Native Tool Calling
       ↓
     Tool Registry / Dispatcher
-      ├─ list_directory
-      ├─ read_file
-      ├─ search_files
-      ├─ edit_file
-      └─ execute_command
+      ├─ Local File tools
+      ├─ Process / OS tools
+      ├─ Coding tools
+      └─ future tools
       ↓
-    Observation
+    Observation / Context management
       ↓
-    Qwen3 decides next step
+    Agent decides next action
       ↓
     Retry / Continue
       ↓
     Final answer
+
+## Current implementation
+
+現時点では、ローカルPC上でのCoding / Automationを最初の用途として、次のToolを提供しています。
+
+- list_directory - workspace内の一覧取得
+- read_file - テキストファイルの読み取り
+- search_files - ローカルファイル検索
+- edit_file - SEARCH / REPLACE方式の部分編集
+- execute_command - PowerShellコマンド実行
+
+LLMとの通信には、独自JSON文字列プロトコルではなく、LiteLLMのNative Tool Calling形式を使用します。
+
+ToolはToolRegistryに登録され、RuntimeはTool名から実装をディスパッチします。
+
+## Safety
+
+Agentの操作には実行環境に応じた安全策を設定します。
+
+- workspace外へのファイルアクセスを拒否
+- Toolごとに確認が必要か設定可能
+- edit_fileは変更前にユーザー確認
+- 代表的な破壊・書き込み系PowerShell/Git操作は確認
+- execute_commandは30秒timeout
+- timeout時はPowerShellプロセスツリーを終了
+- Tool結果のサイズを制限してLLMへ返す
+
+Safety判定は現在は保守的なヒューリスティックであり、完全なセキュリティサンドボックスではありません。
 
 ## Requirements
 
@@ -40,7 +84,7 @@ Ollama + Qwen3:8B + LiteLLM を使ったローカルAI Agentです。
 ## Setup
 
     python -m venv .venv
-    .\\.venv\\Scripts\\Activate.ps1
+    .\.venv\Scripts\Activate.ps1
     pip install -r requirements.txt
 
 ## Run
@@ -49,27 +93,7 @@ Agentを操作したい作業ディレクトリで起動します。
 
     python agent.py
 
-Agent Runtimeは起動時のカレントディレクトリを作業ディレクトリとして固定します。
-
-## Current tools
-
-- list_directory - ワークスペース内の一覧取得
-- read_file - テキストファイルの読み取り
-- search_files - テキスト検索
-- edit_file - SEARCH / REPLACE方式の部分編集
-- execute_command - PowerShellコマンド実行
-
-## Tool design
-
-LLMとの通信には、独自JSON文字列プロトコルではなく、LiteLLMのOpenAI互換形式によるNative Tool Callingを使用します。
-
-ToolはToolRegistryに登録し、RuntimeはTool名から実装をディスパッチします。
-
-ファイル系Toolは相対パスのみを受け付け、解決後のパスがAgent workspace外へ出ないことを確認します。シンボリックリンク等で解決後のパスがworkspace外になる場合も拒否します。
-
-edit_fileは検索文字列がちょうど1回だけ一致する場合に変更し、変更結果としてdiffを返します。変更前にCLIでユーザー確認を行います。
-
-execute_commandには30秒のデフォルトタイムアウト、タイムアウト時のプロセスツリー終了、LLMへ返す出力のサイズ上限があります。WindowsのPowerShell出力はUTF-8へ寄せて扱います。代表的な破壊・書き込みコマンドは実行前に確認します。
+Agent Runtimeは起動時のカレントディレクトリをworkspaceとして固定します。
 
 ## Development
 
@@ -77,40 +101,48 @@ execute_commandには30秒のデフォルトタイムアウト、タイムアウ
 
 GitHub ActionsでもWindows Runner上でテストを実行します。
 
-## Current status
-
-現在は「Native Tool Calling + Tool Registry + 読み取り + 部分編集 + コマンド実行 + 基本的な自律ループ」までを実装しています。
-
-まだ以下は未実装です。
-
-- write_file
-- より厳密なcommand sandbox / permission policy
-- Git専用Tool
-- Context compaction
-- Repo Map
-- Background / interactive process management
-- 複数ターンにまたがる永続タスク状態
-
 ## Roadmap
 
-1. Native Tool Calling
-2. Tool Registry / Dispatcher
-3. 読み取り系Tool
-4. Agent Loop / error recovery
-5. edit_file (SEARCH / REPLACE)
-6. Safety / confirmation
-7. Git integration
-8. Context management / Repo Map
-9. UX improvements
+### Agent Core
+
+- Agent loopの安定化
+- Context compaction
+- Task state / task management
+- Memory
+- より明確なpermission policy
+
+### Tools
+
+- Git
+- Web / HTTP
+- Database
+- Windows automation
+- Scheduler
+- Notifications
+
+### Interaction
+
+- 会話履歴
+- 音声入力 (STT)
+- 音声出力 (TTS)
+- GUI
+- 常駐 / event-driven execution
+
+### Intelligence
+
+- Planning
+- Long-term memory
+- Proactive behavior
+- Goal / task decomposition
 
 ## Design principles
-
-小規模なローカルLLM向けに、巨大なAgent Frameworkをそのまま導入せず、必要な機能を段階的に自作します。
 
 - LLMは判断する
 - Runtimeは実行する
 - Toolは明確な責務を持つ
+- Agent Coreに特定用途のロジックを埋め込まない
+- ToolはRegistry経由で追加できるようにする
 - Tool結果はLLMへ返す前にサイズを制限する
-- workspace外のファイルへアクセスさせない
+- workspace外のアクセスを許可しない
 - 変更操作は確認可能にする
-- 複雑な機能は基本ループが安定してから追加する
+- 巨大なAgent Frameworkをそのまま導入せず、必要な機能を段階的に自作する
