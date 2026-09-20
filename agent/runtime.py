@@ -16,6 +16,8 @@ from agent.observation import truncate_text
 from agent.plugin_manager import PluginManager
 from agent.progress import evaluate_progress
 from agent.recovery import classify_tool_outcome, recovery_guidance
+from agent.session_context import SessionContext
+from agent.environment import build_environment_context, extract_related_paths
 from agent.recipe_store import RecipeStore
 from agent.terminal_ui import TerminalUI
 from agent.safety import requires_confirmation
@@ -34,6 +36,8 @@ SYSTEM_PROMPT = """あなたはローカルで動作する汎用AI Agentです�
 - 1回の判断では、原則として最も直接的なToolを1つだけ選んでください。
 - PLANでは最初の具体的なActionを決め、ACTではそれを実行し、VERIFYでは結果から「目的が達成済みか」「次に何をすべきか」を判断してください。
 - Current task execution stateはRuntimeが管理する事実です。Recent observationsは既知の情報として扱い、同じ情報を再取得しないでください。
+- Session Contextは前のTaskから引き継いだ要点です。現在のユーザー発言と矛盾する場合は現在の発言を優先してください。
+- EnvironmentはRuntimeが取得した現在の実行環境の事実です。Workspace、現在日時、Git状態、AGENTS.mdのルールを推測で置き換えないでください。
 - 同じTool + 同じ引数を繰り返さないでください。Toolが無効化されている場合は別のActionを選択してください。
 - 同じ内容の観測を別の引数で再取得することも避けてください。
 - Toolが失敗した場合は、同じ失敗を繰り返さず、Runtimeが提示するRecovery Guideを確認して、直前の失敗に直接関係する最小の別手段を試してください。
@@ -166,6 +170,7 @@ class AgentRuntime:
         self.loop_guard = ToolLoopGuard()
         self.task_manager = TaskManager()
         self.conversation_manager = ConversationManager()
+        self.session_context = SessionContext()
         self.current_task: ManagedTask | None = None
         self.task: TaskState | None = None
 
@@ -229,6 +234,7 @@ class AgentRuntime:
 
             context_messages = self.context_manager.prepare(current_task.messages)
             prior_conversation = self.conversation_manager.recent_messages()
+            related_paths = self._related_paths(current_task)
             route = self.tool_registry.route_for(self.task.goal)
             capability_text = ", ".join(
                 capability.value for capability in sorted(
@@ -288,9 +294,15 @@ class AgentRuntime:
             ]
 
             current_datetime = datetime.now().astimezone().isoformat(timespec="seconds")
+            environment_context = build_environment_context(
+                self.working_directory,
+                related_paths,
+            )
 
             llm_messages = [
                 *task_system_messages,
+                {"role": "system", "content": environment_context},
+                {"role": "system", "content": self.session_context.prompt_block()},
                 *recipe_messages,
                 *prior_conversation,
                 *task_non_system_messages,
@@ -426,6 +438,11 @@ class AgentRuntime:
                 self.conversation_manager.add_turn(
                     user_input,
                     final_content,
+                )
+                self.session_context.remember_task(
+                    user_input,
+                    final_content,
+                    current_task.messages,
                 )
                 self.task.complete()
                 self.task_manager.update_timestamp(current_task)
@@ -664,6 +681,8 @@ class AgentRuntime:
         """Answer without creating a Task or exposing operational Tools."""
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": build_environment_context(self.working_directory)},
+            {"role": "system", "content": self.session_context.prompt_block()},
             *self.conversation_manager.recent_messages(),
             {"role": "user", "content": user_input.strip()},
         ]
@@ -686,6 +705,27 @@ class AgentRuntime:
         if self.terminal_ui is not None:
             self.terminal_ui.final(content)
         return content
+
+    def _related_paths(self, task: ManagedTask) -> list[str]:
+        candidates = extract_related_paths(task.goal)
+        for message in reversed(task.messages):
+            if message.get("role") != "tool":
+                continue
+            try:
+                result = json.loads(str(message.get("content", "")))
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(result, dict):
+                continue
+            for key in ("path", "directory", "relative_reference_base"):
+                value = str(result.get(key, "")).strip()
+                if value:
+                    candidates.append(value)
+        deduped: list[str] = []
+        for value in candidates:
+            if value not in deduped:
+                deduped.append(value)
+        return deduped[:12]
 
     @staticmethod
     def _normalize_final_content(content: Any) -> str:
