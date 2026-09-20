@@ -67,7 +67,8 @@ Long-term MemoryはAgent CoreのTask履歴とは分離し、ユーザーホー�
 - search_files - ローカルファイル検索
 - file_mutation - ローカルファイルの作成・編集・削除
 - execute_command - PowerShellコマンド実行
-- search_web - 現在の外部情報をWeb検索（読み取り専用）
+- search_web - 現在・未来の外部情報をWeb検索（読み取り専用）
+- fetch_web_page - 検索結果などのURLからWeb本文を取得（読み取り専用）
 - run_python_script - 専用Toolがない処理を一時Python Scriptとして実行
 - list_promotion_candidates - 繰り返し成功したRecipeをPromotion候補として取得
 - generate_plugin - RecipeからPlugin候補をLLM生成
@@ -125,7 +126,9 @@ Agentを操作したい作業ディレクトリで起動します。
 
     python agent.py
 
-Agent Runtimeは起動時のカレントディレクトリをworkspaceとして固定します。
+Agent Runtimeは起動時のカレントディレクトリをworkspaceとして固定します。通常会話はTaskを作らず、具体的な作業要求だけをAgent Taskへ自動ルーティングします。
+Runtimeは各Taskの完了後に短いSession Contextを保持し、次のTaskへcurrent topic、重要事実、直前の回答、参照URLを引き継ぎます。さらにWorkspace、OS、現在時刻、Git状態、関連するAGENTS.mdルールをRuntime側で環境コンテキストとして提示します。
+Web調査ではsearch_webで検索し、検索結果だけで詳細が不足する場合はfetch_web_pageで本文を取得します。finish_taskはRuntimeの決定論的検証を通過してからTaskを完了します。
 起動時にはModel、workspace、学習済み承認ルール数を表示し、Task/Tool/Verifyの進行状況を見やすく表示します。
 
 ## Learned approvals
@@ -145,6 +148,11 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 ## Roadmap
 
 ### Agent Core
+- Conversation / Agent自動切替（Runtime + Capability Router）
+- Runtime Environment Awareness
+- Session Context（Task間のcompact context）
+- Deterministic Completion Verification
+- AGENTS.md階層ルール解決
 - Agent loopの収束・安定化
 - Taskごとの独立した実行履歴
 - セッション内の会話コンテキスト
@@ -173,6 +181,7 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 
 ### Tools
 - Web Search（DDGS metasearch）
+- Web Page Fetch（read-only HTTP/HTML extraction）
 - Git
 - Web / HTTP
 - Database
