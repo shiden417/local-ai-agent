@@ -143,7 +143,7 @@ class AgentRuntime:
 
             response = ask_llm(
                 llm_messages,
-                tools=self.tool_registry.schemas,
+                tools=self.tool_registry.schemas_for(self.task.goal),
             )
             message = response.choices[0].message
             tool_calls = getattr(message, "tool_calls", None) or []
