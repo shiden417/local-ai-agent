@@ -60,7 +60,7 @@ def execute_command(
         try:
             stdout, stderr = process.communicate(timeout=timeout_seconds)
         except subprocess.TimeoutExpired:
-            process.kill()
+            _terminate_process_tree(process.pid)
             stdout, stderr = process.communicate()
             timeout_message = (
                 f"コマンドが{timeout_seconds}秒以内に終了しなかったため終了しました。"
@@ -89,6 +89,15 @@ def execute_command(
             "stderr": f"コマンド実行中にエラーが発生しました: {exc}",
             "timed_out": False,
         }
+
+
+def _terminate_process_tree(pid: int) -> None:
+    subprocess.run(
+        ["taskkill", "/F", "/T", "/PID", str(pid)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
 
 
 def _bound_output(text: str) -> str:
