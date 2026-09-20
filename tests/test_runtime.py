@@ -1130,3 +1130,46 @@ def test_runtime_saves_successful_script_as_recipe(
     assert len(recipes) == 1
     assert recipes[0].script == "print('recipe works')"
     assert recipes[0].use_count == 1
+
+
+def test_runtime_includes_promotion_candidates_in_management_context(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from agent.recipe_store import RecipeStore
+
+    recipe_store = RecipeStore(tmp_path / "recipes.json")
+    recipe_store.record("PDFをCSVに変換", "print('pdf')")
+    recipe_store.record("PDFをCSVに再変換", "print('pdf')")
+
+    captured = []
+
+    final = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    role="assistant",
+                    content="候補を確認しました。",
+                    tool_calls=[],
+                )
+            )
+        ]
+    )
+
+    def fake_ask_llm(messages, tools=None):
+        captured.append(messages)
+        return final
+
+    monkeypatch.setattr(runtime_module, "ask_llm", fake_ask_llm)
+
+    runtime = AgentRuntime(
+        tmp_path,
+        recipe_store=recipe_store,
+    )
+
+    assert runtime.run("新しいToolを追加してください") == "候補を確認しました。"
+    assert any(
+        "Recipe promotion candidates" in str(message.get("content", ""))
+        for message in captured[0]
+        if message.get("role") == "system"
+    )
