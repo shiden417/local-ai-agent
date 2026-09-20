@@ -19,6 +19,8 @@ def create_default_tool_registry(
     memory_store: MemoryStore | None = None,
     *,
     enable_experimental: bool = False,
+    experimental_plugin_root: str | Path | None = None,
+    experimental_recipe_path: str | Path | None = None,
 ) -> ToolRegistry:
     """Create the default local capability set."""
     registry = ToolRegistry()
@@ -449,11 +451,9 @@ def create_default_tool_registry(
         from agent.plugin_manager import PluginManager
         from agent.recipe_store import RecipeStore
 
-        register_experimental_tools(
-            registry,
-            PluginManager(),
-            RecipeStore(),
-        )
+        plugins = PluginManager(experimental_plugin_root) if experimental_plugin_root else PluginManager()
+        recipes = RecipeStore(experimental_recipe_path) if experimental_recipe_path else RecipeStore()
+        register_experimental_tools(registry, plugins, recipes)
 
     return registry
 
