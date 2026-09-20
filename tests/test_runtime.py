@@ -288,10 +288,14 @@ def test_runtime_tracks_multiple_tasks_with_independent_history(
         and message.get("content") == "first"
         for message in seen_messages[0]
     )
-    assert not any(
+    assert any(
         message.get("role") == "user"
         and message.get("content") == "first"
         for message in seen_messages[1]
+    )
+    assert all(
+        message.get("content") != "second"
+        for message in seen_messages[0]
     )
 
 
@@ -745,3 +749,64 @@ def test_runtime_does_not_expose_tools_for_unsupported_live_information(
 
     assert result == "現在の天気情報を取得するToolはありません。"
     assert captured == [[]]
+
+
+def test_runtime_keeps_task_history_isolated_while_sharing_conversation_context(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    responses = [
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="了解しました。READMEを確認します。",
+                        tool_calls=[],
+                    )
+                )
+            ]
+        ),
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="先ほどの話を踏まえて続けます。",
+                        tool_calls=[],
+                    )
+                )
+            ]
+        ),
+    ]
+    seen = []
+
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm",
+        lambda messages, tools=None: (
+            seen.append(messages) or responses.pop(0)
+        ),
+    )
+
+    runtime = AgentRuntime(tmp_path)
+
+    assert runtime.run("READMEについて相談したい") == "了解しました。READMEを確認します。"
+    first = runtime.current_task
+    assert runtime.run("先ほどの話を踏まえて続けて") == "先ほどの話を踏まえて続けます。"
+    second = runtime.current_task
+
+    assert first is not None
+    assert second is not None
+    assert first.messages[1]["content"] == "READMEについて相談したい"
+    assert second.messages[1]["content"] == "先ほどの話を踏まえて続けて"
+    assert any(
+        message.get("content") == "READMEについて相談したい"
+        for message in seen[1]
+        if message.get("role") == "user"
+    )
+    assert any(
+        message.get("content") == "了解しました。READMEを確認します。"
+        for message in seen[1]
+        if message.get("role") == "assistant"
+    )
