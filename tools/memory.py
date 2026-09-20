@@ -51,4 +51,10 @@ def search_memory(
             }
             for entry in results
         ],
+        "hint": (
+            "No matching memories were found. Do not repeat the same search; "
+            "continue with the current task or use another Tool."
+            if not results
+            else None
+        ),
     }
