@@ -103,6 +103,9 @@ class ToolRegistry:
             )
         ]
 
+    def route_for(self, task_text: str):
+        return self.capability_router.route(task_text)
+
     def capabilities_for(self, task_text: str) -> set[Capability]:
         return self.capability_router.detect(task_text)
 
