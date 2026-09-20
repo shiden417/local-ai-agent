@@ -91,6 +91,10 @@ class ToolRegistry:
                 and (
                     tool.availability == "always"
                     or tool.name == "file_mutation"
+                    or any(
+                        capability in route.capabilities
+                        for capability in tool.capabilities
+                    )
                 )
             ]
 
