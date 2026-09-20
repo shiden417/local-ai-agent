@@ -106,6 +106,14 @@ def test_environment_context_loads_hierarchical_agents(tmp_path: Path):
 
 
 def test_fetch_web_page_extracts_readable_html(monkeypatch):
+    monkeypatch.setattr(
+        fetch_module.socket,
+        "getaddrinfo",
+        lambda *args, **kwargs: [
+            (2, 1, 6, "", ("93.184.216.34", 443)),
+        ],
+    )
+
     class FakeHeaders:
         def get_content_type(self):
             return "text/html"
@@ -320,3 +328,18 @@ def test_project_investigation_accepts_concrete_diagnostic(tmp_path: Path) -> No
         task,
         {"completion_status": "completed"},
     ) is None
+
+
+
+def test_fetch_web_page_blocks_localhost() -> None:
+    result = fetch_module.fetch_web_page("http://localhost:8080/internal")
+
+    assert result["ok"] is False
+    assert "localhost" in result["error"].lower()
+
+
+def test_fetch_web_page_blocks_private_ip() -> None:
+    result = fetch_module.fetch_web_page("http://192.168.1.1/status")
+
+    assert result["ok"] is False
+    assert "private" in result["error"].lower()
