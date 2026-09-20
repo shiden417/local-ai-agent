@@ -148,16 +148,19 @@ class AgentRuntime:
                 excluded_tools=self._disabled_tools,
             )
 
-            if self.task.no_progress_streak >= 2:
+            force_synthesis = (
+                self.task.no_progress_streak >= 2
+                or not available_tools
+            )
+            if force_synthesis:
                 llm_messages.append(
                     {
                         "role": "system",
                         "content": (
-                            "The task has not made progress in the last "
-                            f"{self.task.no_progress_streak} observations. "
                             "Do not call any more tools in this turn. "
                             "Synthesize the best direct answer from the "
-                            "observations already available."
+                            "observations already available and answer the "
+                            "user directly."
                         ),
                     }
                 )
@@ -178,8 +181,8 @@ class AgentRuntime:
                         {
                             "role": "system",
                             "content": (
-                                "The previous response was empty, only an empty "
-                                "empty JSON container. Continue the task using "
+                                "The previous response was empty or only an empty "
+                                "JSON container. Continue the task using "
                                 "the available observations and provide a "
                                 "direct answer to the user's request."
                             ),
