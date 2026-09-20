@@ -25,6 +25,9 @@ class _SafeRedirectHandler(HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
+urlopen = build_opener(_SafeRedirectHandler).open
+
+
 def _validate_public_url(url: str) -> None:
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"}:
@@ -141,10 +144,7 @@ def fetch_web_page(
     )
 
     try:
-        with build_opener(_SafeRedirectHandler).open(
-            request,
-            timeout=timeout_seconds,
-        ) as response:
+        with urlopen(request, timeout=timeout_seconds) as response:
             status = getattr(response, "status", None)
             final_url = response.geturl()
             content_type = response.headers.get_content_type()
