@@ -60,7 +60,7 @@ def test_file_tools_can_use_explicit_absolute_local_paths(
 
     assert created["ok"] is True
     assert listed["ok"] is True
-    assert listed["path"] == str(target_dir.resolve())
+    assert listed["path"] == "external"
     assert listed["entries"][0]["name"] == "hello.txt"
     assert read["ok"] is True
     assert read["content"] == "1: hello"
