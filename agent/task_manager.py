@@ -7,6 +7,10 @@ from uuid import uuid4
 from agent.task import TaskState, TaskStatus
 
 
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 @dataclass
 class ManagedTask:
     """A task record owned by the Agent TaskManager."""
