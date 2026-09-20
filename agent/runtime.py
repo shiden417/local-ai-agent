@@ -537,7 +537,7 @@ class AgentRuntime:
                 f"path: {arguments.get('path', '')}"
             )
 
-        if name == "delete_file":
+        if name == "file_mutation":
             return (
                 "Agentがローカルファイルを削除しようとしています。\n"
                 f"path: {arguments.get('path', '')}"
