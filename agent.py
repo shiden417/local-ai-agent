@@ -72,6 +72,11 @@ def main() -> None:
             print("Learned permissionsをクリアしました。")
             continue
 
+        if lowered in {"/clear-context", "/clear-session"}:
+            runtime.clear_session_context()
+            print("Session Contextをクリアしました。")
+            continue
+
         if not command:
             continue
 
