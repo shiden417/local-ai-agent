@@ -379,6 +379,20 @@ class AgentRuntime:
                         ),
                     }
                 )
+            if self.task.last_tool_result_truncated:
+                llm_messages.append(
+                    {
+                        "role": "system",
+                        "content": (
+                            "The latest Tool result was truncated before reaching its full size. "
+                            "Do not ignore the task because of this. Use the retained portion and the "
+                            "tool-level `truncated` flag. If the missing portion is necessary for the "
+                            "requested conclusion, use a more focused relevant observation or explain "
+                            "the limitation instead of giving a generic response."
+                        ),
+                    }
+                )
+
             if self.task.last_failure_status:
                 llm_messages.append(
                     {
@@ -661,6 +675,7 @@ class AgentRuntime:
                     new_information=observation_is_new,
                     progress_state=evaluation.state,
                     failure_status=outcome_status if not bool(result.get("ok")) else None,
+                    result_truncated=truncated,
                 )
                 self.task_manager.update_timestamp(current_task)
 

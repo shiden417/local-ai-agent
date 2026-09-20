@@ -1,52 +1,45 @@
 # local-ai-agent
 
-Ollama + Qwen3:8B + LiteLLM を使ったローカルAI Agentです。
+LM Studio + Qwen3:8B を基盤にした、無料・ローカル・無制限利用を目標とする汎用AI Agentです。
 
 ## Goal
 
-最初の実用ユースケースはソフトウェア開発支援ですが、最終的にはJ.A.R.V.I.S.のような汎用Local AI Agentへ発展させることを目標にします。
+最終目標は、Iron ManのJ.A.R.V.I.S.のように、文字で指示するとPC上で状況を判断し、必要なToolを使い、結果を確認しながら仕事を進める個人用AIアシスタントです。
 
-Agent Coreは特定用途に依存せず、Toolを追加することで能力を拡張できる構成を採用します。
+音声入出力は将来拡張とし、v1では通常の文字入力を中心にします。
 
-想定する将来の能力:
-
-- ローカルファイル・PC操作
-- ソフトウェア開発
-- Web / API
-- データベース
-- Git
-- スケジュール・自動化
-- 音声入出力
-- Memory / Task management
+クラウドLLM APIの従量課金や利用回数制限には依存せず、LLM推論はローカルPC上で実行します。Web検索など外部サービスを利用する機能には、そのサービス側の制約があります。
 
 ## Architecture
 
     User
       ↓
-    Conversation Context
+    JARVIS Terminal UI
+      ↓
+    Conversation / Session Context
       ↓
     Agent Runtime
       ↓
     Capability Router
       ├─ Direct: obvious conversation → no tools
       ├─ Scoped: expose relevant capability families
-      └─ Open: ambiguous → no on-demand tools; avoid speculative actions
+      └─ Open: avoid speculative actions
       ↓
-    LLM abstraction
+    LM Studio OpenAI-compatible API
       ↓
-    Ollama / Qwen3:8B
+    Qwen3:8B
       ↓
     Native Tool Calling
       ↓
     Tool Registry / Dispatcher
-      ├─ Built-in Tools
-      ├─ Temporary Script capability
-    ├─ Web Search capability
-      ├─ Capability Management
-      │    └─ Quarantine → Promote → Load
-      └─ future capabilities
+      ├─ Filesystem
+      ├─ PowerShell
+      ├─ Web Search / Web Page
+      ├─ Python
+      ├─ Memory
+      └─ Capability / Plugin management
       ↓
-    Observation / Context Management
+    Observation / Progress / Loop Guard
       ↓
     Agent decides next action
       ↓
@@ -54,65 +47,68 @@ Agent Coreは特定用途に依存せず、Toolを追加することで能力を
       ↓
     Final answer
 
+LM Studio provides the local model server and OpenAI-compatible API. The Agent Runtime remains responsible for state, safety, tool execution, and autonomous iteration. LM Studio also supports Tool Use and MCP for future expansion. See the official documentation: https://lmstudio.ai/docs/developer
+
 ## Current implementation
 
-現時点では、ローカルPC上でのCoding / Automationを最初の用途として、次のToolを提供しています。
+Agent Coreには、1つの依頼を独立して追跡するTaskState、実行状態、観測履歴、Progress判定、Loop Guard、Recovery、Session Context、Long-term Memoryを実装しています。
 
-Agent Coreには、1つの依頼を独立して追跡するTaskStateと軽量な実行状態・観測履歴を実装しています。さらに、Action identity（同一Tool呼び出し）、Observation identity（得られた知識）、Progress（目的への前進）を分離して管理します。Runtimeは毎回Task dashboardをLLMへ提示し、Capability RouterでToolの公開範囲だけを調整します。最終的な「Toolを使うか」「どのToolを使うか」はQwen3:8Bが判断します。明らかな会話はDirect、具体的な作業はScoped、曖昧な依頼はOpenとして扱います。Openでは現在、推測によるTool実行を防ぐためon-demand Toolを公開しません。将来、Web/APIなどの追加Capabilityを導入する際に、Openの扱いを拡張できる構造にします。別Planner Agentを増やさず、Qwen3:8Bへの呼び出し回数を必要以上に増やさない方針です。
+ToolはToolRegistryに登録され、Runtimeが実際の操作を実行します。Qwen3:8BはToolを直接実行せず、Tool呼び出しを要求し、Runtimeが実行結果をLLMへ返します。
 
-Long-term MemoryはAgent CoreのTask履歴とは分離し、ユーザーホーム配下のローカルJSONへ永続化します。検索は現在キーワードベースで、外部サービスやクラウドへ送信しません。
+現在の主要Tool:
 
 - list_directory - workspace内の一覧取得
-- read_file - テキストファイルの読み取り
+- read_file - ローカルファイル読み取り
 - search_files - ローカルファイル検索
-- file_mutation - ローカルファイルの作成・編集・削除
+- file_mutation - ローカルファイル作成・編集・削除
 - execute_command - PowerShellコマンド実行
-- search_web - 現在・未来の外部情報をWeb検索（読み取り専用）
-- fetch_web_page - 検索結果などの公開Web URLからWeb本文を取得（読み取り専用。localhost/private/reserved network targetsは拒否）
-- run_python_script - 専用Toolがない処理を一時Python Scriptとして実行
-- list_promotion_candidates - 繰り返し成功したRecipeをPromotion候補として取得
-- generate_plugin - RecipeからPlugin候補をLLM生成
-- test_plugin_candidate - 生成Pluginを子プロセスで確認付き検証
-- stage_plugin - 新しいPluginを検疫領域へ配置
-- promote_plugin - 検疫済みPluginを確認付きで有効化
-- save_memory - 将来も利用する情報をローカルMemoryへ保存
-- search_memory - 過去のローカルMemoryを検索
+- search_web - Web検索
+- fetch_web_page - 公開Webページ本文取得
+- run_python_script - 一時Python Script実行
+- save_memory / search_memory - ローカルMemory
+- Recipe / Plugin capability management
 
-成功したrun_python_scriptはRecipeStoreへ自動保存されます。関連する次のTaskでは、過去に成功したRecipeをLLMへ参考情報として提示します。Recipeは成功実績の再利用を目的としたもので、自動で正式Pluginにはしません。Capability管理Taskでは、候補を `generate_plugin` でPlugin化し、`test_plugin_candidate` で実行検証した後、`stage_plugin` → `promote_plugin` の順で永続化できます。
+## LM Studio
 
-永続Capabilityを作る場合は、Agentがstage_pluginでPluginを検疫領域へ配置し、構文・契約を検証した後、promote_pluginでユーザー確認を経て有効化できます。有効Pluginは固定ブートストラップ経由の子Pythonプロセスとして実行され、Agent Coreのプロセス内ではPluginコードを実行しません。
+LM Studioのローカルサーバーを起動し、Qwen3:8Bをロードして使用します。
 
-LLMとの通信には、独自JSON文字列プロトコルではなく、LiteLLMのNative Tool Calling形式を使用します。
+推奨モデル:
 
-ToolはToolRegistryに登録され、RuntimeはTool名から実装をディスパッチします。
+    qwen/qwen3-8b
 
-## Safety
+LM Studioのモデル一覧ではQwen3-8Bが提供されており、Reasoningをサポートします。Tool Useではモデル側のTool Calling対応も重要です。
 
-Agentの操作には実行環境に応じた安全策を設定します。
+通常はLM StudioのDeveloperタブからServerを起動します。
 
-- 作業ディレクトリ内の相対パスはworkspace外へ脱出できないよう制限
-- ユーザーが明示したローカル絶対パスはFile Toolで扱える
-- Toolごとに確認が必要か設定可能
-- Runtimeは常時Auto Modeで動作し、安全と判定した通常のworkspace操作は確認なしで実行します。高リスク操作は確認または拒否とし、ユーザーが明示的に許可した操作パターンはローカル承認Policyへ学習できます。Auto Mode自体の切り替えUIは設けません。
-- file_mutationによる変更は実行前にユーザー確認
-- 代表的な破壊・書き込み系PowerShell/Git操作は確認
-- execute_commandは30秒timeout
-- run_python_scriptは15秒timeout（最大30秒）・スクリプト12,000文字・出力8,000文字に制限
-- run_python_scriptは子プロセスで実行し、実行前にユーザー確認
-- Pluginは有効化後も常にユーザー確認が必要
-- Plugin実行は子プロセスで行い、Coreプロセス内ではPluginコードを実行しない
-- timeout時はプロセスを終了
-- Tool結果のサイズを制限してLLMへ返す
+CLIを利用する場合:
 
-Safety判定は現在は保守的なヒューリスティックであり、完全なセキュリティサンドボックスではありません。
+    lms server start
+
+利用可能なモデルの確認:
+
+    lms ls
+
+APIの既定値:
+
+    LM_STUDIO_BASE_URL=http://localhost:1234/v1
+    LM_STUDIO_MODEL=qwen/qwen3-8b
+
+モデルIDが環境によって異なる場合は、環境変数で変更できます。
+
+PowerShell:
+
+    $env:LM_STUDIO_MODEL="実際のモデルID"
 
 ## Requirements
 
 - Windows
 - Python 3.12+
-- Ollama
+- LM Studio
 - Qwen3:8B
-- LiteLLM
+- OpenAI Python SDK
+- ddgs
+
+Ollamaは不要です。
 
 ## Setup
 
@@ -126,102 +122,79 @@ Agentを操作したい作業ディレクトリで起動します。
 
     python agent.py
 
-Agent Runtimeは起動時のカレントディレクトリをworkspaceとして固定します。通常会話はTaskを作らず、具体的な作業要求だけをAgent Taskへ自動ルーティングします。
-Runtimeは各Taskの完了後に短いSession Contextを保持し、次のTaskへcurrent topic、重要事実、直前の回答、参照URLを引き継ぎます。明確なFollow-upでは前TaskのCapabilityも再利用し、継続質問なら有用な事実・参照URLを保持します。さらにWorkspace、OS、現在時刻、Git状態、関連するAGENTS.mdルールをRuntime側で環境コンテキストとして提示します。
-Web調査ではsearch_webで検索し、検索結果だけで詳細が不足する場合はfetch_web_pageで本文を取得します。最新・公式・リリース・変更点などの依頼では、検索だけで完了せず一次情報ページの取得を要求します。finish_taskはRuntimeの決定論的検証を通過してからTaskを完了します。プロジェクト調査では一覧取得だけで完了せず、ファイル確認・検索・テストなどの具体的な診断を要求します。
-起動時にはModel、workspace、学習済み承認ルール数を表示し、Task/Tool/Verifyの進行状況を見やすく表示します。Qwen3:8Bが反復生成で停止した場合は、短い再試行と最終的なthinking無効化による緊急フォールバックを行います。
+起動時にはModel、workspace、Auto承認ルール数が表示されます。
 
-## Learned approvals
+基本操作:
 
-変更系Toolなど、確認が必要な操作は初回だけユーザーに確認できます。`a` を選ぶと、その操作パターンをローカルの `~/.local-ai-agent/approvals.json` に保存し、次回から自動承認します。
+    You > WpfGisLearningを確認して、テストを実行して問題があれば修正して。
 
-承認ルールは操作ごとに粒度を変えます。workspace内のファイル作成・編集は操作種別単位、削除・PowerShellコマンド・一時Python Script・Plugin管理などは、より具体的な操作単位で記憶します。危険な操作を一括で無制限に許可する仕組みにはしていません。
+JARVIS v1では、ユーザーの1回の依頼に対して、必要なToolを複数回使い、観測結果から次のActionを判断する自律実行を重視します。
 
-ターミナルでは `/permissions` で現在の学習済みルールを確認でき、`/clear-permissions` で全ルールを削除できます。
+## Commands
+
+- /tasks - Task一覧
+- /permissions - 学習済み承認ルール
+- /clear-permissions - 承認ルール削除
+- /clear-context - Session Context削除
+- /exit - 終了
+
+## Safety
+
+- workspace内の相対パスはworkspace外へ脱出できないよう制限
+- 明示されたローカル絶対パスはFile Toolで扱える
+- 変更・実行系Toolには確認ポリシーを設定可能
+- Auto Modeでは安全と判定された通常操作を確認なしで実行
+- 高リスク操作は確認または拒否
+- ユーザーが明示的に許可した操作パターンはローカル承認Policyへ保存
+- execute_commandにはtimeoutを設定
+- run_python_scriptは子プロセスで実行し、時間・サイズを制限
+- Pluginは検疫・検証を経て有効化
+- Tool結果のサイズを制限してLLMへ返す
+
+Safety判定は完全なセキュリティサンドボックスではありません。信頼できないMCPやPluginは追加しないでください。
 
 ## Development
 
     python -m pytest -q
 
-GitHub ActionsでもWindows Runner上でテストを実行します。
+GitHub ActionsではWindows Runner上でテストします。
 
 ## Roadmap
 
-### Agent Core
-- Conversation / Agent自動切替（Runtime + Capability Router）
-- Runtime Environment Awareness
-- Session Context（Task間のcompact context）
-- Deterministic Completion Verification
-- AGENTS.md階層ルール解決
+### JARVIS Core
 - Agent loopの収束・安定化
-- Taskごとの独立した実行履歴
-- セッション内の会話コンテキスト
-- Task observation ledger（観測結果・新規情報・進捗）
-- Runtime-managed execution dashboard
-- Action / Observation / Progressの分離
-- Direct / Scoped / OpenのCapability routing
-- Task内の重複Tool Call検知・Tool quarantine
-- Tool Failure Recoveryの一時Quarantine
+- Deterministic Completion Verification
+- AGENTS.md階層ルール
 - Context compaction
-- Task Manager
-- Task-aware Capability routing
-- Direct / Scoped / Open tool exposure
-- permission policyの強化
+- Task管理
+- より高度なLong-term Memory
+- Goal / task decomposition
+- Proactive behavior
 
-### Capability learning
-- 成功した一時ScriptのRecipe化
-- Recipe再利用
-- Recipe使用回数に基づくPromotion候補検出
-- RecipeからPlugin候補をLLM生成
-- 生成Pluginの構文・契約検証
-- 生成Pluginの子プロセスによる確認付きテスト
-- PluginをQuarantineへStage
-- 確認付きPromotionと動的ロード
-- Agentからのlist_promotion_candidates / stage_plugin / promote_pluginによるCapability獲得
-
-### Tools
-- Web Search（DDGS metasearch）
-- Web Page Fetch（read-only HTTP/HTML extraction）
+### Capabilities
 - Git
 - Web / HTTP
 - Database
 - Windows automation
 - Scheduler
 - Notifications
+- MCP integration
 
 ### Interaction
-- 会話履歴
-- Taskの一覧確認
-- 音声入力 (STT)
-- 音声出力 (TTS)
 - GUI
 - 常駐 / event-driven execution
-
-### Intelligence
-- Goal / task decomposition
-- Long-term memoryの高度化
-- Planningの強化
-- Proactive behavior
-- 長期的な自己改善・評価基盤
-
+- 音声入力 / 出力
+- より自然なJARVIS UI
 
 ## Design principles
 
 - LLMは判断する
-- Runtimeは実行する
+- Runtimeは状態・安全性・進捗を管理する
 - Toolは明確な責務を持つ
 - Agent Coreに特定用途のロジックを埋め込まない
-- ToolはRegistry経由で追加できるようにする
-- Tool結果はLLMへ返す前にサイズを制限する
-- Task内容に応じてTool capabilityの公開範囲だけを調整する
-- 明らかな会話ではToolを公開せず、具体的な作業では該当Capabilityを公開し、曖昧な依頼ではQwen3:8Bへ判断を委ねる
-- 同じTool + 同じ引数のTask内重複実行を検知し、該当ToolをTask単位で一時無効化する
-- Tool結果の意味的な観測同一性を判定し、新しい情報が得られたかを追跡する
-- 観測の新規性と、目的に対する実際のProgressを別々に判定する
-- Runtime-managed dashboardでGoal / Phase / Progress / Recent observations / Disabled toolsをLLMへ明示する
-- Task間の実行履歴を混在させない
-- セッション会話はTask履歴とは別に保持し、直近の会話だけをLLMへ渡す
-- ContextはTool CallとTool Resultの会話ブロックを壊さずに圧縮する
-- workspace外のアクセスを許可しない
+- ToolはRegistry経由で追加する
+- 同じTool + 同じ引数の重複実行を検知する
+- 観測の新規性と目的へのProgressを分離する
+- workspace外の意図しないアクセスを防ぐ
 - 変更操作は確認可能にする
-- 巨大なAgent Frameworkをそのまま導入せず、必要な機能を段階的に自作する
+- 巨大なAgent Frameworkをそのまま導入せず、必要な機能を段階的に実装する

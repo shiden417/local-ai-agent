@@ -41,12 +41,13 @@ class TerminalUI:
         inner = width - 4
         print()
         print(self._c("╭" + "─" * (width - 2) + "╮", CYAN))
-        print(self._c("│", CYAN) + f"  {BOLD}Local AI Agent{RESET if self.enabled else ''}".ljust(inner) + self._c("│", CYAN))
+        title = f"  {BOLD}J.A.R.V.I.S. Local Agent{RESET if self.enabled else ''}"
+        print(self._c("│", CYAN) + title.ljust(inner) + self._c("│", CYAN))
         print(self._line("Model", self.model, inner))
         print(self._line("Workspace", workspace, inner))
         print(self._line("Approval", approval_mode, inner))
         print(self._c("╰" + "─" * (width - 2) + "╯", CYAN))
-        print(self._c("Commands: /tasks  /permissions  /clear-permissions  /exit", GRAY))
+        print(self._c("Commands: /tasks  /permissions  /clear-permissions  /clear-context  /exit", GRAY))
         print()
 
     def task_start(self, goal: str, task_id: str) -> None:
