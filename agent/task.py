@@ -126,14 +126,13 @@ class TaskState:
         else:
             self.consecutive_failures = 0
             self.last_failure_status = None
-
-        elif self.recovery_tool == name:
-            # Keep the failed tool quarantined until a different successful
-            # observation gives the model new evidence.
-            self.recovery_tool = None
-        elif progress_state == ProgressState.PROGRESSED:
-            # A useful alternative observation completes the recovery step.
-            self.recovery_tool = None
+            if self.recovery_tool == name:
+                # Keep the failed tool quarantined until a successful
+                # observation confirms it can be used again.
+                self.recovery_tool = None
+            elif progress_state == ProgressState.PROGRESSED:
+                # A useful alternative observation completes the recovery step.
+                self.recovery_tool = None
 
         if progress_state == ProgressState.PROGRESSED:
             self.progress_count += 1
