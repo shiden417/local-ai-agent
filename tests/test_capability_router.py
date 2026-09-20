@@ -122,3 +122,19 @@ def test_router_adds_workspace_read_to_project_investigation() -> None:
     assert route.mode == RoutingMode.SCOPED
     assert Capability.PROCESS in route.capabilities
     assert Capability.WORKSPACE_READ in route.capabilities
+
+
+
+def test_router_scopes_project_inspection() -> None:
+    route = CapabilityRouter().route("このプロジェクトを見て")
+
+    assert route.mode == RoutingMode.SCOPED
+    assert Capability.WORKSPACE_READ in route.capabilities
+
+
+def test_router_scopes_bug_fix_without_requiring_a_filename() -> None:
+    route = CapabilityRouter().route("このバグを修正して")
+
+    assert route.mode == RoutingMode.SCOPED
+    assert Capability.WORKSPACE_WRITE in route.capabilities
+    assert Capability.WORKSPACE_READ in route.capabilities
