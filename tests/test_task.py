@@ -1,4 +1,4 @@
-from agent.task import TaskPhase, TaskState, TaskStatus
+from agent.task import ProgressState, TaskPhase, TaskState, TaskStatus
 
 
 def test_task_lifecycle() -> None:
