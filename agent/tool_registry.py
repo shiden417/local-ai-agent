@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from agent.capability_router import Capability, CapabilityRouter
+
 
 ToolHandler = Callable[[Path, dict[str, Any]], dict[str, Any]]
 
@@ -18,23 +20,7 @@ class ToolDefinition:
     use_when: str = ""
     avoid_when: str = ""
     availability: str = "always"
-    routing_hints: tuple[str, ...] = ()
-
-    def is_candidate(self, task_text: str) -> bool:
-        """Return whether this tool should be exposed for the current task."""
-        if self.availability == "always":
-            return True
-        if self.availability != "on_demand":
-            raise ValueError(
-                f"Unsupported tool availability: {self.availability}"
-            )
-
-        normalized = task_text.casefold()
-        return any(
-            hint.casefold() in normalized
-            for hint in self.routing_hints
-            if hint.strip()
-        )
+    capabilities: tuple[Capability, ...] = ()
 
     def schema(self) -> dict[str, Any]:
         description = self.description.strip()
@@ -56,12 +42,20 @@ class ToolDefinition:
 class ToolRegistry:
     """Registry and dispatcher for agent capabilities."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        capability_router: CapabilityRouter | None = None,
+    ) -> None:
         self._tools: dict[str, ToolDefinition] = {}
+        self.capability_router = capability_router or CapabilityRouter()
 
     def register(self, tool: ToolDefinition) -> None:
         if tool.name in self._tools:
             raise ValueError(f"Tool already registered: {tool.name}")
+        if tool.availability not in {"always", "on_demand"}:
+            raise ValueError(
+                f"Unsupported tool availability: {tool.availability}"
+            )
         self._tools[tool.name] = tool
 
     @property
@@ -73,13 +67,30 @@ class ToolRegistry:
         task_text: str,
         excluded_tools: set[str] | None = None,
     ) -> list[dict[str, Any]]:
-        """Expose relevant capabilities while allowing runtime quarantine."""
+        """Expose only relevant capability families to the LLM.
+
+        This is a capability gate, not a decision about whether a tool should
+        actually be used. Once a capability is exposed, the LLM chooses the
+        concrete tool and decides whether to call it.
+        """
         excluded = excluded_tools or set()
+        capabilities = self.capability_router.detect(task_text)
+
         return [
             tool.schema()
             for tool in self._tools.values()
-            if tool.name not in excluded and tool.is_candidate(task_text)
+            if tool.name not in excluded
+            and (
+                tool.availability == "always"
+                or any(
+                    capability in capabilities
+                    for capability in tool.capabilities
+                )
+            )
         ]
+
+    def capabilities_for(self, task_text: str) -> set[Capability]:
+        return self.capability_router.detect(task_text)
 
     def get(self, name: str) -> ToolDefinition | None:
         return self._tools.get(name)
