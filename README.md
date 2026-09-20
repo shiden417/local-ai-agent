@@ -14,7 +14,7 @@ LM Studio + Qwen3:8B を基盤にした、無料・ローカル・無制限利�
 
     User
       ↓
-    JARVIS Terminal UI
+    J.A.R.V.I.S. Terminal UI
       ↓
     Conversation / Session Context
       ↓
@@ -29,7 +29,7 @@ LM Studio + Qwen3:8B を基盤にした、無料・ローカル・無制限利�
       ↓
     Qwen3:8B
       ↓
-    Native Tool Calling
+    Tool Calling
       ↓
     Tool Registry / Dispatcher
       ├─ Filesystem
@@ -47,7 +47,9 @@ LM Studio + Qwen3:8B を基盤にした、無料・ローカル・無制限利�
       ↓
     Final answer
 
-LM Studio provides the local model server and OpenAI-compatible API. The Agent Runtime remains responsible for state, safety, tool execution, and autonomous iteration. LM Studio also supports Tool Use and MCP for future expansion. See the official documentation: https://lmstudio.ai/docs/developer
+LM Studio provides the local model server and OpenAI-compatible API. The Agent Runtime remains responsible for task state, safety, tool execution, and autonomous iteration. LM Studio's OpenAI-compatible API is intentionally used here because it lets the project use LM Studio as the inference layer without transferring safety and workspace policy into the model server.
+
+LM Studio also provides a native Python SDK and an `.act()` automatic multi-round agent API. The current JARVIS core keeps its own Runtime loop instead of delegating execution to `.act()`, because the project needs centralized capability routing, workspace boundaries, approvals, observation tracking, recovery, and task verification. This avoids maintaining two competing execution-control layers.
 
 ## Current implementation
 
@@ -70,23 +72,11 @@ ToolはToolRegistryに登録され、Runtimeが実際の操作を実行します
 
 ## LM Studio
 
-LM Studioのローカルサーバーを起動し、Qwen3:8Bをロードして使用します。
+LM StudioのDeveloper tabでServerを起動し、Qwen3:8Bをロードして使用します。
 
 推奨モデル:
 
     qwen/qwen3-8b
-
-LM Studioのモデル一覧ではQwen3-8Bが提供されており、Reasoningをサポートします。Tool Useではモデル側のTool Calling対応も重要です。
-
-通常はLM StudioのDeveloperタブからServerを起動します。
-
-CLIを利用する場合:
-
-    lms server start
-
-利用可能なモデルの確認:
-
-    lms ls
 
 APIの既定値:
 
@@ -98,6 +88,12 @@ APIの既定値:
 PowerShell:
 
     $env:LM_STUDIO_MODEL="実際のモデルID"
+
+### Why the Agent uses the OpenAI-compatible API
+
+LM Studio officially supports the OpenAI-compatible `/v1/chat/completions` endpoint, including custom function tools. Existing OpenAI client code can point its `base_url` at LM Studio. This keeps the integration small and lets LM Studio handle local inference and Tool Call parsing, while J.A.R.V.I.S. keeps responsibility for execution policy and safety.
+
+The native `lmstudio-python` SDK remains a useful future option for features that specifically benefit from LM Studio's SDK, such as model lifecycle management or the SDK's built-in `.act()` agent flow. It is not duplicated in v1 while the custom Runtime remains the source of truth for execution.
 
 ## Requirements
 

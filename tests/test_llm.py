@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from agent import llm
 
 
@@ -20,32 +22,31 @@ def test_ask_llm_uses_lm_studio_openai_compatible_request(monkeypatch) -> None:
     )
 
     assert result.ok is True
-    assert captured["model"] == llm.MODEL
-    assert captured["temperature"] == llm.TEMPERATURE
-    assert captured["max_tokens"] == llm.DEFAULT_MAX_TOKENS
-    assert captured["tools"]
+    assert captured == {
+        "model": llm.MODEL,
+        "messages": [{"role": "user", "content": "こんにちは"}],
+        "tools": [{"type": "function", "function": {"name": "test"}}],
+    }
 
 
-def test_ask_llm_retries_after_recoverable_generation_error(monkeypatch) -> None:
-    calls = []
+def test_ask_llm_omits_tools_when_not_provided(monkeypatch) -> None:
+    captured = {}
 
     def fake_create(**kwargs):
-        calls.append(kwargs)
-        if len(calls) == 1:
-            raise RuntimeError("prediction aborted, token repeat limit reached")
+        captured.update(kwargs)
         return SimpleNamespace(ok=True)
 
     monkeypatch.setattr(llm._client.chat.completions, "create", fake_create)
 
-    result = llm.ask_llm([{"role": "user", "content": "実行してください"}])
+    llm.ask_llm([{"role": "user", "content": "こんにちは"}])
 
-    assert result.ok is True
-    assert len(calls) == 2
-    assert calls[0]["max_tokens"] == llm.DEFAULT_MAX_TOKENS
-    assert calls[1]["max_tokens"] == llm.RECOVERY_MAX_TOKENS
+    assert captured == {
+        "model": llm.MODEL,
+        "messages": [{"role": "user", "content": "こんにちは"}],
+    }
 
 
-def test_ask_llm_does_not_retry_unrelated_error(monkeypatch) -> None:
+def test_ask_llm_propagates_provider_errors(monkeypatch) -> None:
     calls = []
 
     def fake_create(**kwargs):
@@ -53,8 +54,6 @@ def test_ask_llm_does_not_retry_unrelated_error(monkeypatch) -> None:
         raise RuntimeError("connection failed")
 
     monkeypatch.setattr(llm._client.chat.completions, "create", fake_create)
-
-    import pytest
 
     with pytest.raises(RuntimeError, match="connection failed"):
         llm.ask_llm([{"role": "user", "content": "こんにちは"}])
