@@ -122,7 +122,7 @@ Agentを操作したい作業ディレクトリで起動します。
 
     python agent.py
 
-起動時にはModel、workspace、Auto承認ルール数が表示されます。
+起動時にはModel、workspace、Auto承認ルール数が表示されます。通常起動ではローカルのJSONL Traceも記録され、LLM/ToolのLatency、Promptサイズ、Tool Schemaサイズ、利用トークンを後から確認できます。
 
 基本操作:
 
@@ -135,6 +135,7 @@ JARVIS v1では、ユーザーの1回の依頼に対して必要なToolを複数
 実機のLM Studio + Local LLMで、自律Taskの最低限の回帰確認を行えます。
 
     python tools/benchmark_agent.py
+    python tools/benchmark_agent.py --output benchmark.json
 
 ベンチマークは一時workspace上で、ファイル作成、Session Contextを使ったFollow-up、ファイル調査→修正→pytest実行の3 Taskを確認します。確認用workspace内だけを変更し、ベンチマークでは承認コールバックを自動許可するため、Safetyの対話UI自体ではなくAgentのTool選択・実行・完了確認を評価します。
 
@@ -151,6 +152,14 @@ JARVIS v1では、ユーザーの1回の依頼に対して必要なToolを複数
 - /clear-permissions - 承認ルール削除
 - /clear-context - Session Context削除
 - /exit - 終了
+
+## Performance and Agent evaluation
+
+J.A.R.V.I.S.はデフォルトで `~/.local-ai-agent/traces.jsonl` に軽量な実行Traceを保存します。Prompt本文やTool payloadはデフォルトでは保存せず、性能分析に必要なLatency、Prompt/Schemaサイズ、Token usage、Tool実行時間などを記録します。詳細payloadが必要な一時調査では `JARVIS_TRACE_INCLUDE_PAYLOADS=1` を明示して有効化できます。Traceは10MBでローテーションします。
+
+Qwen3系でThinking制御を試す場合は `LM_STUDIO_THINKING_MODE=default|think|no_think` を指定できます。デフォルトは `default` で、既存挙動を変えません。モデルがQwen系でない場合、この設定は適用されません。
+
+Benchmarkは一時workspace上でAgentの実動作を評価し、TraceからLatencyとToken使用量を集計できます。Qwen3と他モデルを同一条件で比較する場合は `--model` を使います。
 
 ## Safety
 
