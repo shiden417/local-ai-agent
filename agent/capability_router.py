@@ -49,6 +49,8 @@ class CapabilityRouter:
     _PATTERNS: dict[Capability, tuple[str, ...]] = {
         Capability.WORKSPACE_READ: (
             r"フォルダ.{0,12}(中|一覧|何がある|調べ|確認)",
+            r"設定.{0,12}(確認|調べ|内容)",
+            r"(調査|調べ).{0,8}(して|する|してください|お願い)",
             r"ディレクトリ.{0,12}(中|一覧|何がある|調べ|確認)",
             r"ファイル.{0,12}(内容|中身|読ん|開い|読み取|確認|調べ)",
             r"(README|AGENTS\.md|pyproject\.toml|requirements\.txt|\.csproj|\.slnx?)",
@@ -73,6 +75,7 @@ class CapabilityRouter:
             r"\b(add|create|generate|improve|install|enable)\b.{0,20}\b(tool|plugin|capability)\b",
         ),
         Capability.PROCESS: (
+            r"(作業|タスク).{0,12}(完了|終了|進め|実行|して|してください)",
             r"(テスト|pytest).{0,12}(実行|走らせ|回し|して)",
             r"(ビルド|build).{0,12}(実行|して)?",
             r"(コマンド|PowerShell).{0,12}(実行|打|走らせ|して)",
@@ -123,19 +126,13 @@ class CapabilityRouter:
             )
         }
 
-        # Control tools are available only inside concrete Agent tasks.
-        if capabilities:
-            capabilities.add(Capability.AGENT_CONTROL)
-
         # Explicit requests to add or change the Agent's capabilities
         # are routed to capability management only. Do not expose unrelated
         # workspace/script tools at the same time.
         if Capability.CAPABILITY_MANAGEMENT in capabilities:
             return CapabilityRoute(
                 mode=RoutingMode.SCOPED,
-                capabilities=frozenset(
-                    {Capability.CAPABILITY_MANAGEMENT, Capability.AGENT_CONTROL}
-                ),
+                capabilities=frozenset({Capability.CAPABILITY_MANAGEMENT}),
             )
 
         # Local file edits normally require inspection first. Keep the
