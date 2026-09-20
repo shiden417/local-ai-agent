@@ -3,6 +3,7 @@ from pathlib import Path
 from agent.safety import SafetyPolicy
 from agent.llm import MODEL
 from agent.runtime import AgentRuntime
+from agent.trace import TraceRecorder
 from agent.terminal_ui import TerminalUI
 
 
@@ -21,6 +22,20 @@ def print_tasks(runtime: AgentRuntime) -> None:
         )
 
 
+def print_stats(trace: TraceRecorder) -> None:
+    metrics = trace.summary()
+    print("\nAgent statistics:")
+    print(f"- LLM calls: {metrics['llm_calls']}")
+    print(f"- Tool calls: {metrics['tool_calls']}")
+    print(f"- Avg LLM latency: {metrics['avg_llm_duration_ms']} ms")
+    print(f"- Avg Tool latency: {metrics['avg_tool_duration_ms']} ms")
+    print(f"- Prompt chars: {metrics['prompt_chars']}")
+    print(f"- Tool schema chars: {metrics['tool_schema_chars']}")
+    print(f"- Prompt tokens: {metrics['prompt_tokens']}")
+    print(f"- Completion tokens: {metrics['completion_tokens']}")
+    print(f"- Reasoning tokens: {metrics['reasoning_tokens']}")
+    print(f"- Trace: {trace.path}")
+
 def print_permissions(policy: SafetyPolicy) -> None:
     entries = policy.entries()
     if not entries:
@@ -35,10 +50,12 @@ def print_permissions(policy: SafetyPolicy) -> None:
 
 def main() -> None:
     ui = TerminalUI(MODEL)
+    trace = TraceRecorder()
     runtime = AgentRuntime(
         working_directory=Path.cwd(),
         max_iterations=10,
         terminal_ui=ui,
+        trace_recorder=trace,
     )
 
     ui.startup(
@@ -65,6 +82,10 @@ def main() -> None:
 
         if lowered == "/permissions":
             print_permissions(runtime.safety)
+            continue
+
+        if lowered in {"/stats", "/metrics"}:
+            print_stats(trace)
             continue
 
         if lowered in {"/clear-permissions", "/clear-approvals"}:

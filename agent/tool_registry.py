@@ -41,11 +41,13 @@ class ToolRegistry:
 
     def __init__(self) -> None:
         self._tools: dict[str, ToolDefinition] = {}
+        self._schema_cache: dict[tuple[bool, tuple[str, ...]], list[dict[str, Any]]] = {}
 
     def register(self, tool: ToolDefinition) -> None:
         if tool.name in self._tools:
             raise ValueError(f"Tool already registered: {tool.name}")
         self._tools[tool.name] = tool
+        self._schema_cache.clear()
 
     @property
     def schemas(self) -> list[dict[str, Any]]:
@@ -56,23 +58,26 @@ class ToolRegistry:
         excluded_tools: set[str] | None = None,
         include_control_tools: bool = False,
     ) -> list[dict[str, Any]]:
-        """Return all registered Tools eligible for this Agent task.
+        """Return all registered Tools eligible for this Agent task."""
+        excluded = tuple(sorted(excluded_tools or set()))
+        key = (include_control_tools, excluded)
+        cached = self._schema_cache.get(key)
+        if cached is not None:
+            return list(cached)
 
-        Tool selection is delegated to the model's Tool Calling. The Runtime
-        may still exclude a Tool temporarily during recovery or loop handling.
-        """
-        excluded = excluded_tools or set()
+        excluded_set = set(excluded)
         control_tools = {"ask_user", "finish_task"}
-
-        return [
+        schemas = [
             tool.schema()
             for tool in self._tools.values()
-            if tool.name not in excluded
+            if tool.name not in excluded_set
             and (
-                tool.name not in control_tools
-                or include_control_tools
+                include_control_tools
+                or tool.name not in control_tools
             )
         ]
+        self._schema_cache[key] = schemas
+        return list(schemas)
 
     def get(self, name: str) -> ToolDefinition | None:
         return self._tools.get(name)

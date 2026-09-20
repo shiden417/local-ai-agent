@@ -99,3 +99,30 @@ def test_default_registry_exposes_controls_for_agent_tasks() -> None:
     assert set(names) == set(registry.names())
 
 
+
+
+def test_tool_registry_caches_schemas_until_registration_changes() -> None:
+    registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="inspect",
+            description="Inspect",
+            parameters={"type": "object", "properties": {}, "required": []},
+            handler=lambda _working_directory, _arguments: {"ok": True},
+        )
+    )
+
+    first = registry.schemas_for()
+    second = registry.schemas_for()
+    assert first == second
+    assert first is not second
+
+    registry.register(
+        ToolDefinition(
+            name="write",
+            description="Write",
+            parameters={"type": "object", "properties": {}, "required": []},
+            handler=lambda _working_directory, _arguments: {"ok": True},
+        )
+    )
+    assert {item["function"]["name"] for item in registry.schemas_for()} == {"inspect", "write"}
