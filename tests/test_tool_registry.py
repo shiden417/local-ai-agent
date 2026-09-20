@@ -114,13 +114,7 @@ def test_registry_exposes_read_and_write_tools_for_edit_tasks() -> None:
         for schema in registry.schemas_for("READMEを修正してください")
     ]
 
-    assert edit_tools == [
-        "list_directory",
-        "read_file",
-        "search_files",
-        "create_file",
-        "edit_file",
-    ]
+    assert edit_tools == ["read_file", "search_files", "edit_file"]
 
 
 def test_registry_exposes_create_file_for_creation_request() -> None:
@@ -133,10 +127,17 @@ def test_registry_exposes_create_file_for_creation_request() -> None:
         for schema in registry.schemas_for("HTMLファイルを作成してください")
     ]
 
-    assert tools == [
-        "list_directory",
-        "read_file",
-        "search_files",
-        "create_file",
-        "edit_file",
+    assert tools == ["create_file"]
+
+
+def test_registry_exposes_delete_file_for_deletion_request() -> None:
+    from agent.tools import create_default_tool_registry
+
+    registry = create_default_tool_registry()
+
+    tools = [
+        schema["function"]["name"]
+        for schema in registry.schemas_for("test.htmlを削除してください")
     ]
+
+    assert tools == ["delete_file"]
