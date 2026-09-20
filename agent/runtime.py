@@ -159,6 +159,7 @@ class AgentRuntime:
         self.current_task = current_task
         self.task = current_task.state
         self.loop_guard.reset()
+        terminal_synthesis_required = False
         self.task.start()
         self.task_manager.update_timestamp(current_task)
 
@@ -220,7 +221,8 @@ class AgentRuntime:
             )
 
             force_synthesis = (
-                self.task.no_progress_streak >= 2
+                terminal_synthesis_required
+                or self.task.no_progress_streak >= 2
                 or not available_tools
             )
             if self.task.recovery_tool:
@@ -423,6 +425,22 @@ class AgentRuntime:
                         "content": bounded,
                     }
                 )
+
+                tool_definition = self.tool_registry.get(name)
+                if (
+                    bool(result.get("ok"))
+                    and tool_definition is not None
+                    and tool_definition.terminal_on_success
+                    and not any(
+                        capability.value in {
+                            "process",
+                            "memory_read",
+                            "memory_write",
+                        }
+                        for capability in route.capabilities
+                    )
+                ):
+                    terminal_synthesis_required = True
 
         self.task.hit_max_iterations()
         self.task_manager.update_timestamp(current_task)
