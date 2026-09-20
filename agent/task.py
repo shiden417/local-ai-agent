@@ -82,8 +82,6 @@ class TaskState:
                 self.no_progress_streak = 0
             else:
                 self.no_progress_streak += 1
-            else:
-                self.no_progress_streak += 1
         else:
             self.no_progress_streak = 0
 
