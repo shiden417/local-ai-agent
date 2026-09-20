@@ -160,3 +160,14 @@ def test_workspace_absolute_path_does_not_require_extra_confirmation_for_read_to
         )
         is False
     )
+
+
+def test_delete_file_requires_confirmation_for_external_path(tmp_path: Path) -> None:
+    registry = ToolRegistry()
+
+    assert requires_confirmation(
+        "delete_file",
+        {"path": r"C:\Users\example\OtherProject\test.txt"},
+        registry,
+        tmp_path,
+    ) is True
