@@ -15,12 +15,16 @@ def test_registry_exposes_openai_style_schema(tmp_path: Path) -> None:
                 "required": [],
             },
             handler=lambda _working_directory, _arguments: {"ok": True},
+            use_when="A greeting is needed.",
+            avoid_when="No greeting is required.",
         )
     )
 
     assert registry.names() == ("hello",)
     assert registry.schemas[0]["type"] == "function"
     assert registry.schemas[0]["function"]["name"] == "hello"
+    assert "When to use: A greeting is needed." in registry.schemas[0]["function"]["description"]
+    assert "Do not use for: No greeting is required." in registry.schemas[0]["function"]["description"]
 
 
 def test_registry_dispatches_tool(tmp_path: Path) -> None:
