@@ -1,6 +1,9 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 from agent.runtime import AgentRuntime
+from agent.tool_registry import ToolDefinition, ToolRegistry
+import agent.runtime as runtime_module
 
 
 def test_runtime_initializes_with_absolute_working_directory(tmp_path: Path) -> None:
@@ -15,3 +18,73 @@ def test_runtime_initializes_with_absolute_working_directory(tmp_path: Path) -> 
         "search_files",
         "execute_command",
     }
+
+
+def test_runtime_executes_tool_then_returns_final_response(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="hello",
+            description="Return a greeting",
+            parameters={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+            handler=lambda _working_directory, _arguments: {
+                "ok": True,
+                "message": "hello from tool",
+            },
+        )
+    )
+
+    tool_call = SimpleNamespace(
+        id="call-1",
+        function=SimpleNamespace(
+            name="hello",
+            arguments="{}",
+        ),
+    )
+    tool_message = SimpleNamespace(
+        role="assistant",
+        content="",
+        tool_calls=[tool_call],
+    )
+    final_message = SimpleNamespace(
+        role="assistant",
+        content="作業が完了しました。",
+        tool_calls=[],
+    )
+
+    responses = [
+        SimpleNamespace(
+            choices=[SimpleNamespace(message=tool_message)]
+        ),
+        SimpleNamespace(
+            choices=[SimpleNamespace(message=final_message)]
+        ),
+    ]
+
+    def fake_ask_llm(messages, tools):
+        assert tools[0]["function"]["name"] == "hello"
+        assert messages
+        return responses.pop(0)
+
+    monkeypatch.setattr(runtime_module, "ask_llm", fake_ask_llm)
+
+    runtime = AgentRuntime(
+        tmp_path,
+        tool_registry=registry,
+    )
+
+    result = runtime.run("挨拶してください")
+
+    assert result == "作業が完了しました。"
+    assert any(
+        message.get("role") == "tool"
+        and message.get("tool_call_id") == "call-1"
+        for message in runtime.messages
+    )
