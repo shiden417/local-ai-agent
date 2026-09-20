@@ -224,3 +224,51 @@ def test_runtime_records_max_iterations(
     assert runtime.task is not None
     assert runtime.task.status.value == "max_iterations"
     assert runtime.task.iteration == 2
+
+
+def test_runtime_tracks_multiple_tasks(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    first = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    role="assistant",
+                    content="first done",
+                    tool_calls=[],
+                )
+            )
+        ]
+    )
+    second = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    role="assistant",
+                    content="second done",
+                    tool_calls=[],
+                )
+            )
+        ]
+    )
+    responses = [first, second]
+
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm",
+        lambda _messages, tools=None: responses.pop(0),
+    )
+
+    runtime = AgentRuntime(tmp_path)
+
+    assert runtime.run("first") == "first done"
+    assert runtime.run("second") == "second done"
+
+    tasks = runtime.list_tasks()
+
+    assert len(tasks) == 2
+    assert tasks[0].goal == "second"
+    assert tasks[0].status.value == "completed"
+    assert tasks[1].goal == "first"
+    assert tasks[1].status.value == "completed"
