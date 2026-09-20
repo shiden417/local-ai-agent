@@ -13,6 +13,7 @@ class Capability(str, Enum):
     CAPABILITY_MANAGEMENT = "capability_management"
     MEMORY_READ = "memory_read"
     MEMORY_WRITE = "memory_write"
+    WEB_SEARCH = "web_search"
 
 
 class RoutingMode(str, Enum):
@@ -77,6 +78,13 @@ class CapabilityRouter:
             r"(起動|停止|インストール).{0,12}(して|する|を)",
             r"\b(pytest|powershell|git)\b",
             r"\b(run|execute|build|install|command)\b.{0,12}\b(it|this|test|project|command)?",
+        ),
+        Capability.WEB_SEARCH: (
+            r"(Web|web|WEB).{0,20}(検索|search|調べ|探して|情報)",
+            r"(ネット|インターネット|ネット上).{0,20}(検索|調べ|探して|情報)",
+            r"(検索|調べ|探して).{0,20}(Web|web|ネット|インターネット|最新|ニュース|公式サイト)",
+            r"(最新|現在|今日|最近).{0,20}(情報|ニュース).{0,20}(検索|調べ|探して)?",
+            r"\b(search|web search|internet|online)\b",
         ),
         Capability.MEMORY_READ: (
             r"(以前|前回|過去|覚えている|記憶|メモリ).{0,15}(確認|調べ|教え|思い出|検索)?",
