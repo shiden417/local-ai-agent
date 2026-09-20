@@ -68,7 +68,7 @@ Long-term MemoryはAgent CoreのTask履歴とは分離し、ユーザーホー�
 - file_mutation - ローカルファイルの作成・編集・削除
 - execute_command - PowerShellコマンド実行
 - search_web - 現在・未来の外部情報をWeb検索（読み取り専用）
-- fetch_web_page - 検索結果などのURLからWeb本文を取得（読み取り専用）
+- fetch_web_page - 検索結果などの公開Web URLからWeb本文を取得（読み取り専用。localhost/private/reserved network targetsは拒否）
 - run_python_script - 専用Toolがない処理を一時Python Scriptとして実行
 - list_promotion_candidates - 繰り返し成功したRecipeをPromotion候補として取得
 - generate_plugin - RecipeからPlugin候補をLLM生成
@@ -127,9 +127,9 @@ Agentを操作したい作業ディレクトリで起動します。
     python agent.py
 
 Agent Runtimeは起動時のカレントディレクトリをworkspaceとして固定します。通常会話はTaskを作らず、具体的な作業要求だけをAgent Taskへ自動ルーティングします。
-Runtimeは各Taskの完了後に短いSession Contextを保持し、次のTaskへcurrent topic、重要事実、直前の回答、参照URLを引き継ぎます。さらにWorkspace、OS、現在時刻、Git状態、関連するAGENTS.mdルールをRuntime側で環境コンテキストとして提示します。
-Web調査ではsearch_webで検索し、検索結果だけで詳細が不足する場合はfetch_web_pageで本文を取得します。finish_taskはRuntimeの決定論的検証を通過してからTaskを完了します。
-起動時にはModel、workspace、学習済み承認ルール数を表示し、Task/Tool/Verifyの進行状況を見やすく表示します。
+Runtimeは各Taskの完了後に短いSession Contextを保持し、次のTaskへcurrent topic、重要事実、直前の回答、参照URLを引き継ぎます。明確なFollow-upでは前TaskのCapabilityも再利用し、継続質問なら有用な事実・参照URLを保持します。さらにWorkspace、OS、現在時刻、Git状態、関連するAGENTS.mdルールをRuntime側で環境コンテキストとして提示します。
+Web調査ではsearch_webで検索し、検索結果だけで詳細が不足する場合はfetch_web_pageで本文を取得します。最新・公式・リリース・変更点などの依頼では、検索だけで完了せず一次情報ページの取得を要求します。finish_taskはRuntimeの決定論的検証を通過してからTaskを完了します。プロジェクト調査では一覧取得だけで完了せず、ファイル確認・検索・テストなどの具体的な診断を要求します。
+起動時にはModel、workspace、学習済み承認ルール数を表示し、Task/Tool/Verifyの進行状況を見やすく表示します。Qwen3:8Bが反復生成で停止した場合は、短い再試行と最終的なthinking無効化による緊急フォールバックを行います。
 
 ## Learned approvals
 
