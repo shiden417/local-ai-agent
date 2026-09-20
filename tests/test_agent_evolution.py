@@ -394,3 +394,20 @@ def test_session_context_keeps_topic_anchor_across_multiple_follow_ups(
 
     assert "Python 3.14について調べて" in routing_text
     assert "その3つのうち開発で重要なものは？" in routing_text
+
+
+
+def test_completed_task_does_not_pollute_conversation_history(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "agent.runtime.ask_llm",
+        lambda messages, tools=None: _llm_response("調査結果を確認しました。"),
+    )
+
+    runtime = AgentRuntime(tmp_path)
+    assert runtime.run("調査") == "調査結果を確認しました。"
+
+    assert runtime.conversation_manager.recent_messages() == []
+    assert runtime.session_context.last_answer == "調査結果を確認しました。"
