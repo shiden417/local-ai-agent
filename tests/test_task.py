@@ -11,11 +11,14 @@ def test_task_lifecycle() -> None:
     task.begin_iteration()
     task.begin_iteration()
     task.record_tool("read_file", succeeded=True)
+    assert task.phase == TaskPhase.VERIFY
+    task.begin_iteration()
+    assert task.phase == TaskPhase.ACT
     task.complete()
 
     assert task.status == TaskStatus.COMPLETED
     assert task.phase == TaskPhase.COMPLETE
-    assert task.iteration == 2
+    assert task.iteration == 3
     assert task.tool_calls == 1
     assert task.last_tool == "read_file"
 
@@ -47,5 +50,6 @@ def test_snapshot_is_compact() -> None:
     snapshot = task.snapshot()
 
     assert "status=running" in snapshot
+    assert "phase=plan" in snapshot
     assert "iteration=1" in snapshot
     assert "tool_calls=0" in snapshot
