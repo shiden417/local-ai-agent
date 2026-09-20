@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from agent.approval import ApprovalPolicy, approval_key
+from agent.command_policy import AUTO_ALLOW, AUTO_DENY, classify_auto_mode
 from agent.context import ContextManager
 from agent.conversation import ConversationManager
 from agent.llm import ask_llm
@@ -469,32 +470,50 @@ class AgentRuntime:
                     self.tool_registry,
                     self.working_directory,
                 ):
-                    permission_key = approval_key(
-                        name, arguments, self.working_directory
+                    auto_decision = classify_auto_mode(
+                        name, arguments, self.tool_registry, self.working_directory
                     )
-                    if self.approval_policy.is_allowed(permission_key):
+                    if auto_decision == AUTO_DENY:
+                        result = {
+                            "ok": False,
+                            "error": "Auto Mode blocked this high-risk operation.",
+                            "auto_mode": "deny",
+                        }
                         if self.terminal_ui is not None:
-                            self.terminal_ui.info(f"Learned permission: {name}")
+                            self.terminal_ui.info(f"Auto Mode blocked: {name}")
                         else:
-                            print("[Approval] learned permission")
+                            print(f"[Auto Mode] blocked: {name}")
+                    elif self.confirm is None and auto_decision == AUTO_ALLOW:
                         result = self._execute_tool(name, arguments)
+                        if self.terminal_ui is not None:
+                            self.terminal_ui.info(f"Auto Mode: {name}")
                     else:
-                        summary = self._confirmation_message(name, arguments)
-                        decision = self._request_confirmation(
-                            summary, permission_key
+                        permission_key = approval_key(
+                            name, arguments, self.working_directory
                         )
-                        if not decision:
-                            result = {
-                                "ok": False,
-                                "error": "User rejected the operation.",
-                                "user_rejected": True,
-                            }
+                        if self.approval_policy.is_allowed(permission_key):
                             if self.terminal_ui is not None:
-                                self.terminal_ui.info(f"Approval rejected: {name}")
+                                self.terminal_ui.info(f"Learned permission: {name}")
                             else:
-                                print("[Tool] rejected by user")
-                        else:
+                                print("[Approval] learned permission")
                             result = self._execute_tool(name, arguments)
+                        else:
+                            summary = self._confirmation_message(name, arguments)
+                            decision = self._request_confirmation(
+                                summary, permission_key
+                            )
+                            if not decision:
+                                result = {
+                                    "ok": False,
+                                    "error": "User rejected the operation.",
+                                    "user_rejected": True,
+                                }
+                                if self.terminal_ui is not None:
+                                    self.terminal_ui.info(f"Approval rejected: {name}")
+                                else:
+                                    print("[Tool] rejected by user")
+                            else:
+                                result = self._execute_tool(name, arguments)
                 else:
                     result = self._execute_tool(name, arguments)
 
