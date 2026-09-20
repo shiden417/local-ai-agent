@@ -9,15 +9,14 @@ from typing import Any, Callable
 
 from agent.approval import ApprovalPolicy, approval_key
 from agent.command_policy import AUTO_ALLOW, AUTO_DENY, classify_auto_mode
-from agent.context import ContextManager
-from agent.conversation import ConversationManager
+from agent.completion_verifier import CompletionVerifier
 from agent.llm import ask_llm
 from agent.loop_guard import ToolLoopGuard
 from agent.observation import truncate_text
 from agent.plugin_manager import PluginManager
 from agent.progress import evaluate_progress
 from agent.recovery import classify_tool_outcome, recovery_guidance
-from agent.session_context import SessionContext
+from agent.session import SessionManager
 from agent.environment import build_environment_context, extract_related_paths
 from agent.recipe_store import RecipeStore
 from agent.terminal_ui import TerminalUI
@@ -153,7 +152,7 @@ class AgentRuntime:
         max_iterations: int = 10,
         tool_registry: ToolRegistry | None = None,
         confirm: Callable[[str], bool] | None = None,
-        context_manager: ContextManager | None = None,
+        session_manager: SessionManager | None = None,
         recipe_store: RecipeStore | None = None,
         plugin_manager: PluginManager | None = None,
         approval_policy: ApprovalPolicy | None = None,
@@ -172,11 +171,10 @@ class AgentRuntime:
         self.approval_policy = approval_policy or ApprovalPolicy()
         self.terminal_ui = terminal_ui
         self.ask_user_callback = ask_user
-        self.context_manager = context_manager or ContextManager()
+        self.session_manager = session_manager or SessionManager()
         self.loop_guard = ToolLoopGuard()
         self.task_manager = TaskManager()
-        self.conversation_manager = ConversationManager()
-        self.session_context = SessionContext()
+        self.completion_verifier = CompletionVerifier(self.working_directory)
         self.current_task: ManagedTask | None = None
         self.task: TaskState | None = None
 
@@ -189,8 +187,7 @@ class AgentRuntime:
 
     def clear_session_context(self) -> None:
         """Clear conversational and cross-task ephemeral context."""
-        self.conversation_manager.clear()
-        self.session_context.clear()
+        self.session_manager.clear()
 
     @staticmethod
     def _default_confirm(message: str) -> bool:
@@ -245,8 +242,10 @@ class AgentRuntime:
             if self.terminal_ui is not None:
                 self.terminal_ui.phase(self.task.phase.value, self.task.iteration)
 
-            context_messages = self.context_manager.prepare(current_task.messages)
-            prior_conversation = self.conversation_manager.recent_messages()
+            context_messages = self.session_manager.prepare_task_messages(
+                current_task.messages
+            )
+            prior_conversation = self.session_manager.recent_conversation_messages()
             related_paths = self._related_paths(current_task)
             route = self.tool_registry.route_for(routing_text)
             capability_text = ", ".join(
@@ -328,7 +327,7 @@ class AgentRuntime:
             llm_messages = [
                 *task_system_messages,
                 {"role": "system", "content": environment_context},
-                {"role": "system", "content": self.session_context.prompt_block()},
+                {"role": "system", "content": self.session_manager.prompt_block()},
                 *recipe_messages,
                 *prior_conversation,
                 *task_non_system_messages,
@@ -494,7 +493,7 @@ class AgentRuntime:
                 # Completed Agent Tasks are represented by Session Context,
                 # not ordinary conversational history. This keeps prior task
                 # answers from being mistaken for the current conversation.
-                self.session_context.remember_task(
+                self.session_manager.remember_task(
                     user_input,
                     final_content,
                     current_task.messages,
@@ -632,7 +631,7 @@ class AgentRuntime:
                         result = {**result, "answer": answer}
 
                 if name == "finish_task" and bool(result.get("ok")):
-                    verification_error = self._verify_finish_task(
+                    verification_error = self.completion_verifier.verify(
                         current_task,
                         result,
                         goal_text=routing_text,
@@ -751,8 +750,8 @@ class AgentRuntime:
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "system", "content": build_environment_context(self.working_directory)},
-            {"role": "system", "content": self.session_context.prompt_block()},
-            *self.conversation_manager.recent_messages(),
+            {"role": "system", "content": self.session_manager.prompt_block()},
+            *self.session_manager.recent_conversation_messages(),
             {"role": "user", "content": user_input.strip()},
         ]
         if self.terminal_ui is not None:
@@ -770,7 +769,7 @@ class AgentRuntime:
         if not content:
             content = "すみません。うまく回答を生成できませんでした。"
 
-        self.conversation_manager.add_turn(user_input, content)
+        self.session_manager.add_conversation_turn(user_input, content)
         if self.terminal_ui is not None:
             self.terminal_ui.final(content)
         return content
@@ -778,15 +777,15 @@ class AgentRuntime:
     def _routing_text(self, user_input: str) -> str:
         """Reuse the previous task's capability scope for clear follow-up references."""
         route = self.tool_registry.route_for(user_input)
-        if route.mode.value == "scoped" or not self.session_context.has_context:
+        if route.mode.value == "scoped" or not self.session_manager.has_context:
             return user_input
 
         if not self._is_session_follow_up(user_input):
             return user_input
 
         previous_goal = (
-            self.session_context.anchor_goal.strip()
-            or self.session_context.last_goal.strip()
+            self.session_manager.anchor_goal.strip()
+            or self.session_manager.last_goal.strip()
         )
         if not previous_goal:
             return user_input
@@ -814,7 +813,7 @@ class AgentRuntime:
         content: str,
         task: ManagedTask,
     ) -> bool:
-        previous = self.session_context.last_answer.strip()
+        previous = self.session_manager.last_answer.strip()
         current = content.strip()
         if not previous or not current:
             return False
@@ -829,142 +828,6 @@ class AgentRuntime:
             message.get("role") == "tool"
             and message.get("name") != "finish_task"
             for message in task.messages
-        )
-
-    def _verify_finish_task(
-        self,
-        task: ManagedTask,
-        result: dict[str, Any],
-        *,
-        goal_text: str | None = None,
-    ) -> str | None:
-        """Verify deterministic execution facts before accepting completion."""
-        if str(result.get("completion_status", "")).strip().lower() == "blocked":
-            return None
-
-        verification_goal = goal_text or task.goal
-
-        messages = getattr(task, "messages", None)
-        if messages is None and self.current_task is not None and task is self.current_task.state:
-            messages = self.current_task.messages
-        if messages is None:
-            messages = []
-
-        successful_tools: list[tuple[str, dict[str, Any]]] = []
-        for message in messages:
-            if message.get("role") != "tool":
-                continue
-            try:
-                payload = json.loads(str(message.get("content", "")))
-            except json.JSONDecodeError:
-                continue
-            if isinstance(payload, dict) and payload.get("ok"):
-                name = str(message.get("name", ""))
-                if name and name != "finish_task":
-                    successful_tools.append((name, payload))
-
-        if self._requires_project_diagnostic(verification_goal):
-            diagnostic_tools = {"read_file", "search_files", "execute_command"}
-            if not any(
-                tool_name in diagnostic_tools
-                for tool_name, _ in successful_tools
-            ):
-                return (
-                    "System Verification Failed: this project investigation needs "
-                    "at least one concrete diagnostic action such as reading/searching "
-                    "source files or running a relevant command/test before completion."
-                )
-
-        if not successful_tools:
-            return (
-                "System Verification Failed: no successful action has been observed "
-                "before finish_task. Perform the required action first."
-            )
-
-        name, payload = successful_tools[-1]
-
-        if (
-            self._requires_primary_web_source(verification_goal)
-            and any(tool_name == "search_web" for tool_name, _ in successful_tools)
-            and not any(tool_name == "fetch_web_page" for tool_name, _ in successful_tools)
-        ):
-            return (
-                "System Verification Failed: this request asks for current, official, "
-                "release, or change-specific information. Fetch a relevant source page "
-                "after search_web before declaring completion."
-            )
-
-        if name == "execute_command":
-            if payload.get("exit_code") != 0:
-                return (
-                    "System Verification Failed: the last command did not finish "
-                    "with exit_code 0."
-                )
-            return None
-
-        if name in {"file_mutation", "create_file", "edit_file", "delete_file"}:
-            path = str(payload.get("path", "")).strip()
-            if not path:
-                return (
-                    "System Verification Failed: the file operation did not "
-                    "return a target path."
-                )
-            target = Path(path)
-            if not target.is_absolute():
-                target = self.working_directory / target
-
-            if payload.get("deleted") is True:
-                if target.exists():
-                    return (
-                        f"System Verification Failed: target file still exists: {path}"
-                    )
-                return None
-            if not target.exists():
-                return (
-                    f"System Verification Failed: target file does not exist: {path}"
-                )
-            return None
-
-        if name == "fetch_web_page":
-            status_code = payload.get("status_code")
-            content = str(payload.get("content", "")).strip()
-            if not content or (
-                isinstance(status_code, int) and not 200 <= status_code < 400
-            ):
-                return (
-                    "System Verification Failed: the fetched page did not return "
-                    "usable content."
-                )
-            return None
-
-        if name == "search_web":
-            if int(payload.get("count", 0) or 0) <= 0:
-                return (
-                    "System Verification Failed: the web search returned no results."
-                )
-            return None
-
-        return None
-
-    @staticmethod
-    def _requires_project_diagnostic(goal: str) -> bool:
-        text = str(goal).casefold()
-        has_project_context = bool(
-            re.search(r"(プロジェクト|workspace|repository|repo|コード)", text)
-        )
-        has_diagnostic_intent = bool(
-            re.search(r"(問題点|問題|不具合|バグ|原因|調査|確認|状態)", text)
-        )
-        return has_project_context and has_diagnostic_intent
-
-    @staticmethod
-    def _requires_primary_web_source(goal: str) -> bool:
-        text = str(goal).casefold()
-        return bool(
-            re.search(
-                r"(最新|最新版|現在|公式|公式情報|リリース|release|変更点|主な変更|what'?s new|latest|current)",
-                text,
-            )
         )
 
     def _related_paths(self, task: ManagedTask) -> list[str]:
