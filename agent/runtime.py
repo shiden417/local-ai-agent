@@ -749,7 +749,10 @@ class AgentRuntime:
         if not self._is_session_follow_up(user_input):
             return user_input
 
-        previous_goal = self.session_context.last_goal.strip()
+        previous_goal = (
+            self.session_context.anchor_goal.strip()
+            or self.session_context.last_goal.strip()
+        )
         if not previous_goal:
             return user_input
 
