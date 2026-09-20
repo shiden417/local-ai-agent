@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from agent.capability_router import Capability
+from agent.capabilities import Capability
 from agent.memory import MemoryStore
 from agent.plugin_generator import PluginGenerationError, generate_plugin_candidate
 from agent.plugin_manager import PluginManager, PluginValidationError
