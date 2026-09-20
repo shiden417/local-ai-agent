@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 
+from agent.command_policy import validate_command_scope
 from agent.observation import truncate_text
 
 
@@ -32,6 +33,17 @@ def execute_command(
             "exit_code": -1,
             "stdout": "",
             "stderr": f"作業ディレクトリが存在しません: {cwd}",
+        }
+
+    scope_error = validate_command_scope(command, cwd)
+    if scope_error is not None:
+        return {
+            "ok": False,
+            "exit_code": -1,
+            "stdout": "",
+            "stderr": scope_error,
+            "timed_out": False,
+            "blocked": True,
         }
 
     wrapped_command = (
