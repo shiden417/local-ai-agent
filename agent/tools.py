@@ -2,6 +2,7 @@ from pathlib import Path
 
 from agent.capability_router import Capability
 from agent.memory import MemoryStore
+from agent.plugin_manager import PluginManager, PluginValidationError
 from agent.tool_registry import ToolDefinition, ToolRegistry
 from tools.file_mutation import file_mutation
 from tools.execute_command import execute_command
@@ -14,10 +15,12 @@ from tools.run_python_script import run_python_script
 
 def create_default_tool_registry(
     memory_store: MemoryStore | None = None,
+    plugin_manager: PluginManager | None = None,
 ) -> ToolRegistry:
     """Create the default local capability set."""
     registry = ToolRegistry()
     memory = memory_store or MemoryStore()
+    plugins = plugin_manager or PluginManager()
 
     registry.register(
         ToolDefinition(
@@ -160,6 +163,75 @@ def create_default_tool_registry(
 
     registry.register(
         ToolDefinition(
+            name="stage_plugin",
+            description=(
+                "Stage a new local Agent Plugin in quarantine. "
+                "The plugin is validated but not enabled until promoted."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "plugin_id": {
+                        "type": "string",
+                        "description": "Unique local plugin id.",
+                    },
+                    "manifest": {
+                        "type": "object",
+                        "description": "Plugin manifest. Must describe the tool schema and capability.",
+                    },
+                    "source": {
+                        "type": "string",
+                        "description": "Complete plugin.py source defining run(arguments).",
+                    },
+                },
+                "required": ["plugin_id", "manifest", "source"],
+                "additionalProperties": False,
+            },
+            handler=lambda working_directory, arguments: _stage_plugin(
+                plugins,
+                arguments,
+            ),
+            requires_confirmation=True,
+            use_when="A new persistent capability should be created and placed into quarantine for promotion.",
+            avoid_when="A temporary script or an existing Tool is sufficient.",
+            availability="on_demand",
+            capabilities=(Capability.CAPABILITY_MANAGEMENT,),
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="promote_plugin",
+            description=(
+                "Promote a quarantined Agent Plugin to the enabled local "
+                "capability set and load it into the current Tool Registry."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "plugin_id": {
+                        "type": "string",
+                        "description": "Quarantined plugin id to promote.",
+                    }
+                },
+                "required": ["plugin_id"],
+                "additionalProperties": False,
+            },
+            handler=lambda working_directory, arguments: _promote_plugin(
+                plugins,
+                registry,
+                arguments,
+            ),
+            requires_confirmation=True,
+            use_when="A quarantined plugin has been reviewed and should become a persistent capability.",
+            avoid_when="The plugin has not been staged or the user did not request a persistent capability.",
+            availability="on_demand",
+            capabilities=(Capability.CAPABILITY_MANAGEMENT,),
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
             name="run_python_script",
             description=(
                 "Run a temporary Python script in the Agent workspace in a bounded "
@@ -295,3 +367,57 @@ def create_default_tool_registry(
     )
 
     return registry
+
+
+def _stage_plugin(
+    manager: PluginManager,
+    arguments: dict,
+) -> dict:
+    try:
+        plugin_id = str(arguments.get("plugin_id", ""))
+        manifest = arguments.get("manifest")
+        source = str(arguments.get("source", ""))
+        if not isinstance(manifest, dict):
+            return {"ok": False, "error": "manifest must be an object"}
+        return manager.stage(plugin_id, manifest, source)
+    except PluginValidationError as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def _promote_plugin(
+    manager: PluginManager,
+    registry: ToolRegistry,
+    arguments: dict,
+) -> dict:
+    plugin_id = str(arguments.get("plugin_id", "")).strip()
+    if not plugin_id:
+        return {"ok": False, "error": "plugin_id must not be empty"}
+
+    try:
+        manifest = manager.peek_manifest(plugin_id)
+    except (OSError, ValueError, PluginValidationError) as exc:
+        return {"ok": False, "error": str(exc)}
+
+    tool_name = str(manifest.get("name", "")).strip()
+    if registry.get(tool_name) is not None:
+        return {
+            "ok": False,
+            "error": f"Tool name already registered: {tool_name}",
+        }
+
+    result = manager.promote(plugin_id)
+    if not result.get("ok"):
+        return result
+
+    try:
+        tool = manager.load_plugin(Path(result["path"]))
+        registry.register(tool)
+    except (OSError, ValueError, PluginValidationError) as exc:
+        return {
+            "ok": False,
+            "error": f"Plugin was promoted but could not be loaded: {exc}",
+            "plugin_id": plugin_id,
+        }
+
+    result["registered"] = True
+    return result
