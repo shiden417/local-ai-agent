@@ -764,7 +764,8 @@ class AgentRuntime:
         text = user_input.strip()
         return bool(
             re.search(
-                r"^(?:その|それ|この|前回|先ほど|さっき|上記|上述|前の|that|those|these|previous)\b",
+                r"^(?:その|それ|この|前回|先ほど|さっき|上記|上述|前の)(?:\s|$)|"
+                r"^(?:that|those|these|previous)\b",
                 text,
                 flags=re.IGNORECASE,
             )
