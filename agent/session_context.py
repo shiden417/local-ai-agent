@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+import re
 from typing import Any
 from urllib.parse import urlparse
 
@@ -49,6 +50,11 @@ class SessionContext:
         answer: str,
         messages: list[dict[str, Any]],
     ) -> None:
+        previous_topic = self.current_topic
+        previous_facts = list(self.extracted_facts)
+        previous_references = list(self.references)
+        carry_previous = _is_continuation(goal, previous_topic)
+
         self.current_topic, _ = truncate_text(
             str(goal).strip(),
             MAX_TOPIC_CHARS,
@@ -109,8 +115,12 @@ class SessionContext:
                 if path:
                     facts.append(f"Local file result: {path}")
 
-        self.extracted_facts = _dedupe(facts)[:MAX_FACTS]
-        self.references = _dedupe(references)[:MAX_REFERENCES]
+        combined_facts = facts + (previous_facts if carry_previous else [])
+        combined_references = references + (
+            previous_references if carry_previous else []
+        )
+        self.extracted_facts = _dedupe(combined_facts)[:MAX_FACTS]
+        self.references = _dedupe(combined_references)[:MAX_REFERENCES]
 
     def prompt_block(self) -> str:
         if not self.current_topic and not self.last_answer:
@@ -141,6 +151,30 @@ class SessionContext:
             lines.append("Relevant references:")
             lines.extend(f"- {url}" for url in self.references)
         return "\n".join(lines)
+
+
+def _is_continuation(goal: str, previous_topic: str) -> bool:
+    if not previous_topic.strip():
+        return False
+
+    text = goal.strip().casefold()
+    if re.search(
+        r"^(?:その|それ|この|前回|先ほど|さっき|上記|上述|前の)(?:\s|$)|"
+        r"^(?:that|those|these|previous)\b",
+        text,
+        flags=re.IGNORECASE,
+    ):
+        return True
+
+    previous_tokens = {
+        token
+        for token in re.findall(r"[a-z0-9][a-z0-9_.:-]{2,}", previous_topic.casefold())
+    }
+    current_tokens = {
+        token
+        for token in re.findall(r"[a-z0-9][a-z0-9_.:-]{2,}", text)
+    }
+    return bool(previous_tokens and previous_tokens & current_tokens)
 
 
 def _is_http_url(value: str) -> bool:
