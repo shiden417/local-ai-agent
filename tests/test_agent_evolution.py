@@ -10,7 +10,7 @@ from agent.session_context import SessionContext
 from agent.task import TaskState
 from agent.tool_registry import ToolRegistry
 from agent.tools import create_default_tool_registry
-from tools import fetch_web_page as fetch_module
+import tools.fetch_web_page as fetch_module
 
 
 def _llm_response(content: str):
