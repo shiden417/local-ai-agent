@@ -701,3 +701,16 @@ def test_runtime_normalizes_message_like_final_content() -> None:
 
     assert AgentRuntime._normalize_final_content(message_like) == "こんにちは！"
     assert AgentRuntime._normalize_final_content("  直接回答  ") == "直接回答"
+
+
+def test_runtime_normalizes_json_encoded_message_content() -> None:
+    encoded = (
+        '{"role":"assistant",'
+        '"content":"こんにちは！何かお手伝いできますか？",'
+        '"tool_calls":[]}'
+    )
+
+    assert (
+        AgentRuntime._normalize_final_content(encoded)
+        == "こんにちは！何かお手伝いできますか？"
+    )
