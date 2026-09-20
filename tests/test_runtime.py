@@ -141,7 +141,7 @@ def test_runtime_rejects_mutating_tool_before_execution(
     monkeypatch.setattr(
         runtime_module,
         "ask_llm",
-        lambda _messages, _tools: responses.pop(0),
+        lambda _messages, tools=None: responses.pop(0),
     )
 
     confirmations = []
