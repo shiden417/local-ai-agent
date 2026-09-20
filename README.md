@@ -90,6 +90,7 @@ Agentの操作には実行環境に応じた安全策を設定します。
 - 作業ディレクトリ内の相対パスはworkspace外へ脱出できないよう制限
 - ユーザーが明示したローカル絶対パスはFile Toolで扱える
 - Toolごとに確認が必要か設定可能
+- ユーザーが明示的に許可した操作パターンはローカル承認Policyへ学習できる
 - file_mutationによる変更は実行前にユーザー確認
 - 代表的な破壊・書き込み系PowerShell/Git操作は確認
 - execute_commandは30秒timeout
@@ -123,6 +124,15 @@ Agentを操作したい作業ディレクトリで起動します。
     python agent.py
 
 Agent Runtimeは起動時のカレントディレクトリをworkspaceとして固定します。
+起動時にはModel、workspace、学習済み承認ルール数を表示し、Task/Tool/Verifyの進行状況を見やすく表示します。
+
+## Learned approvals
+
+変更系Toolなど、確認が必要な操作は初回だけユーザーに確認できます。`a` を選ぶと、その操作パターンをローカルの `~/.local-ai-agent/approvals.json` に保存し、次回から自動承認します。
+
+承認ルールは操作ごとに粒度を変えます。workspace内のファイル作成・編集は操作種別単位、削除・PowerShellコマンド・一時Python Script・Plugin管理などは、より具体的な操作単位で記憶します。危険な操作を一括で無制限に許可する仕組みにはしていません。
+
+ターミナルでは `/permissions` で現在の学習済みルールを確認でき、`/clear-permissions` で全ルールを削除できます。
 
 ## Development
 
