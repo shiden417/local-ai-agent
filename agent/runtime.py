@@ -622,6 +622,12 @@ class AgentRuntime:
                 f"timeout_seconds: {arguments.get('timeout_seconds', 15)}"
             )
 
+        if name == "test_plugin_candidate":
+            return (
+                "Agentが生成したPlugin候補を子プロセスで実行して検証しようとしています。\n"
+                f"plugin_id: {arguments.get('plugin_id', '')}"
+            )
+
         if name == "stage_plugin":
             return (
                 "Agentが新しいPluginを検疫領域へ作成しようとしています。\n"
