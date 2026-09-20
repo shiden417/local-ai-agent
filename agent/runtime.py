@@ -9,6 +9,7 @@ from agent.llm import ask_llm
 from agent.observation import truncate_text
 from agent.safety import requires_confirmation
 from agent.task import TaskState
+from agent.task_manager import ManagedTask, TaskManager
 from agent.tool_registry import ToolRegistry
 from agent.tools import create_default_tool_registry
 
@@ -89,6 +90,8 @@ class AgentRuntime:
         self.tool_registry = tool_registry or create_default_tool_registry()
         self.confirm = confirm or self._default_confirm
         self.context_manager = context_manager or ContextManager()
+        self.task_manager = TaskManager()
+        self.current_task: ManagedTask | None = None
         self.task: TaskState | None = None
         self.messages: list[dict[str, Any]] = [
             {"role": "system", "content": SYSTEM_PROMPT}
@@ -100,12 +103,15 @@ class AgentRuntime:
         return answer.strip().lower() in {"y", "yes"}
 
     def run(self, user_input: str) -> str:
-        self.task = TaskState(goal=user_input)
+        self.current_task = self.task_manager.create(user_input)
+        self.task = self.current_task.state
         self.task.start()
         self.messages.append({"role": "user", "content": user_input})
+        self.task_manager.update_timestamp(self.current_task)
 
         for _ in range(self.max_iterations):
             self.task.begin_iteration()
+            self.task_manager.update_timestamp(self.current_task)
 
             context_messages = self.context_manager.prepare(self.messages)
             llm_messages = [
@@ -132,6 +138,7 @@ class AgentRuntime:
             if not tool_calls:
                 self.messages.append(_message_to_dict(message))
                 self.task.complete()
+                self.task_manager.update_timestamp(self.current_task)
                 return content
 
             self.messages.append(_message_to_dict(message))
@@ -169,6 +176,7 @@ class AgentRuntime:
                     result = self._execute_tool(name, arguments)
 
                 self.task.record_tool(name, succeeded=bool(result.get("ok")))
+                self.task_manager.update_timestamp(self.current_task)
 
                 serialized = json.dumps(result, ensure_ascii=False, indent=2)
                 bounded, truncated = truncate_text(serialized)
@@ -188,7 +196,12 @@ class AgentRuntime:
                 )
 
         self.task.hit_max_iterations()
+        self.task_manager.update_timestamp(self.current_task)
         return "Agentの最大反復回数に達したため、処理を終了しました。"
+
+    def list_tasks(self) -> list[ManagedTask]:
+        """Return tracked tasks, newest first."""
+        return self.task_manager.list_tasks()
 
     def _execute_tool(
         self,
