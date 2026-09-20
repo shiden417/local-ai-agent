@@ -718,8 +718,8 @@ class AgentRuntime:
             self.terminal_ui.final(content)
         return content
 
-    @staticmethod
     def _verify_finish_task(
+        self,
         task: ManagedTask,
         result: dict[str, Any],
     ) -> str | None:
@@ -763,13 +763,17 @@ class AgentRuntime:
                     "System Verification Failed: the file operation did not "
                     "return a target path."
                 )
+            target = Path(path)
+            if not target.is_absolute():
+                target = self.working_directory / target
+
             if payload.get("deleted") is True:
-                if Path(path).exists():
+                if target.exists():
                     return (
                         f"System Verification Failed: target file still exists: {path}"
                     )
                 return None
-            if not Path(path).exists():
+            if not target.exists():
                 return (
                     f"System Verification Failed: target file does not exist: {path}"
                 )
