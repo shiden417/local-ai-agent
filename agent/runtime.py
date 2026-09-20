@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from agent.context import ContextManager
+from agent.conversation import ConversationManager
 from agent.llm import ask_llm
 from agent.loop_guard import ToolLoopGuard
 from agent.observation import truncate_text
@@ -128,6 +129,7 @@ class AgentRuntime:
         self.context_manager = context_manager or ContextManager()
         self.loop_guard = ToolLoopGuard()
         self.task_manager = TaskManager()
+        self.conversation_manager = ConversationManager()
         self.current_task: ManagedTask | None = None
         self.task: TaskState | None = None
 
@@ -161,6 +163,7 @@ class AgentRuntime:
             self.task_manager.update_timestamp(current_task)
 
             context_messages = self.context_manager.prepare(current_task.messages)
+            prior_conversation = self.conversation_manager.recent_messages()
             route = self.tool_registry.route_for(self.task.goal)
             capability_text = ", ".join(
                 capability.value for capability in sorted(
@@ -169,8 +172,21 @@ class AgentRuntime:
                 )
             ) or "none"
 
+            task_system_messages = [
+                message
+                for message in context_messages
+                if message.get("role") == "system"
+            ]
+            task_non_system_messages = [
+                message
+                for message in context_messages
+                if message.get("role") != "system"
+            ]
+
             llm_messages = [
-                *context_messages,
+                *task_system_messages,
+                *prior_conversation,
+                *task_non_system_messages,
                 {
                     "role": "system",
                     "content": (
@@ -238,9 +254,14 @@ class AgentRuntime:
                     continue
 
                 current_task.messages.append(_message_to_dict(message))
+                final_content = self._normalize_final_content(content)
+                self.conversation_manager.add_turn(
+                    user_input,
+                    final_content,
+                )
                 self.task.complete()
                 self.task_manager.update_timestamp(current_task)
-                return self._normalize_final_content(content)
+                return final_content
 
             current_task.messages.append(_message_to_dict(message))
 
