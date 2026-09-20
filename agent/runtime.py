@@ -150,7 +150,7 @@ class AgentRuntime:
             content = getattr(message, "content", None) or ""
 
             if not tool_calls:
-                if self._is_invalid_final_response(content):
+                if self._is_invalid_final_response(content, current_task.messages):
                     current_task.messages.append(_message_to_dict(message))
                     current_task.messages.append(
                         {
@@ -261,9 +261,22 @@ class AgentRuntime:
         return "Agentの最大反復回数に達したため、処理を終了しました。"
 
     @staticmethod
-    def _is_invalid_final_response(content: str) -> bool:
+    def _is_invalid_final_response(
+        content: str,
+        messages: list[dict[str, Any]] | None = None,
+    ) -> bool:
         normalized = content.strip()
-        return not normalized or normalized in {"{}", "[]"}
+        if not normalized or normalized in {"{}", "[]"}:
+            return True
+
+        if messages:
+            return any(
+                message.get("role") == "tool"
+                and str(message.get("content", "")).strip() == normalized
+                for message in messages
+            )
+
+        return False
 
     @staticmethod
     def _observation_summary(result: dict[str, Any]) -> str:
