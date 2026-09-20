@@ -18,6 +18,7 @@ def test_runtime_initializes_with_absolute_working_directory(tmp_path: Path) -> 
         "list_directory",
         "read_file",
         "search_files",
+        "search_web",
         "file_mutation",
         "run_python_script",
         "list_promotion_candidates",
