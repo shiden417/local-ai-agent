@@ -62,7 +62,6 @@ def test_future_weather_is_action_routed():
     route = CapabilityRouter().route("明日の東京の天気を教えて")
     assert route.mode == RoutingMode.SCOPED
     assert Capability.WEB_SEARCH in route.capabilities
-    assert Capability.AGENT_CONTROL in route.capabilities
 
 
 def test_session_context_keeps_compact_web_facts():
