@@ -152,7 +152,7 @@ GitHub ActionsでもWindows Runner上でテストを実行します。
 - PluginをQuarantineへStage
 - Pluginの構文・契約検証
 - 確認付きPromotionと動的ロード
-- Agentからのstage_plugin / promote_pluginによるCapability獲得
+- Agentからのlist_promotion_candidates / stage_plugin / promote_pluginによるCapability獲得
 
 ### Tools
 - Git
