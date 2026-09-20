@@ -15,13 +15,21 @@ class ToolDefinition:
     parameters: dict[str, Any]
     handler: ToolHandler
     requires_confirmation: bool = False
+    use_when: str = ""
+    avoid_when: str = ""
 
     def schema(self) -> dict[str, Any]:
+        description = self.description.strip()
+        if self.use_when:
+            description += f"\nWhen to use: {self.use_when.strip()}"
+        if self.avoid_when:
+            description += f"\nDo not use for: {self.avoid_when.strip()}"
+
         return {
             "type": "function",
             "function": {
                 "name": self.name,
-                "description": self.description,
+                "description": description,
                 "parameters": self.parameters,
             },
         }
