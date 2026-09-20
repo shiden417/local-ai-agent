@@ -133,8 +133,9 @@ def test_external_local_path_requires_confirmation_for_mutating_tool(
 
     assert (
         requires_confirmation(
-            "edit_file",
+            "file_mutation",
             {
+                "operation": "edit",
                 "path": r"C:\Users\example\OtherProject\test.txt",
                 "search_text": "old",
                 "replace_text": "new",
@@ -166,8 +167,8 @@ def test_delete_file_requires_confirmation_for_external_path(tmp_path: Path) -> 
     registry = ToolRegistry()
 
     assert requires_confirmation(
-        "delete_file",
-        {"path": r"C:\Users\example\OtherProject\test.txt"},
+        "file_mutation",
+        {"operation": "delete", "path": r"C:\Users\example\OtherProject\test.txt"},
         registry,
         tmp_path,
     ) is True
