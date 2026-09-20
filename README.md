@@ -2,7 +2,7 @@
 
 LM Studio + ローカルLLMを基盤にした、無料・ローカル・無制限利用を目標とする汎用AI Agentです。
 
-現在の既定モデルは **Gemma 4 E4B QAT** です。モデルは環境変数で変更できます。
+現在の既定モデルは **Gemma 4 E4B** です。モデルは環境変数で変更できます。
 
 ## Goal
 
@@ -26,7 +26,7 @@ LM Studio + ローカルLLMを基盤にした、無料・ローカル・無制�
       ↓
     LM Studio OpenAI-compatible API
       ↓
-    Gemma 4 E4B QAT
+    Gemma 4 E4B
       ↓
     Tool Calling
       ↓
@@ -80,7 +80,7 @@ LM StudioのDeveloper tabでServerを起動し、既定モデルをロードし�
 
     google/gemma-4-e4b-qat
 
-Gemma 4 E4B QATは、Native Function Calling・Reasoning・Visionを備えた小型ローカルモデルです。LM Studio向けQ4_0版は約5.15GBで、ローカルAgentのTool Callingを試しやすい構成です。
+Gemma 4 E4Bは、Native Function Calling・Reasoning・Visionを備えた小型ローカルモデルです。LM Studio公式Hubでは最低システムメモリ6GB、7.9Bタグ、128K contextのモデルとして案内されています。
 
 APIの既定値:
 
@@ -104,7 +104,7 @@ The native `lmstudio-python` SDK remains a useful future option for features tha
 - Windows
 - Python 3.12+
 - LM Studio
-- Gemma 4 E4B QAT（既定）
+- Gemma 4 E4B（既定）
 - OpenAI Python SDK
 - ddgs
 
@@ -142,7 +142,7 @@ JARVIS v1では、ユーザーの1回の依頼に対して必要なToolを複数
 
     python tools/benchmark_agent.py --model qwen/qwen3-8b
 
-既定モデルへ戻す場合はLM_STUDIO_MODELを削除するか、Gemma 4 E4B QATを指定します。
+既定モデルへ戻す場合はLM_STUDIO_MODELを削除するか、Gemma 4 E4Bを指定します。
 
 ## Commands
 
