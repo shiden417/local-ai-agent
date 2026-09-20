@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
+from agent.approval import ApprovalPolicy, approval_key
 from agent.context import ContextManager
 from agent.conversation import ConversationManager
 from agent.llm import ask_llm
@@ -136,6 +137,7 @@ class AgentRuntime:
         context_manager: ContextManager | None = None,
         recipe_store: RecipeStore | None = None,
         plugin_manager: PluginManager | None = None,
+        approval_policy: ApprovalPolicy | None = None,
     ) -> None:
         self.working_directory = Path(working_directory).resolve()
         self.max_iterations = max_iterations
@@ -145,7 +147,8 @@ class AgentRuntime:
             plugin_manager=self.plugin_manager,
             recipe_store=self.recipe_store,
         )
-        self.confirm = confirm or self._default_confirm
+        self.confirm = confirm
+        self.approval_policy = approval_policy or ApprovalPolicy()
         self.context_manager = context_manager or ContextManager()
         self.loop_guard = ToolLoopGuard()
         self.task_manager = TaskManager()
@@ -165,6 +168,23 @@ class AgentRuntime:
         answer = input(f"\n{message}\nProceed? [y/N]: ")
         return answer.strip().lower() in {"y", "yes"}
 
+    def _request_confirmation(
+        self,
+        summary: str,
+        permission_key: str,
+    ) -> bool:
+        if self.confirm is not None:
+            return bool(self.confirm(summary))
+
+        print(f"\n{summary}")
+        answer = input(
+            "Approval? [y] once / [a] always for this action / [n] deny: "
+        ).strip().lower()
+        if answer in {"a", "always"}:
+            self.approval_policy.allow(permission_key, summary)
+            print("[Approval] learned")
+            return True
+        return answer in {"y", "yes"}
     def run(self, user_input: str) -> str:
         current_task = self.task_manager.create(user_input)
         current_task.messages = [
@@ -431,16 +451,26 @@ class AgentRuntime:
                     self.tool_registry,
                     self.working_directory,
                 ):
-                    summary = self._confirmation_message(name, arguments)
-                    if not self.confirm(summary):
-                        result = {
-                            "ok": False,
-                            "error": "User rejected the operation.",
-                            "user_rejected": True,
-                        }
-                        print("[Tool] rejected by user")
-                    else:
+                    permission_key = approval_key(
+                        name, arguments, self.working_directory
+                    )
+                    if self.approval_policy.is_allowed(permission_key):
+                        print("[Approval] learned permission")
                         result = self._execute_tool(name, arguments)
+                    else:
+                        summary = self._confirmation_message(name, arguments)
+                        decision = self._request_confirmation(
+                            summary, permission_key
+                        )
+                        if not decision:
+                            result = {
+                                "ok": False,
+                                "error": "User rejected the operation.",
+                                "user_rejected": True,
+                            }
+                            print("[Tool] rejected by user")
+                        else:
+                            result = self._execute_tool(name, arguments)
                 else:
                     result = self._execute_tool(name, arguments)
 
