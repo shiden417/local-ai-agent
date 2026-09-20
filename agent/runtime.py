@@ -12,14 +12,13 @@ from agent.llm import ask_llm
 from agent.loop_guard import ToolLoopGuard
 from agent.observation import truncate_text
 from agent.plugin_manager import PluginManager
-from agent.progress import evaluate_progress
 from agent.recovery import classify_tool_outcome, recovery_guidance
 from agent.request_classifier import RequestClassifier, RequestMode
 from agent.session import SessionManager
 from agent.environment import build_environment_context, extract_related_paths
 from agent.terminal_ui import TerminalUI
 from agent.safety import AUTO_ALLOW, AUTO_DENY, SafetyPolicy
-from agent.task import TaskState
+from agent.task import TaskState, classify_progress
 from agent.task_manager import ManagedTask, TaskManager
 from agent.tool_registry import ToolRegistry
 from agent.tools import create_default_tool_registry
@@ -461,11 +460,11 @@ class AgentRuntime:
                         summary=str(exc),
                         signature=f"invalid_tool_call:{type(exc).__name__}:{exc}",
                         new_information=False,
-                        progress_state=evaluate_progress(
+                        progress_state=classify_progress(
                             "invalid_tool_call",
                             {"ok": False, "error": str(exc)},
                             observation_is_new=False,
-                        ).state,
+                        ),
                     )
                     current_task.messages.append(
                         {
@@ -601,7 +600,7 @@ class AgentRuntime:
                 fingerprint = _observation_fingerprint(name, result)
                 signature = f"{name}:{fingerprint}"
                 observation_is_new = signature not in self.task.observation_signatures
-                evaluation = evaluate_progress(
+                progress_state = classify_progress(
                     name,
                     result,
                     observation_is_new=observation_is_new,
@@ -613,7 +612,7 @@ class AgentRuntime:
                     summary=observation_summary,
                     signature=signature,
                     new_information=observation_is_new,
-                    progress_state=evaluation.state,
+                    progress_state=progress_state,
                     failure_status=outcome_status if not bool(result.get("ok")) else None,
                     result_truncated=truncated,
                 )
