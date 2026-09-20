@@ -125,23 +125,23 @@ class SafetyPolicy:
         if auto_decision == AUTO_DENY:
             return AUTO_DENY
 
-        if not _requires_confirmation(
+        requires_approval = _requires_confirmation(
             tool_name,
             arguments,
             registry,
             working_directory,
-        ):
-            return AUTO_ALLOW
-
-        key = self.approval_key(
-            tool_name,
-            arguments,
-            working_directory or Path.cwd(),
         )
-        if self.is_allowed(key):
-            return AUTO_ALLOW
+        if auto_decision == AUTO_ASK or requires_approval:
+            key = self.approval_key(
+                tool_name,
+                arguments,
+                working_directory or Path.cwd(),
+            )
+            if self.is_allowed(key):
+                return AUTO_ALLOW
+            return AUTO_ASK
 
-        return auto_decision
+        return AUTO_ALLOW
 
     def _load(self) -> None:
         if not self.approval_path.exists():
