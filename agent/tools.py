@@ -13,6 +13,7 @@ from tools.memory import save_memory, search_memory
 from tools.read_file import read_file
 from tools.search_files import search_files
 from tools.search_web import search_web
+from tools.fetch_web_page import fetch_web_page
 from tools.run_python_script import run_python_script
 from tools.control import ask_user, finish_task
 
@@ -269,6 +270,44 @@ def create_default_tool_registry(
             capabilities=(Capability.WEB_SEARCH,),
         )
     )
+    registry.register(
+        ToolDefinition(
+            name="fetch_web_page",
+            description=(
+                "Fetch a live web page and extract bounded readable text from it. "
+                "Use this after search_web when snippets are insufficient for a reliable answer."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "An http:// or https:// URL returned by search_web or explicitly provided by the user.",
+                    },
+                    "timeout_seconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 20,
+                        "description": "Optional timeout in seconds. Default 10.",
+                    },
+                },
+                "required": ["url"],
+                "additionalProperties": False,
+            },
+            handler=lambda working_directory, arguments: fetch_web_page(
+                str(arguments.get("url", "")),
+                int(arguments.get("timeout_seconds", 10)),
+            ),
+            use_when=(
+                "Search snippets do not contain enough concrete detail, or the "
+                "user asks for the actual contents/details of a web page."
+            ),
+            avoid_when="A search result snippet already contains enough evidence to answer safely.",
+            availability="on_demand",
+            capabilities=(Capability.WEB_SEARCH,),
+        )
+    )
+
     registry.register(
         ToolDefinition(
             name="list_promotion_candidates",
