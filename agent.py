@@ -1,12 +1,15 @@
 from pathlib import Path
 
+from agent.approval import ApprovalPolicy
+from agent.llm import MODEL
 from agent.runtime import AgentRuntime
+from agent.terminal_ui import TerminalUI
 
 
 def print_tasks(runtime: AgentRuntime) -> None:
     tasks = runtime.list_tasks()
     if not tasks:
-        print("Taskはありません。")
+        runtime.terminal_ui.info("Taskはありません。") if runtime.terminal_ui else print("Taskはありません。")
         return
 
     print("\nTasks:")
@@ -18,39 +21,64 @@ def print_tasks(runtime: AgentRuntime) -> None:
         )
 
 
+def print_permissions(policy: ApprovalPolicy) -> None:
+    entries = policy.entries()
+    if not entries:
+        print("\nLearned permissions: none")
+        return
+
+    print("\nLearned permissions:")
+    for entry in entries:
+        description = entry.get("description", "")
+        print(f"- {entry['key']} | {description[:100]}")
+
+
 def main() -> None:
+    ui = TerminalUI(MODEL)
     runtime = AgentRuntime(
         working_directory=Path.cwd(),
         max_iterations=10,
+        terminal_ui=ui,
     )
 
-    print("Local AI Agent")
-    print(f"Working Directory: {runtime.working_directory}")
-    print("exit または quit で終了します。")
-    print("/tasks でTask一覧を表示できます。")
+    ui.startup(
+        str(runtime.working_directory),
+        f"learned approvals ({len(runtime.approval_policy.entries())} rules)",
+    )
 
     while True:
         try:
-            user_input = input("\n> ")
+            user_input = input("You > ")
         except (EOFError, KeyboardInterrupt):
             print()
             break
 
         command = user_input.strip()
-        if command.lower() in {"exit", "quit"}:
+        lowered = command.lower()
+        if lowered in {"exit", "quit", "/exit", "/quit"}:
+            print("終了します。")
             break
 
-        if command.lower() == "/tasks":
+        if lowered == "/tasks":
             print_tasks(runtime)
+            continue
+
+        if lowered == "/permissions":
+            print_permissions(runtime.approval_policy)
+            continue
+
+        if lowered in {"/clear-permissions", "/clear-approvals"}:
+            runtime.approval_policy.clear()
+            print("Learned permissionsをクリアしました。")
             continue
 
         if not command:
             continue
 
         try:
-            print(runtime.run(command))
+            runtime.run(command)
         except Exception as exc:
-            print(f"Agent error: {exc}")
+            ui.error(f"Agent error: {exc}")
 
 
 if __name__ == "__main__":
