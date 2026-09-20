@@ -26,6 +26,16 @@ class SessionContext:
     extracted_facts: list[str] = field(default_factory=list)
     references: list[str] = field(default_factory=list)
 
+    @property
+    def has_context(self) -> bool:
+        return bool(
+            self.current_topic
+            or self.last_goal
+            or self.last_answer
+            or self.extracted_facts
+            or self.references
+        )
+
     def clear(self) -> None:
         self.current_topic = ""
         self.last_goal = ""
@@ -110,6 +120,10 @@ class SessionContext:
             )
 
         lines = ["[Session Context]"]
+        lines.append(
+            "This is carry-over context, not proof of the current task. "
+            "Use current-task observations and current user instructions as the source of truth."
+        )
         if self.current_topic:
             lines.append(f"Current topic: {self.current_topic}")
         if self.last_goal:
@@ -119,7 +133,10 @@ class SessionContext:
             lines.extend(f"- {fact}" for fact in self.extracted_facts)
         if self.last_answer:
             answer, _ = truncate_text(self.last_answer, 2_000)
-            lines.append(f"Previous answer: {answer}")
+            lines.append(
+                "Previous answer (reference only; do not claim it was verified in the current task): "
+                f"{answer}"
+            )
         if self.references:
             lines.append("Relevant references:")
             lines.extend(f"- {url}" for url in self.references)
