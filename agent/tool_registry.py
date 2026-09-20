@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import re
 from pathlib import Path
 from typing import Any, Callable
 
@@ -96,18 +95,6 @@ class ToolRegistry:
                 if tool.name not in excluded and tool.availability == "always"
             ]
 
-        preferred_write_tools = self._preferred_write_tools(task_text)
-        if Capability.WORKSPACE_WRITE in route.capabilities and preferred_write_tools:
-            return [
-                tool.schema()
-                for tool in self._tools.values()
-                if tool.name not in excluded
-                and (
-                    tool.availability == "always"
-                    or tool.name in preferred_write_tools
-                )
-            ]
-
         return [
             tool.schema()
             for tool in self._tools.values()
@@ -120,33 +107,6 @@ class ToolRegistry:
                 )
             )
         ]
-
-    @staticmethod
-    def _preferred_write_tools(task_text: str) -> set[str]:
-        text = task_text.strip()
-
-        if re.search(
-            r"(削除|消去|取り除|delete|remove).{0,10}(して|する|ください|ほしい|お願いします)?",
-            text,
-            flags=re.IGNORECASE,
-        ):
-            return {"delete_file"}
-
-        if re.search(
-            r"(作成|作って|つくって|生成|新規).{0,12}(ファイル|HTML|JSON|コード)?",
-            text,
-            flags=re.IGNORECASE,
-        ):
-            return {"create_file"}
-
-        if re.search(
-            r"(編集|変更|修正|書き換え|書換え|追加|modify|edit|fix|change|update).{0,12}(して|する|ください|ほしい|お願いします)?",
-            text,
-            flags=re.IGNORECASE,
-        ):
-            return {"read_file", "search_files", "edit_file"}
-
-        return set()
 
     def route_for(self, task_text: str):
         return self.capability_router.route(task_text)
