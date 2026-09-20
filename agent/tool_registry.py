@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from pathlib import Path
 from typing import Any, Callable
 
@@ -95,6 +96,17 @@ class ToolRegistry:
                 if tool.name not in excluded and tool.availability == "always"
             ]
 
+        if Capability.WORKSPACE_WRITE in route.capabilities and not self._is_edit_intent(task_text):
+            return [
+                tool.schema()
+                for tool in self._tools.values()
+                if tool.name not in excluded
+                and (
+                    tool.availability == "always"
+                    or tool.name == "file_mutation"
+                )
+            ]
+
         return [
             tool.schema()
             for tool in self._tools.values()
@@ -107,6 +119,16 @@ class ToolRegistry:
                 )
             )
         ]
+
+    @staticmethod
+    def _is_edit_intent(task_text: str) -> bool:
+        return bool(
+            re.search(
+                r"(編集|変更|修正|書き換え|書換え|追加|modify|edit|fix|change|update)",
+                task_text,
+                flags=re.IGNORECASE,
+            )
+        )
 
     def route_for(self, task_text: str):
         return self.capability_router.route(task_text)
