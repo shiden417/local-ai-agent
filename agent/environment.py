@@ -4,7 +4,6 @@ import os
 import platform
 import re
 import subprocess
-from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
@@ -30,7 +29,6 @@ def build_environment_context(
         "[Environment]",
         f"OS: {platform.system()} {platform.release()}",
         f"Workspace: {root}",
-        f"Time: {datetime.now().astimezone().isoformat(timespec='seconds')}",
     ]
 
     branch, status = _git_state(root)
