@@ -27,6 +27,41 @@ def test_registry_exposes_openai_style_schema(tmp_path: Path) -> None:
     assert "Do not use for: No greeting is required." in registry.schemas[0]["function"]["description"]
 
 
+def test_registry_filters_on_demand_tools_by_task() -> None:
+    registry = ToolRegistry()
+
+    registry.register(
+        ToolDefinition(
+            name="core",
+            description="Always available",
+            parameters={"type": "object", "properties": {}, "required": []},
+            handler=lambda _working_directory, _arguments: {"ok": True},
+            availability="always",
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="memory",
+            description="Memory operation",
+            parameters={"type": "object", "properties": {}, "required": []},
+            handler=lambda _working_directory, _arguments: {"ok": True},
+            availability="on_demand",
+            routing_hints=("記憶", "memory"),
+        )
+    )
+
+    memory_schemas = registry.schemas_for("前回の記憶を確認してください")
+    workspace_schemas = registry.schemas_for("このフォルダの中身を確認してください")
+
+    assert [schema["function"]["name"] for schema in memory_schemas] == [
+        "core",
+        "memory",
+    ]
+    assert [schema["function"]["name"] for schema in workspace_schemas] == [
+        "core",
+    ]
+
+
 def test_registry_dispatches_tool(tmp_path: Path) -> None:
     registry = ToolRegistry()
     registry.register(
