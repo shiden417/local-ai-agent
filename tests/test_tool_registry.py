@@ -155,6 +155,8 @@ def test_registry_exposes_capability_management_tools_for_plugin_requests() -> N
 
     assert tools == [
         "list_promotion_candidates",
+        "generate_plugin",
+        "test_plugin_candidate",
         "stage_plugin",
         "promote_plugin",
     ]
@@ -172,6 +174,8 @@ def test_registry_exposes_promotion_candidate_tool() -> None:
 
     assert tools == [
         "list_promotion_candidates",
+        "generate_plugin",
+        "test_plugin_candidate",
         "stage_plugin",
         "promote_plugin",
     ]
