@@ -68,6 +68,7 @@ class ToolRegistry:
         self,
         task_text: str,
         excluded_tools: set[str] | None = None,
+        include_control_tools: bool = False,
     ) -> list[dict[str, Any]]:
         """Expose only relevant capability families to the LLM.
 
@@ -77,6 +78,7 @@ class ToolRegistry:
         """
         excluded = excluded_tools or set()
         route = self.capability_router.route(task_text)
+        control_tools = {"ask_user", "finish_task"} if include_control_tools else set()
 
         if route.mode in {RoutingMode.DIRECT, RoutingMode.OPEN}:
             # Conversation/ambiguous input stays tool-free. The Runtime can
@@ -89,7 +91,8 @@ class ToolRegistry:
                 for tool in self._tools.values()
                 if tool.name not in excluded
                 and (
-                    tool.availability == "always"
+                    tool.name in control_tools
+                    or tool.availability == "always"
                     or tool.name == "file_mutation"
                     or any(
                         capability in route.capabilities
@@ -103,7 +106,8 @@ class ToolRegistry:
             for tool in self._tools.values()
             if tool.name not in excluded
             and (
-                tool.availability == "always"
+                tool.name in control_tools
+                or tool.availability == "always"
                 or any(
                     capability in route.capabilities
                     for capability in tool.capabilities
