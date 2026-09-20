@@ -83,7 +83,7 @@ def test_registry_routes_default_capability_scopes() -> None:
             "このフォルダの一覧を確認してください"
         )
     ]
-    assert folder_tools == ["list_directory", "read_file", "search_files", "edit_file"]
+    assert folder_tools == ["list_directory", "read_file", "search_files"]
 
     process_tools = [
         schema["function"]["name"]
@@ -102,3 +102,21 @@ def test_registry_routes_default_capability_scopes() -> None:
         for schema in registry.schemas_for("どうすればよいですか")
     ]
     assert ambiguous_tools == []
+
+
+def test_registry_exposes_read_and_write_tools_for_edit_tasks() -> None:
+    from agent.tools import create_default_tool_registry
+
+    registry = create_default_tool_registry()
+
+    edit_tools = [
+        schema["function"]["name"]
+        for schema in registry.schemas_for("READMEを修正してください")
+    ]
+
+    assert edit_tools == [
+        "list_directory",
+        "read_file",
+        "search_files",
+        "edit_file",
+    ]
