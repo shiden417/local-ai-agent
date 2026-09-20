@@ -2,7 +2,9 @@ import json
 from pathlib import Path
 
 from agent.capabilities import Capability
+from agent.experimental_tools import register_experimental_tools
 from agent.plugin_manager import PluginManager, PluginValidationError
+from agent.recipe_store import RecipeStore
 from agent.tool_registry import ToolRegistry
 
 
@@ -86,7 +88,9 @@ def test_registry_can_stage_and_promote_plugin(tmp_path: Path) -> None:
     from agent.tools import create_default_tool_registry
 
     manager = PluginManager(tmp_path / "plugins")
-    registry = create_default_tool_registry(plugin_manager=manager)
+    recipes = RecipeStore(tmp_path / "recipes.json")
+    registry = create_default_tool_registry()
+    register_experimental_tools(registry, manager, recipes)
 
     staged = registry.execute(
         "stage_plugin",
