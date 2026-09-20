@@ -647,7 +647,8 @@ class AgentRuntime:
                     else:
                         terminal_synthesis_required = True
 
-                result["status"] = classify_tool_outcome(name, result)
+                outcome_status = classify_tool_outcome(name, result)
+                result["status"] = outcome_status
 
                 serialized = json.dumps(
                     result,
@@ -660,7 +661,6 @@ class AgentRuntime:
                 fingerprint = _observation_fingerprint(name, result)
                 signature = f"{name}:{fingerprint}"
                 observation_is_new = signature not in self.task.observation_signatures
-                outcome_status = classify_tool_outcome(name, result)
                 evaluation = evaluate_progress(
                     name,
                     result,
