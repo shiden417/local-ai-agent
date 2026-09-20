@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from html.parser import HTMLParser
+import ipaddress
+import socket
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.parse import urlparse
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from agent.observation import truncate_text
 
@@ -12,6 +15,55 @@ MAX_URL_CHARS = 2_000
 MAX_CONTENT_CHARS = 12_000
 DEFAULT_TIMEOUT_SECONDS = 10
 
+
+
+
+
+class _SafeRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        _validate_public_url(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _validate_public_url(url: str) -> None:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("Only http:// and https:// URLs are supported")
+    if parsed.username or parsed.password:
+        raise ValueError("URLs with embedded credentials are not supported")
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError("URL must include a hostname")
+
+    if hostname.lower() in {"localhost", "localhost.localdomain"}:
+        raise ValueError("Localhost URLs are not allowed for web fetching")
+
+    try:
+        literal = ipaddress.ip_address(hostname)
+        addresses = [literal]
+    except ValueError:
+        try:
+            infos = socket.getaddrinfo(hostname, parsed.port or 443)
+        except OSError as exc:
+            raise ValueError(f"Could not resolve web host: {exc}") from exc
+        addresses = [ipaddress.ip_address(info[4][0]) for info in infos]
+
+    if not addresses:
+        raise ValueError("Web host resolved to no addresses")
+
+    if any(
+        address.is_private
+        or address.is_loopback
+        or address.is_link_local
+        or address.is_reserved
+        or address.is_multicast
+        or address.is_unspecified
+        for address in addresses
+    ):
+        raise ValueError(
+            "Web fetching to private, local, reserved, or multicast addresses is blocked"
+        )
 
 class _PageTextParser(HTMLParser):
     _SKIP_TAGS = {"script", "style", "noscript", "svg", "template"}
@@ -75,6 +127,11 @@ def fetch_web_page(
     if not 1 <= timeout_seconds <= 20:
         return {"ok": False, "error": "timeout_seconds must be between 1 and 20"}
 
+    try:
+        _validate_public_url(url)
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc), "url": url, "retryable": False}
+
     request = Request(
         url,
         headers={
@@ -84,7 +141,10 @@ def fetch_web_page(
     )
 
     try:
-        with urlopen(request, timeout=timeout_seconds) as response:
+        with build_opener(_SafeRedirectHandler).open(
+            request,
+            timeout=timeout_seconds,
+        ) as response:
             status = getattr(response, "status", None)
             final_url = response.geturl()
             content_type = response.headers.get_content_type()
