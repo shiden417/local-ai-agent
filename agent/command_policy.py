@@ -37,6 +37,78 @@ WINDOWS_ABSOLUTE_PATH_PATTERN = re.compile(
 PARENT_PATH_PATTERN = re.compile(r"(^|[\s'\"])(?:\.\.[\\/])+")
 LOCAL_PATH_MUTATING_TOOLS = {"file_mutation"}
 
+AUTO_ALLOW = "allow"
+AUTO_ASK = "ask"
+AUTO_DENY = "deny"
+
+HARD_DENY_COMMAND_PATTERNS = (
+    re.compile(r"\bshutdown(?:\.exe)?\b", re.IGNORECASE),
+    re.compile(r"\brestart-computer\b", re.IGNORECASE),
+    re.compile(r"\bstop-computer\b", re.IGNORECASE),
+    re.compile(r"\bclear-disk\b", re.IGNORECASE),
+    re.compile(r"\bformat-volume\b", re.IGNORECASE),
+    re.compile(r"\bdiskpart\b", re.IGNORECASE),
+    re.compile(r"\bgit\s+push\b.*(?:--force|-f)\b", re.IGNORECASE),
+)
+NETWORK_COMMAND_PATTERNS = (
+    re.compile(r"\bcurl(?:\.exe)?\b", re.IGNORECASE),
+    re.compile(r"\binvoke-webrequest\b", re.IGNORECASE),
+    re.compile(r"\binvoke-restmethod\b", re.IGNORECASE),
+    re.compile(r"\bwget(?:\.exe)?\b", re.IGNORECASE),
+    re.compile(r"\b(?:pip|python)\s+.*\binstall\b", re.IGNORECASE),
+)
+
+
+def classify_auto_mode(
+    tool_name: str,
+    arguments: dict[str, Any],
+    registry: ToolRegistry,
+    working_directory: str | Path | None = None,
+) -> str:
+    """Classify an action for the default always-on Auto Mode."""
+    tool = registry.get(tool_name)
+
+    if tool_name == "execute_command":
+        command = str(arguments.get("command", ""))
+        if any(pattern.search(command) for pattern in HARD_DENY_COMMAND_PATTERNS):
+            return AUTO_DENY
+        if working_directory is not None:
+            scope_error = validate_command_scope(command, working_directory)
+            if scope_error is not None:
+                return AUTO_DENY
+        if any(pattern.search(command) for pattern in DESTRUCTIVE_COMMAND_PATTERNS):
+            return AUTO_ASK
+        if any(pattern.search(command) for pattern in NETWORK_COMMAND_PATTERNS):
+            return AUTO_ASK
+        return AUTO_ALLOW
+
+    if tool_name == "file_mutation":
+        operation = str(arguments.get("operation", "")).strip().lower()
+        if operation in {"create", "edit"}:
+            requested_path = str(arguments.get("path", "")).strip()
+            if working_directory is not None and requested_path:
+                try:
+                    target = Path(requested_path).expanduser().resolve()
+                    cwd = Path(working_directory).resolve()
+                    if target.is_relative_to(cwd):
+                        return AUTO_ALLOW
+                except OSError:
+                    pass
+        return AUTO_ASK
+
+    if tool_name in {"list_directory", "read_file", "search_files", "list_promotion_candidates"}:
+        return AUTO_ALLOW
+
+    if tool_name == "stage_plugin":
+        return AUTO_ALLOW
+
+    if tool_name in {"promote_plugin", "test_plugin_candidate", "run_python_script"}:
+        return AUTO_ASK
+
+    if tool is not None and not tool.requires_confirmation:
+        return AUTO_ALLOW
+
+    return AUTO_ASK
 
 def requires_confirmation(
     tool_name: str,
