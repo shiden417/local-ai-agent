@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from agent.capabilities import Capability
-
 
 ToolHandler = Callable[[Path, dict[str, Any]], dict[str, Any]]
 
@@ -19,8 +17,6 @@ class ToolDefinition:
     requires_confirmation: bool = False
     use_when: str = ""
     avoid_when: str = ""
-    availability: str = "always"
-    capabilities: tuple[Capability, ...] = ()
     terminal_on_success: bool = False
 
     def schema(self) -> dict[str, Any]:
@@ -49,10 +45,6 @@ class ToolRegistry:
     def register(self, tool: ToolDefinition) -> None:
         if tool.name in self._tools:
             raise ValueError(f"Tool already registered: {tool.name}")
-        if tool.availability not in {"always", "on_demand"}:
-            raise ValueError(
-                f"Unsupported tool availability: {tool.availability}"
-            )
         self._tools[tool.name] = tool
 
     @property
