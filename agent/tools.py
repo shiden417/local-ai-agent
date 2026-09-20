@@ -43,7 +43,8 @@ def create_default_tool_registry(
                 "additionalProperties": False,
             },
             handler=ask_user,
-            availability="always",
+            availability="on_demand",
+            capabilities=(Capability.AGENT_CONTROL,),
         )
     )
     registry.register(
@@ -69,7 +70,8 @@ def create_default_tool_registry(
                 "additionalProperties": False,
             },
             handler=finish_task,
-            availability="always",
+            availability="on_demand",
+            capabilities=(Capability.AGENT_CONTROL,),
             terminal_on_success=True,
         )
     )
