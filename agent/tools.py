@@ -35,7 +35,11 @@ def create_default_tool_registry(
             handler=list_directory,
             use_when="Discover the current workspace structure or the entries inside a known directory.",
             avoid_when="You need the contents of a specific file or need to search for text inside files.",
-            availability="always",
+            availability="on_demand",
+            routing_hints=(
+                "フォルダ", "ディレクトリ", "一覧", "ファイル一覧", "構成",
+                "何がある", "workspace", "folder", "directory", "list", "files",
+            ),
         )
     )
 
@@ -67,7 +71,11 @@ def create_default_tool_registry(
             handler=read_file,
             use_when="You already know which local file is relevant and need its contents.",
             avoid_when="You are only trying to discover which files exist, or you need to search unknown files for a specific text.",
-            availability="always",
+            availability="on_demand",
+            routing_hints=(
+                "ファイル", "内容", "中身", "読んで", "読み取", "確認", "説明",
+                "調べて", "file", "read", "content", "inspect", "explain",
+            ),
         )
     )
 
@@ -97,7 +105,11 @@ def create_default_tool_registry(
             handler=search_files,
             use_when="You know a concrete string or symbol to locate in file contents.",
             avoid_when="You are trying to find important files by role, filename, category, or vague natural-language descriptions.",
-            availability="always",
+            availability="on_demand",
+            routing_hints=(
+                "検索", "探して", "どこに", "文字列", "シンボル", "検索して",
+                "search", "find", "locate", "symbol", "text",
+            ),
         )
     )
 
