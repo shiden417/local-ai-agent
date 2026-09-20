@@ -12,6 +12,7 @@ from tools.list_directory import list_directory
 from tools.memory import save_memory, search_memory
 from tools.read_file import read_file
 from tools.search_files import search_files
+from tools.search_web import search_web
 from tools.run_python_script import run_python_script
 
 
@@ -164,6 +165,56 @@ def create_default_tool_registry(
         )
     )
 
+    registry.register(
+        ToolDefinition(
+            name="search_web",
+            description=(
+                "Search the live web for current information and return bounded "
+                "title, URL, and snippet results. This is read-only."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The web search query.",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 8,
+                        "description": "Number of results to return. Default 5.",
+                    },
+                    "region": {
+                        "type": "string",
+                        "description": "Search region/language such as jp-ja or us-en.",
+                    },
+                    "timelimit": {
+                        "type": ["string", "null"],
+                        "enum": ["d", "w", "m", "y", null],
+                        "description": "Optional time filter: day, week, month, or year.",
+                    },
+                },
+                "required": ["query"],
+                "additionalProperties": False,
+            },
+            handler=lambda working_directory, arguments: search_web(
+                str(arguments.get("query", "")),
+                int(arguments.get("max_results", 5)),
+                str(arguments.get("region", "jp-ja")),
+                arguments.get("timelimit"),
+            ),
+            use_when=(
+                "Current external information is needed, or the user explicitly asks "
+                "for web/internet search.",
+            ),
+            avoid_when=(
+                "The answer is already known from the task context or local workspace.",
+            ),
+            availability="on_demand",
+            capabilities=(Capability.WEB_SEARCH,),
+        )
+    )
     registry.register(
         ToolDefinition(
             name="list_promotion_candidates",
