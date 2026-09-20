@@ -16,6 +16,7 @@ def test_runtime_initializes_with_absolute_working_directory(tmp_path: Path) -> 
         "list_directory",
         "read_file",
         "search_files",
+        "edit_file",
         "execute_command",
     }
 
@@ -87,4 +88,77 @@ def test_runtime_executes_tool_then_returns_final_response(
         message.get("role") == "tool"
         and message.get("tool_call_id") == "call-1"
         for message in runtime.messages
+    )
+
+
+def test_runtime_rejects_mutating_tool_before_execution(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    registry = ToolRegistry()
+    executed = {"value": False}
+
+    def mutate(_working_directory, _arguments):
+        executed["value"] = True
+        return {"ok": True}
+
+    registry.register(
+        ToolDefinition(
+            name="edit_file",
+            description="Mutate a file",
+            parameters={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+            handler=mutate,
+        )
+    )
+
+    tool_call = SimpleNamespace(
+        id="call-edit",
+        function=SimpleNamespace(
+            name="edit_file",
+            arguments="{}",
+        ),
+    )
+    tool_message = SimpleNamespace(
+        role="assistant",
+        content="",
+        tool_calls=[tool_call],
+    )
+    final_message = SimpleNamespace(
+        role="assistant",
+        content="了解しました。",
+        tool_calls=[],
+    )
+
+    responses = [
+        SimpleNamespace(choices=[SimpleNamespace(message=tool_message)]),
+        SimpleNamespace(choices=[SimpleNamespace(message=final_message)]),
+    ]
+
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm",
+        lambda _messages, _tools: responses.pop(0),
+    )
+
+    confirmations = []
+
+    runtime = AgentRuntime(
+        tmp_path,
+        tool_registry=registry,
+        confirm=lambda message: confirmations.append(message) or False,
+    )
+
+    result = runtime.run("ファイルを変更してください")
+
+    assert result == "了解しました。"
+    assert executed["value"] is False
+    assert confirmations
+    assert any(
+        message.get("user_rejected") is True
+        for message in runtime.messages
+        if message.get("role") == "tool"
     )
