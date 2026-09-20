@@ -1,42 +1,96 @@
+from __future__ import annotations
+
 from pathlib import Path
 import subprocess
+
+from agent.observation import truncate_text
+
+
+DEFAULT_TIMEOUT_SECONDS = 30
+MAX_OUTPUT_CHARS = 8_000
 
 
 def execute_command(
     command: str,
     working_directory: str | Path,
-    timeout_seconds: int = 30,
+    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
 ) -> dict:
     """Execute a PowerShell command in the agent workspace."""
+    if not command.strip():
+        return {
+            "ok": False,
+            "exit_code": -1,
+            "stdout": "",
+            "stderr": "command must not be empty",
+        }
+
     cwd = Path(working_directory).resolve()
 
     if not cwd.exists():
-        return {"exit_code": -1, "stdout": "", "stderr": f"作業ディレクトリが存在しません: {cwd}"}
-
-    try:
-        result = subprocess.run(
-            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command],
-            cwd=str(cwd),
-            capture_output=True,
-            text=True,
-            encoding="cp932",
-            errors="replace",
-            timeout=timeout_seconds,
-        )
         return {
-            "exit_code": result.returncode,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-        }
-    except subprocess.TimeoutExpired:
-        return {
+            "ok": False,
             "exit_code": -1,
             "stdout": "",
-            "stderr": f"コマンドが{timeout_seconds}秒以内に終了しませんでした。",
+            "stderr": f"作業ディレクトリが存在しません: {cwd}",
+        }
+
+    wrapped_command = (
+        "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
+        "$OutputEncoding = [System.Text.Encoding]::UTF8; "
+        f"& {{ {command} }}"
+    )
+
+    try:
+        process = subprocess.Popen(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                wrapped_command,
+            ],
+            cwd=str(cwd),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+
+        try:
+            stdout, stderr = process.communicate(timeout=timeout_seconds)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            stdout, stderr = process.communicate()
+            timeout_message = (
+                f"コマンドが{timeout_seconds}秒以内に終了しなかったため終了しました。"
+            )
+            stderr = f"{stderr}\n{timeout_message}".strip()
+            return {
+                "ok": False,
+                "exit_code": -1,
+                "stdout": _bound_output(stdout),
+                "stderr": _bound_output(stderr),
+                "timed_out": True,
+            }
+
+        return {
+            "ok": process.returncode == 0,
+            "exit_code": process.returncode,
+            "stdout": _bound_output(stdout),
+            "stderr": _bound_output(stderr),
+            "timed_out": False,
         }
     except Exception as exc:
         return {
+            "ok": False,
             "exit_code": -1,
             "stdout": "",
             "stderr": f"コマンド実行中にエラーが発生しました: {exc}",
+            "timed_out": False,
         }
+
+
+def _bound_output(text: str) -> str:
+    bounded, _ = truncate_text(text, MAX_OUTPUT_CHARS)
+    return bounded
