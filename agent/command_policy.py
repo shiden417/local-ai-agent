@@ -96,7 +96,7 @@ def classify_auto_mode(
                     pass
         return AUTO_ASK
 
-    if tool_name in {"list_directory", "read_file", "search_files", "list_promotion_candidates"}:
+    if tool_name in {"list_directory", "read_file", "search_files", "list_promotion_candidates", "search_web"}:
         return AUTO_ALLOW
 
     if tool_name == "stage_plugin":
