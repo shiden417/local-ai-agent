@@ -42,8 +42,6 @@ WINDOWS_ABSOLUTE_PATH_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_])(?:[A-Za-z]:\\|\\\\|/(?:mnt|var|etc|tmp)(?:/|$))"
 )
 PARENT_PATH_PATTERN = re.compile(r"(^|[\s'\"])(?:\.\.[\\/])+")
-LOCAL_PATH_MUTATING_TOOLS = {"file_mutation"}
-
 HARD_DENY_COMMAND_PATTERNS = (
     re.compile(r"\bshutdown(?:\.exe)?\b", re.IGNORECASE),
     re.compile(r"\brestart-computer\b", re.IGNORECASE),
@@ -125,13 +123,7 @@ class SafetyPolicy:
         if auto_decision == AUTO_DENY:
             return AUTO_DENY
 
-        requires_approval = _requires_confirmation(
-            tool_name,
-            arguments,
-            registry,
-            working_directory,
-        )
-        if auto_decision == AUTO_ASK or requires_approval:
+        if auto_decision == AUTO_ASK:
             key = self.approval_key(
                 tool_name,
                 arguments,
@@ -268,41 +260,6 @@ def _classify_auto_mode(
 
     return AUTO_ASK
 
-
-def _requires_confirmation(
-    tool_name: str,
-    arguments: dict[str, Any],
-    registry: ToolRegistry,
-    working_directory: str | Path | None = None,
-) -> bool:
-    tool = registry.get(tool_name)
-    if tool is not None and tool.requires_confirmation:
-        return True
-
-    if tool_name in LOCAL_PATH_MUTATING_TOOLS:
-        requested_path = str(arguments.get("path", "")).strip()
-        if _is_absolute_local_path(requested_path):
-            if working_directory is None:
-                return True
-            try:
-                target = Path(requested_path).resolve()
-                cwd = Path(working_directory).resolve()
-            except OSError:
-                return True
-            if not target.is_relative_to(cwd):
-                return True
-
-    if tool_name != "execute_command":
-        return False
-
-    command = str(arguments.get("command", ""))
-    if any(pattern.search(command) for pattern in DESTRUCTIVE_COMMAND_PATTERNS):
-        return True
-
-    return bool(
-        WINDOWS_ABSOLUTE_PATH_PATTERN.search(command)
-        or PARENT_PATH_PATTERN.search(command)
-    )
 
 
 def validate_command_scope(
