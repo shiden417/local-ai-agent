@@ -226,46 +226,56 @@ def test_runtime_records_max_iterations(
     assert runtime.task.iteration == 2
 
 
-def test_runtime_tracks_multiple_tasks(
+def test_runtime_tracks_multiple_tasks_with_independent_history(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    first = SimpleNamespace(
-        choices=[
-            SimpleNamespace(
-                message=SimpleNamespace(
-                    role="assistant",
-                    content="first done",
-                    tool_calls=[],
+    seen_messages = []
+    responses = [
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="first done",
+                        tool_calls=[],
+                    )
                 )
-            )
-        ]
-    )
-    second = SimpleNamespace(
-        choices=[
-            SimpleNamespace(
-                message=SimpleNamespace(
-                    role="assistant",
-                    content="second done",
-                    tool_calls=[],
+            ]
+        ),
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="second done",
+                        tool_calls=[],
+                    )
                 )
-            )
-        ]
-    )
-    responses = [first, second]
+            ]
+        ),
+    ]
 
-    monkeypatch.setattr(
-        runtime_module,
-        "ask_llm",
-        lambda _messages, tools=None: responses.pop(0),
-    )
+    def fake_ask_llm(messages, tools=None):
+        seen_messages.append(messages)
+        return responses.pop(0)
+
+    monkeypatch.setattr(runtime_module, "ask_llm", fake_ask_llm)
 
     runtime = AgentRuntime(tmp_path)
 
     assert runtime.run("first") == "first done"
+    first_task = runtime.current_task
     assert runtime.run("second") == "second done"
+    second_task = runtime.current_task
 
     tasks = runtime.list_tasks()
+
+    assert first_task is not None
+    assert second_task is not None
+    assert first_task is not second_task
+    assert first_task.messages[1]["content"] == "first"
+    assert second_task.messages[1]["content"] == "second"
 
     assert len(tasks) == 2
     assert tasks[0].goal == "second"
@@ -273,8 +283,19 @@ def test_runtime_tracks_multiple_tasks(
     assert tasks[1].goal == "first"
     assert tasks[1].status.value == "completed"
 
+    assert any(
+        message.get("role") == "user"
+        and message.get("content") == "first"
+        for message in seen_messages[0]
+    )
+    assert not any(
+        message.get("role") == "user"
+        and message.get("content") == "first"
+        for message in seen_messages[1]
+    )
 
-def test_runtime_blocks_consecutive_duplicate_tool_calls(
+
+def test_runtime_blocks_task_wide_duplicate_tool_calls(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -298,7 +319,7 @@ def test_runtime_blocks_consecutive_duplicate_tool_calls(
         )
     )
 
-    def make_tool_response():
+    def make_tool_response(name):
         return SimpleNamespace(
             choices=[
                 SimpleNamespace(
@@ -307,9 +328,9 @@ def test_runtime_blocks_consecutive_duplicate_tool_calls(
                         content="",
                         tool_calls=[
                             SimpleNamespace(
-                                id="call-inspect",
+                                id=f"call-{name}-{executed['count']}",
                                 function=SimpleNamespace(
-                                    name="inspect",
+                                    name=name,
                                     arguments="{}",
                                 ),
                             )
@@ -332,10 +353,45 @@ def test_runtime_blocks_consecutive_duplicate_tool_calls(
     )
 
     responses = [
-        make_tool_response(),
-        make_tool_response(),
+        make_tool_response("inspect"),
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="",
+                        tool_calls=[
+                            SimpleNamespace(
+                                id="call-other",
+                                function=SimpleNamespace(
+                                    name="other",
+                                    arguments="{}",
+                                ),
+                            )
+                        ],
+                    )
+                )
+            ]
+        ),
+        make_tool_response("inspect"),
         final_response,
     ]
+
+    registry.register(
+        ToolDefinition(
+            name="other",
+            description="Do another inspection",
+            parameters={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+            handler=lambda _working_directory, _arguments: {
+                "ok": True,
+                "value": "different observation",
+            },
+        )
+    )
 
     monkeypatch.setattr(
         runtime_module,
