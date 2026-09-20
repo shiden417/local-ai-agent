@@ -169,3 +169,56 @@ def test_runtime_rejects_mutating_tool_before_execution(
         for message in runtime.messages
         if message.get("role") == "tool"
     )
+
+
+def test_runtime_records_max_iterations(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="loop",
+            description="Keep working",
+            parameters={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+            handler=lambda _working_directory, _arguments: {"ok": True},
+        )
+    )
+
+    tool_call = SimpleNamespace(
+        id="call-loop",
+        function=SimpleNamespace(
+            name="loop",
+            arguments="{}",
+        ),
+    )
+    tool_message = SimpleNamespace(
+        role="assistant",
+        content="",
+        tool_calls=[tool_call],
+    )
+
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm",
+        lambda _messages, tools=None: SimpleNamespace(
+            choices=[SimpleNamespace(message=tool_message)]
+        ),
+    )
+
+    runtime = AgentRuntime(
+        tmp_path,
+        max_iterations=2,
+        tool_registry=registry,
+    )
+
+    result = runtime.run("終わらない作業")
+
+    assert "最大反復回数" in result
+    assert runtime.task is not None
+    assert runtime.task.status.value == "max_iterations"
+    assert runtime.task.iteration == 2
