@@ -162,6 +162,8 @@ Qwen3系でThinking制御を試す場合は `LM_STUDIO_THINKING_MODE=default|thi
 
 Benchmarkは一時workspace上で、ファイル作成、Session Context、読み取り調査、検索、コード修正、テスト実行、コマンド実行、削除、Memoryを含む複数のAgent Taskを評価し、TraceからLatencyとToken使用量を集計できます。Qwen3と他モデルを同一条件で比較する場合は `--model` を使います。Qwen3のThinking比較には `--thinking-mode default|think|no_think` を使えます。結果を保存する場合は `--output benchmark.json` を指定します。
 
+Agentの推論負荷を抑えるため、RuntimeのSystem PromptはJARVIS固有の判断・Safety・Recoveryに必要な最小限へ圧縮しています。安全性そのものはRuntime/SafetyPolicy/CompletionVerifierで実装し、Prompt短縮によって安全性の実装をLLMの判断だけに依存させない方針です。
+
 ## Safety
 
 - workspace内の相対パスはworkspace外へ脱出できないよう制限
