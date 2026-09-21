@@ -235,3 +235,14 @@ To explicitly use these capabilities from Python, opt in when building the Tool 
     registry = create_default_tool_registry(enable_experimental=True)
 
 The normal Runtime path does not automatically persist successful temporary Python scripts as Recipes or inject Recipe promotion candidates into every task. This keeps the Core focused on model-driven Tool selection, execution safety, observation/recovery, and deterministic completion verification.
+
+
+### Benchmark comparison
+
+複数のBenchmark JSONを比較する場合:
+
+```powershell
+python tools/compare_benchmarks.py benchmark-qwen-default.json benchmark-qwen-nothink.json benchmark-gemma.json
+```
+
+各モデルの成功Task数、総時間、LLM時間、Reasoning Tokenに加えて、TaskごとのLLM呼び出し数・Tool回数・Latencyを表示します。
