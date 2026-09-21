@@ -63,10 +63,14 @@ def _seed_workspace(root: Path) -> None:
     )
 
 
-def _run_task(runtime, prompt: str) -> tuple[str, float]:
+def _run_task(runtime, prompt: str) -> tuple[str, float, dict[str, int]]:
     started = time.perf_counter()
+    before = runtime.trace.summary()
     result = runtime.run(prompt)
-    return result, time.perf_counter() - started
+    elapsed = time.perf_counter() - started
+    after = runtime.trace.summary()
+    delta = {key: int(after.get(key, 0)) - int(before.get(key, 0)) for key in after}
+    return result, elapsed, delta
 
 
 def _task_used_tool(runtime, names: set[str]) -> bool:
