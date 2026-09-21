@@ -63,10 +63,14 @@ def _seed_workspace(root: Path) -> None:
     )
 
 
-def _run_task(runtime, prompt: str) -> tuple[str, float]:
+def _run_task(runtime, prompt: str) -> tuple[str, float, dict[str, int]]:
     started = time.perf_counter()
+    before = runtime.trace.summary()
     result = runtime.run(prompt)
-    return result, time.perf_counter() - started
+    elapsed = time.perf_counter() - started
+    after = runtime.trace.summary()
+    delta = {key: int(after.get(key, 0)) - int(before.get(key, 0)) for key in after}
+    return result, elapsed, delta
 
 
 def _task_used_tool(runtime, names: set[str]) -> bool:
@@ -194,11 +198,12 @@ def run_benchmark(root: Path, *, model: str | None, max_iterations: int, output:
     for label, prompt, check in tasks:
         print(f"[RUN] {label}")
         try:
-            result, elapsed = _run_task(runtime, prompt)
+            result, elapsed, task_metrics = _run_task(runtime, prompt)
             ok = check()
         except Exception as exc:
             result = f"{type(exc).__name__}: {exc}"
             elapsed = 0.0
+            task_metrics = {}
             ok = False
 
         status = "PASS" if ok else "FAIL"
@@ -213,6 +218,7 @@ def run_benchmark(root: Path, *, model: str | None, max_iterations: int, output:
                 "passed": ok,
                 "elapsed_seconds": round(elapsed, 3),
                 "final": str(result),
+                "metrics": task_metrics,
             }
         )
 

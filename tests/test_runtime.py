@@ -1219,3 +1219,11 @@ def test_runtime_reuses_environment_snapshot_between_unchanged_iterations(
     runtime = AgentRuntime(tmp_path, tool_registry=registry)
     assert runtime.run("調査してください") == "確認結果です。"
     assert calls["count"] == 1
+
+
+def test_system_prompt_is_compact_but_retains_core_agent_rules() -> None:
+    prompt = runtime_module.SYSTEM_PROMPT
+
+    assert len(prompt) < 2600
+    for phrase in ("Tool", "Recovery Guide", "finish_task", "ask_user", "Session Context", "Web"):
+        assert phrase in prompt
