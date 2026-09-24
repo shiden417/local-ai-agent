@@ -29,6 +29,12 @@ def classify_tool_outcome(tool_name: str, result: dict[str, Any]) -> str:
         for key in ("error", "stderr", "message")
     ).lower()
 
+    if (
+        "search_text was not found" in error
+        or "not a directory" in error
+        or "invalid input" in error
+    ):
+        return STATUS_INVALID_INPUT
     if "does not exist" in error or "not found" in error or "file not exist" in error:
         return STATUS_NOT_FOUND
     if "permission" in error or "access denied" in error or "forbidden" in error:
