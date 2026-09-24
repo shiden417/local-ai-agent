@@ -57,7 +57,10 @@ def edit_file(
     if occurrence_count == 0:
         return {
             "ok": False,
-            "error": "search_text was not found. Read the file and copy the exact text to replace.",
+            "error": (
+                "search_text was not found. Use exact source text from the latest file contents; "
+                "do not include read_file line-number prefixes such as \"12: \"."
+            ),
         }
 
     if occurrence_count > 1:
