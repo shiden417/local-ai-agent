@@ -133,6 +133,14 @@ def test_completion_verifier_requires_process_execution_after_file_change(tmp_pa
     assert "pytest/test execution" in error or "execute_command" in error
 
 
+def test_requires_process_execution_does_not_treat_generic_python_as_os_command() -> None:
+    from agent.completion_verifier import CompletionVerifier
+
+    assert not CompletionVerifier._requires_process_execution(
+        "Pythonを実行してください"
+    )
+
+
 def test_requires_process_execution_recognizes_japanese_continuation() -> None:
     from agent.completion_verifier import CompletionVerifier
 
