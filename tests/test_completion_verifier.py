@@ -78,3 +78,49 @@ def test_completion_verifier_requires_diagnostic_action_for_project_investigatio
 
     assert error is not None
     assert "concrete diagnostic action" in error
+
+
+def test_completion_verifier_requires_pytest_after_python_mutation(tmp_path: Path) -> None:
+    (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    verifier = CompletionVerifier(tmp_path)
+    task = _task(
+        tmp_path,
+        {
+            "role": "tool",
+            "name": "file_mutation",
+            "content": json.dumps({"ok": True, "path": "tests/test_example.py"}),
+        },
+    )
+
+    error = verifier.verify(
+        task,
+        {"completion_status": "completed", "summary": "changed"},
+    )
+
+    assert error is not None
+    assert "python -m pytest" in error
+
+
+def test_completion_verifier_accepts_pytest_after_python_mutation(tmp_path: Path) -> None:
+    (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    verifier = CompletionVerifier(tmp_path)
+    task = _task(
+        tmp_path,
+        {
+            "role": "tool",
+            "name": "file_mutation",
+            "content": json.dumps({"ok": True, "path": "tests/test_example.py"}),
+        },
+        {
+            "role": "tool",
+            "name": "execute_command",
+            "content": json.dumps(
+                {"ok": True, "exit_code": 0, "command": "python -m pytest -q"}
+            ),
+        },
+    )
+
+    assert verifier.verify(
+        task,
+        {"completion_status": "completed", "summary": "changed and tested"},
+    ) is None
