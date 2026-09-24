@@ -29,3 +29,21 @@ def test_loop_guard_can_reset() -> None:
     guard.reset()
 
     assert guard.is_repetition("list_directory", {"path": "."}) is False
+
+
+def test_loop_guard_preserves_completed_mutation_but_allows_verification() -> None:
+    guard = ToolLoopGuard()
+
+    assert guard.record("file_mutation", {"operation": "edit", "path": "test.txt"}) == 1
+    assert guard.record("read_file", {"path": "test.txt"}) == 1
+
+    guard.reset_for_state_change(
+        preserve_name="file_mutation",
+        preserve_arguments={"operation": "edit", "path": "test.txt"},
+    )
+
+    assert guard.is_repetition(
+        "file_mutation",
+        {"operation": "edit", "path": "test.txt"},
+    )
+    assert not guard.is_repetition("read_file", {"path": "test.txt"})
