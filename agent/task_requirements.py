@@ -107,6 +107,14 @@ _PROTECTED_PATH_RE = re.compile(
     re.IGNORECASE,
 )
 
+_PROTECTED_PATH_LIST_RE = re.compile(
+    rf"(?P<paths>{_FILE_PATH_TOKEN}(?:\s*(?:,|、|と|および|and)\s*{_FILE_PATH_TOKEN})+)\s*"
+    r"(?:は|を|が)?\s*"
+    r"(?:絶対に\s*)?(?:変更|修正|編集|削除|書き換え|更新)\s*"
+    r"(?:しない|しません|禁止|不要|しないで(?:ください|下さい)?|せず(?:に)?|することなく)",
+    re.IGNORECASE,
+)
+
 _GLOBAL_NO_FILE_MUTATION_RE = re.compile(
     r"(?:"
     r"ファイル(?:は|を)?(?:絶対に)?(?:変更|修正|編集|削除|書き換え|更新)\s*"
@@ -160,6 +168,12 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
         if path and path not in protected_paths:
             protected_paths.append(path)
 
+    for match in _PROTECTED_PATH_LIST_RE.finditer(raw_text):
+        for path_match in re.finditer(_FILE_PATH_TOKEN, match.group("paths"), re.IGNORECASE):
+            path = path_match.group(0)
+            if path and path not in protected_paths:
+                protected_paths.append(path)
+
     mutation_forbidden = bool(_GLOBAL_NO_FILE_MUTATION_RE.search(raw_text))
     if mutation_forbidden:
         # A global no-mutation constraint overrides incidental save/write wording,
@@ -170,8 +184,25 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
     if file_mutation:
         for match in re.finditer(_FILE_PATH_TOKEN, raw_text, re.IGNORECASE):
             path = match.group(0)
-            if path and path not in protected_paths and path not in required_mutation_paths:
-                required_mutation_paths.append(path)
+            if not path or path in protected_paths or path in required_mutation_paths:
+                continue
+
+            context_after = raw_text[match.end(): match.end() + 100]
+            context_before = raw_text[max(0, match.start() - 40): match.start()]
+            negative_context = bool(
+                _NO_CHANGE_RE.search(context_after)
+                or _NO_CHANGE_RE.search(context_before)
+            )
+            positive_context = bool(
+                _JAPANESE_MUTATION_RE.search(context_after)
+                or _JAPANESE_IMPLEMENT_RE.search(context_after)
+                or _ENGLISH_MUTATION_RE.search(context_after)
+                or _ENGLISH_IMPLEMENT_RE.search(context_after)
+            )
+            if negative_context or not positive_context:
+                continue
+
+            required_mutation_paths.append(path)
 
     process_context = bool(
         _EXPLICIT_PROCESS_CONTEXT_RE.search(text)
