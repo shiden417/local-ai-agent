@@ -91,6 +91,22 @@ def _snapshot(root: Path, relative_paths: Iterable[str]) -> dict[str, str]:
     return snapshot
 
 
+def _reset_workspace(root: Path) -> None:
+    keep_files = {"trace.jsonl", "memory.json"}
+    keep_dirs = {".git"}
+    for path in sorted(root.iterdir(), key=lambda item: len(item.parts), reverse=True):
+        if path.name in keep_files or path.name in keep_dirs:
+            continue
+        if path.is_dir():
+            import shutil
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            try:
+                path.unlink()
+            except OSError:
+                pass
+
+
 def _tool_results(runtime, names: set[str]) -> list[dict[str, object]]:
     task = runtime.current_task
     if task is None:
@@ -1019,6 +1035,7 @@ def run_benchmark(
             # while the workspace remains task-isolated.
             pass
 
+        _reset_workspace(root)
         task.seed(root)
         baseline = _workspace_snapshot(root)
 
