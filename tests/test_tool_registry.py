@@ -126,3 +126,13 @@ def test_tool_registry_caches_schemas_until_registration_changes() -> None:
         )
     )
     assert {item["function"]["name"] for item in registry.schemas_for()} == {"inspect", "write"}
+
+
+def test_default_file_mutation_is_not_terminal_after_success() -> None:
+    from agent.tools import create_default_tool_registry
+
+    registry = create_default_tool_registry()
+    definition = registry.get("file_mutation")
+
+    assert definition is not None
+    assert definition.terminal_on_success is False
