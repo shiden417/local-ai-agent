@@ -66,6 +66,14 @@ def run_python_script(
         }
 
     environment = os.environ.copy()
+    python_dir = str(Path(sys.executable).resolve().parent)
+    current_path = environment.get("PATH", "")
+    if python_dir not in current_path.split(os.pathsep):
+        environment["PATH"] = (
+            f"{python_dir}{os.pathsep}{current_path}"
+            if current_path
+            else python_dir
+        )
     for key in (
         "PYTHONPATH",
         "PYTHONHOME",
