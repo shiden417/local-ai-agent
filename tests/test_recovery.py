@@ -1,6 +1,7 @@
 from agent.recovery import (
     STATUS_BLOCKED,
     STATUS_EXTERNAL_FAILURE,
+    STATUS_INVALID_INPUT,
     STATUS_NOT_FOUND,
     STATUS_SUCCESS,
     STATUS_TIMEOUT,
@@ -48,3 +49,10 @@ def test_recovery_guidance_mentions_discovery_for_missing_target() -> None:
     guidance = recovery_guidance("read_file", STATUS_NOT_FOUND)
     assert "search_files" in guidance
     assert "list_directory" in guidance
+
+
+def test_classify_file_already_exists_as_invalid_input() -> None:
+    assert classify_tool_outcome(
+        "file_mutation",
+        {"ok": False, "error": "File already exists: hello.txt"},
+    ) == STATUS_INVALID_INPUT
