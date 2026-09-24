@@ -20,3 +20,12 @@ def test_plain_read_only_investigation_still_forbids_process_execution() -> None
 
     assert requirements.read_only is True
     assert requirements.process_execution is False
+
+
+def test_required_symbols_track_explicit_function_additions() -> None:
+    requirements = classify_task_requirements(
+        "calculator に subtract(a, b) を追加し、tests/test_calculator.py も変更して、"
+        "python -m pytest -q を実行してください。"
+    )
+
+    assert requirements.required_symbols == ("subtract",)
