@@ -827,8 +827,12 @@ def _build_tasks(root: Path) -> list[TaskSpec]:
                 final_ok=(
                     _contains(r, "src/calculator.py", "def square(a):")
                     and _contains(r, "tests/test_calculator.py", "def test_square():")
-                    and _contains(r, "tests/test_calculator.py", "square(4) == 16")
+                    and (
+                        _contains(r, "src/calculator.py", "return a ** 2")
+                        or _contains(r, "src/calculator.py", "return a * a")
+                    )
                     and _contains(r, "src/calculator.py", "def multiply(a, b):")
+                    and _contains(r, "tests/test_calculator.py", "square(")
                 ),
                 require_pytest=True,
             ),
