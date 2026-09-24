@@ -492,7 +492,11 @@ class AgentRuntime:
                     )
                     continue
 
-                if self.task.tool_calls == 0 and self.task.iteration == 1:
+                if (
+                    self.task.tool_calls == 0
+                    and self.task.iteration == 1
+                    and not read_only_request
+                ):
                     current_task.messages.append(_message_to_dict(message))
                     current_task.messages.append(
                         {
