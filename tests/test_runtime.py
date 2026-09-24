@@ -2243,7 +2243,7 @@ def test_runtime_requirements_satisfied_after_successful_edit_and_pytest() -> No
         },
     ]
 
-    assert AgentRuntime._runtime_requirements_satisfied(
+    assert AgentRuntime(tmp_path)._runtime_requirements_satisfied(
         "src/calculator.pyを修正して、python -m pytest -q tests/ を実行して確認してください。",
         messages,
     )
@@ -2270,7 +2270,7 @@ def test_runtime_requirements_satisfied_requires_all_explicit_mutation_paths() -
         },
     ]
 
-    assert not AgentRuntime._runtime_requirements_satisfied(
+    assert not AgentRuntime(tmp_path)._runtime_requirements_satisfied(
         "src/calculator.py と tests/test_calculator.py の両方を修正して、"
         "python -m pytest -q tests/ を実行して確認してください。",
         messages,
@@ -2312,3 +2312,69 @@ def test_unread_required_mutation_paths_ignores_missing_creation_targets(tmp_pat
 
     goal = "src/a.py と src/new.py の両方を修正してください。"
     assert runtime._unread_required_mutation_paths(goal, []) == ["src/a.py"]
+
+
+def test_runtime_does_not_reset_loop_guard_after_non_mutating_command(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    registry = ToolRegistry()
+    executed = {"count": 0}
+
+    def execute(_working_directory, _arguments):
+        executed["count"] += 1
+        return {"ok": True, "exit_code": 0, "stdout": "JARVIS benchmark\n"}
+
+    registry.register(
+        ToolDefinition(
+            name="execute_command",
+            description="Execute a command",
+            parameters={
+                "type": "object",
+                "properties": {"command": {"type": "string"}},
+                "required": ["command"],
+            },
+            handler=execute,
+        )
+    )
+
+    def response(tool_calls=None, content=""):
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content=content,
+                        tool_calls=tool_calls or [],
+                    )
+                )
+            ]
+        )
+
+    def call(call_id):
+        return SimpleNamespace(
+            id=call_id,
+            function=SimpleNamespace(
+                name="execute_command",
+                arguments=json.dumps({"command": "python -c \\\"print('JARVIS benchmark')\\\""}),
+            ),
+        )
+
+    responses = [
+        response(tool_calls=[call("execute-1")]),
+        response(tool_calls=[call("execute-2")]),
+        response(content="コマンド実行を確認しました。"),
+    ]
+    monkeypatch.setattr(runtime_module, "ask_llm", lambda _messages, tools=None: responses.pop(0))
+
+    runtime = AgentRuntime(
+        tmp_path,
+        max_iterations=3,
+        tool_registry=registry,
+        confirm=lambda _message: True,
+    )
+
+    assert runtime.run(
+        'execute_command Toolを使って python -c "print(\\'JARVIS benchmark\\')" を実行してください。'
+    ) == "コマンド実行を確認しました。"
+    assert executed["count"] == 1
