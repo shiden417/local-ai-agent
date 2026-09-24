@@ -1479,3 +1479,9 @@ def test_runtime_reprompts_when_model_claims_test_execution_without_tool(
         for message in messages
         if message.get("role") == "system"
     )
+def test_unexecuted_action_intent_matches_past_test_claim() -> None:
+    content = (
+        "修正後、python -m pytest -q を実行した結果、すべてのテストが成功することを確認できました。"
+    )
+    assert runtime_module.AgentRuntime._looks_like_unexecuted_action_intent(content)
+
