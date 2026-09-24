@@ -227,6 +227,8 @@ class AgentRuntime:
         self.loop_guard.reset()
         terminal_synthesis_required = False
         raw_tool_call_recovery_used = False
+        unexecuted_action_recovery_used = False
+        last_state_change_tool: str | None = None
         self.task.start()
         self.task_manager.update_timestamp(current_task)
         if self.terminal_ui is not None:
@@ -454,6 +456,28 @@ class AgentRuntime:
                                 "the appropriate Tool. Use a Tool now. If the "
                                 "request lacks one required detail, ask only a "
                                 "concise clarification question."
+                            ),
+                        }
+                    )
+                    continue
+
+                if (
+                    not unexecuted_action_recovery_used
+                    and last_state_change_tool is not None
+                    and self._looks_like_unexecuted_action_intent(content)
+                ):
+                    unexecuted_action_recovery_used = True
+                    current_task.messages.append(_message_to_dict(message))
+                    current_task.messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                f"The previous response stated that another operation should be "
+                                f"performed after the successful '{last_state_change_tool}' action, "
+                                "but no structured Tool call was made for that operation. "
+                                "Do not merely describe or promise the operation. Use the "
+                                "appropriate structured Tool now, then inspect its result before "
+                                "claiming completion. Do not infer that the operation succeeded."
                             ),
                         }
                     )
@@ -724,6 +748,7 @@ class AgentRuntime:
                     "stage_plugin",
                     "promote_plugin",
                 }:
+                    last_state_change_tool = name
                     self._environment_revision += 1
                     self.loop_guard.reset_for_state_change(
                         preserve_name=name,
@@ -784,6 +809,32 @@ class AgentRuntime:
             tool_calls=self.task.tool_calls,
         )
         return "Agentの最大反復回数に達したため、処理を終了しました。"
+
+    @staticmethod
+    def _looks_like_unexecuted_action_intent(content: str) -> bool:
+        """Detect a response that promises another operation without calling a Tool."""
+        text = content.strip()
+        if not text:
+            return False
+
+        has_action_verb = bool(
+            re.search(
+                r"(?:実行|起動|テスト|確認|検証|調査|変更|修正|削除|作成|保存|検索)"
+                r".{0,24}(?:します|する|してください|していきます|行います|実施します)"
+                r"|(?:execute|run|test|verify|check|inspect|modify|edit|delete|create|save|search)"
+                r".{0,32}(?:next|now|before|then|will|should|need)",
+                text,
+                flags=re.IGNORECASE | re.DOTALL,
+            )
+        )
+        has_command_shape = bool(
+            re.search(
+                r"\b(?:python|pytest|dotnet|npm|git|powershell|pwsh)\s+[^\n]+",
+                text,
+                flags=re.IGNORECASE | re.DOTALL,
+            )
+        )
+        return has_action_verb and has_command_shape
 
     def _run_conversation(self, user_input: str, run_id: str | None = None) -> str:
         """Answer without creating a Task or exposing operational Tools."""
