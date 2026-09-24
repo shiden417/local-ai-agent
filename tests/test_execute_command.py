@@ -19,6 +19,7 @@ def test_execute_command_reports_missing_directory(tmp_path: Path) -> None:
 
     assert result["exit_code"] == -1
     assert result["ok"] is False
+    assert result["command"] == "Get-Date"
     assert "存在しません" in result["stderr"]
 
 
@@ -27,6 +28,7 @@ def test_execute_command_rejects_empty_command(tmp_path: Path) -> None:
 
     assert result["exit_code"] == -1
     assert result["ok"] is False
+    assert result["command"] == "  "
 
 
 def test_execute_command_truncates_large_output(tmp_path: Path) -> None:
