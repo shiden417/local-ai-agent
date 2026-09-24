@@ -43,8 +43,8 @@ class CompletionVerifier:
             )
             if not successful_mutation:
                 return (
-                    "System Verification Failed: this task explicitly requires a file change, "
-                    "but no successful file mutation was observed before completion. "
+                    "System Verification Failed: no successful action has been observed, "
+                    "and this task explicitly requires a file change. "
                     "Perform the requested file mutation first."
                 )
 
