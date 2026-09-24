@@ -182,7 +182,8 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
 
     required_mutation_paths: list[str] = []
     if file_mutation:
-        for match in re.finditer(_FILE_PATH_TOKEN, raw_text, re.IGNORECASE):
+        path_matches = list(re.finditer(_FILE_PATH_TOKEN, raw_text, re.IGNORECASE))
+        for index, match in enumerate(path_matches):
             path = match.group(0)
             if not path or path in protected_paths or path in required_mutation_paths:
                 continue
@@ -200,8 +201,14 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
                 if position >= 0
             ]
             sentence_end = min(sentence_end_candidates) if sentence_end_candidates else len(raw_text)
+            next_path_start = (
+                path_matches[index + 1].start()
+                if index + 1 < len(path_matches)
+                else len(raw_text)
+            )
+            context_end = min(sentence_end, next_path_start)
             context_before = raw_text[sentence_start: match.start()]
-            context_after = raw_text[match.end(): sentence_end]
+            context_after = raw_text[match.end(): context_end]
             negative_context = bool(_NO_CHANGE_RE.search(context_after))
             positive_context = bool(
                 _JAPANESE_MUTATION_RE.search(context_after)
