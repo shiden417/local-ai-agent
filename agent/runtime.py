@@ -871,7 +871,7 @@ class AgentRuntime:
         goal: str,
         messages: list[dict[str, Any]],
     ) -> tuple[bool, str]:
-        """Keep explicit mutation tasks from being completed before their required evidence exists."""
+        """Keep explicit mutation tasks from being completed before required evidence exists."""
         text = str(goal).casefold()
         mutation_required = bool(
             re.search(
@@ -884,9 +884,12 @@ class AgentRuntime:
         if not mutation_required:
             return False, ""
 
+        # A request needs a test run only when testing is explicitly requested.
+        # Avoid interpreting filenames such as "test.txt" as a test requirement.
         verification_required = bool(
             re.search(
-                r"(テスト|回帰|検証|pytest|test|regression|verify|validation)",
+                r"(?:テスト|回帰|pytest|regression|verify|validation)"
+                r"|\btest(?:ing|s)?\s+(?:suite|case|coverage|run|result)",
                 text,
                 flags=re.IGNORECASE,
             )
@@ -894,7 +897,9 @@ class AgentRuntime:
 
         mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file"}
         successful_mutation = False
+        mutation_rejected = False
         successful_test = False
+
         for message in messages:
             if message.get("role") != "tool":
                 continue
@@ -902,17 +907,28 @@ class AgentRuntime:
                 payload = json.loads(str(message.get("content", "")))
             except json.JSONDecodeError:
                 continue
-            if not isinstance(payload, dict) or not payload.get("ok"):
+            if not isinstance(payload, dict):
                 continue
+
             name = str(message.get("name", ""))
             if name in mutation_tools:
-                successful_mutation = True
-            if name == "execute_command":
+                if payload.get("user_rejected") is True:
+                    mutation_rejected = True
+                if payload.get("ok"):
+                    successful_mutation = True
+
+            if name == "execute_command" and payload.get("ok"):
                 command = str(payload.get("command", "")).casefold()
-                if payload.get("exit_code") == 0 and (
-                    "pytest" in command or "test" in command
+                exit_code = payload.get("exit_code", 0)
+                if exit_code in (None, 0) and (
+                    "pytest" in command or re.search(r"\btest(?:ing|s)?\b", command)
                 ):
                     successful_test = True
+
+        # An explicit user rejection is a safe terminal condition: do not
+        # force the model to retry a mutation the user declined.
+        if mutation_rejected and not successful_mutation:
+            return False, ""
 
         if not successful_mutation:
             return True, (
