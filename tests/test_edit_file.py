@@ -54,3 +54,23 @@ def test_edit_file_rejects_ambiguous_match(tmp_path: Path) -> None:
 
     assert result["ok"] is False
     assert "2 locations" in result["error"]
+
+
+def test_edit_file_rejects_invalid_python_before_writing(tmp_path: Path) -> None:
+    target = tmp_path / "example.py"
+    original = "value = 1\n"
+    target.write_text(original, encoding="utf-8")
+
+    result = edit_file(
+        tmp_path,
+        {
+            "path": "example.py",
+            "search_text": "value = 1",
+            "replace_text": 'assert \\"broken',
+        },
+    )
+
+    assert result["ok"] is False
+    assert result["validation_failed"] is True
+    assert "Python syntax validation failed" in result["error"]
+    assert target.read_text(encoding="utf-8") == original
