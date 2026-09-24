@@ -94,6 +94,16 @@ _REQUIRED_FUNCTION_RE = re.compile(
     re.IGNORECASE,
 )
 
+_RETIRED_FUNCTION_RE = re.compile(
+    r"\b(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*"
+    r"(?:\([^()\n]{0,80}\))?\s*"
+    r"(?:を|が|は)?\s*(?:削除|除外|不要|取り消し|撤回|廃止)"
+    r"|\b(?:remove|delete|drop|retire)\s+"
+    r"(?P<english_name>[A-Za-z_][A-Za-z0-9_]*)(?:\b|\s)",
+    re.IGNORECASE,
+)
+
+
 
 _TEST_REQUEST_RE = re.compile(
     r"(?:回帰|pytest|regression|全テスト"
@@ -201,10 +211,26 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
 
     required_mutation_paths: list[str] = []
     required_symbols: list[str] = []
+    requirement_positions: dict[str, int] = {}
+    retirement_positions: dict[str, int] = {}
+
     for match in _REQUIRED_FUNCTION_RE.finditer(raw_text):
         symbol = match.group("name") or match.group("english_name")
-        if symbol and symbol not in required_symbols:
+        if symbol:
             required_symbols.append(symbol)
+            requirement_positions[symbol] = match.start()
+
+    for match in _RETIRED_FUNCTION_RE.finditer(raw_text):
+        symbol = match.group("name") or match.group("english_name")
+        if symbol:
+            retirement_positions[symbol] = match.start()
+
+    required_symbols = [
+        symbol
+        for index, symbol in enumerate(required_symbols)
+        if symbol not in required_symbols[:index]
+        and requirement_positions.get(symbol, -1) > retirement_positions.get(symbol, -1)
+    ]
 
     if file_mutation:
         path_matches = list(re.finditer(_FILE_PATH_TOKEN, raw_text, re.IGNORECASE))
