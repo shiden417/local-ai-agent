@@ -148,7 +148,7 @@ def _task2_passed(workspace: Path, original_completion_tests: str, runtime) -> t
     path = workspace / "tests" / "test_completion_verifier.py"
     content = path.read_text(encoding="utf-8")
     test_added = (
-        "def test_completion_verifier_allows_explicit_blocked_result" in content
+        "def test_completion_verifier_accepts_blocked_finish" in content
         and content != original_completion_tests
     )
     pytest_ok = _successful_command(runtime)
