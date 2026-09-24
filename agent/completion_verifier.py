@@ -178,7 +178,7 @@ class CompletionVerifier:
         text = str(goal).casefold()
         return bool(
             re.search(
-                r"(?:追加|作成|修正|変更|編集|削除|書き換え|保存|実装)(?!しない|禁止|不要|しなく)",
+                r"(?:追加|作成|修正|変更|編集|削除|書き換え|実装)(?!しない|禁止|不要|しなく)",
                 text,
             )
             or re.search(
@@ -193,7 +193,7 @@ class CompletionVerifier:
         text = str(goal).casefold()
         return bool(
             re.search(
-                r"(?:テスト|回帰|pytest|regression|verify|validation|検証|確認)|\\btest(?:ing|s)?\\b",
+                r"(?:テスト|回帰|pytest|regression|verify|validation|検証)|\\btest(?:ing|s)?\\b",
                 text,
                 flags=re.IGNORECASE,
             )
