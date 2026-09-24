@@ -12,9 +12,9 @@ class TaskRequirements:
     file_mutation: bool
     process_execution: bool
     test_verification: bool
-    mutation_forbidden: bool
-    protected_paths: tuple[str, ...]
-    required_process_tool: str | None
+    mutation_forbidden: bool = False
+    protected_paths: tuple[str, ...] = ()
+    required_process_tool: str | None = None
 
 
 _FILE_CONTEXT_RE = re.compile(
@@ -166,7 +166,19 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
     )
 
     test_verification = bool(_TEST_REQUEST_RE.search(text))
-    required_process_tool = "execute_command" if "execute_command" in text else None
+    explicit_command_context = bool(
+        re.search(
+            r"(execute_command|コマンド|powershell|terminal|shell|"
+            r"python(?:\.exe)?\s+-[a-z]+|pytest|dotnet|npm|git)",
+            text,
+            re.IGNORECASE,
+        )
+    )
+    required_process_tool = (
+        "execute_command"
+        if "execute_command" in text or (process_execution and explicit_command_context)
+        else None
+    )
 
     return TaskRequirements(
         read_only=read_only,
