@@ -5,14 +5,18 @@ import difflib
 import io
 import tokenize
 from pathlib import Path
-from typing import Any
 
 from tools.path_utils import resolve_workspace_path, to_display_path
 from tools.source_validation import validate_python_syntax
 
 
 MAX_FILE_SIZE = 1_000_000
-SUPPORTED_OPERATIONS = ("add_function", "remove_function", "rename_identifier", "ensure_from_import")
+SUPPORTED_OPERATIONS = (
+    "add_function",
+    "remove_function",
+    "rename_identifier",
+    "ensure_from_import",
+)
 
 
 def _read_text(path: Path) -> str:
@@ -44,14 +48,10 @@ def _parse_module(content: str) -> ast.Module | str:
         return f"Current file is not valid Python: {exc}"
 
 
-def _validate_new_content(path: Path, content: str) -> dict[str, Any] | None:
-    validation_error = validate_python_syntax(path, content)
-    if validation_error is not None:
-        return {"ok": False, "error": validation_error, "validation_failed": True}
-    return None
-
-
-def _function_nodes(tree: ast.Module, symbol: str) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
+def _function_nodes(
+    tree: ast.Module,
+    symbol: str,
+) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
     return [
         node
         for node in tree.body
@@ -62,15 +62,20 @@ def _function_nodes(tree: ast.Module, symbol: str) -> list[ast.FunctionDef | ast
 
 def _node_start_line(node: ast.FunctionDef | ast.AsyncFunctionDef) -> int:
     if node.decorator_list:
-        return min([node.lineno, *(decorator.lineno for decorator in node.decorator_list)])
+        return min(
+            [node.lineno, *(decorator.lineno for decorator in node.decorator_list)]
+        )
     return node.lineno
 
 
-def _add_function(content: str, symbol: str, function_code: str) -> tuple[str, dict[str, Any]]:
+def _add_function(
+    content: str,
+    symbol: str,
+    function_code: str,
+) -> tuple[str, dict[str, object]]:
     tree_or_error = _parse_module(content)
     if isinstance(tree_or_error, str):
         return content, {"ok": False, "error": tree_or_error}
-
     if not symbol:
         return content, {"ok": False, "error": "symbol must not be empty"}
     if not function_code.strip():
@@ -110,12 +115,19 @@ def _add_function(content: str, symbol: str, function_code: str) -> tuple[str, d
             ),
         }
 
-    suffix = "" if not content else ("\\n" if content.endswith("\\n") else "\\n\\n")
-    new_content = content + suffix + function_code.strip() + "\\n"
-    return new_content, {"ok": True, "operation": "add_function", "symbol": symbol}
+    suffix = "" if not content else ("\n" if content.endswith("\n") else "\n\n")
+    new_content = content + suffix + function_code.strip() + "\n"
+    return new_content, {
+        "ok": True,
+        "operation": "add_function",
+        "symbol": symbol,
+    }
 
 
-def _remove_function(content: str, symbol: str) -> tuple[str, dict[str, Any]]:
+def _remove_function(
+    content: str,
+    symbol: str,
+) -> tuple[str, dict[str, object]]:
     tree_or_error = _parse_module(content)
     if isinstance(tree_or_error, str):
         return content, {"ok": False, "error": tree_or_error}
@@ -134,7 +146,10 @@ def _remove_function(content: str, symbol: str) -> tuple[str, dict[str, Any]]:
 
     node = matches[0]
     if node.end_lineno is None:
-        return content, {"ok": False, "error": f"Unable to determine end of function: {symbol}"}
+        return content, {
+            "ok": False,
+            "error": f"Unable to determine end of function: {symbol}",
+        }
 
     lines = content.splitlines(keepends=True)
     start = _node_start_line(node) - 1
@@ -143,12 +158,21 @@ def _remove_function(content: str, symbol: str) -> tuple[str, dict[str, Any]]:
         end += 1
 
     new_content = "".join(lines[:start] + lines[end:])
-    if new_content and not new_content.endswith("\\n"):
-        new_content += "\\n"
-    return new_content, {"ok": True, "operation": "remove_function", "symbol": symbol}
+    if new_content and not new_content.endswith("\n"):
+        new_content += "\n"
+
+    return new_content, {
+        "ok": True,
+        "operation": "remove_function",
+        "symbol": symbol,
+    }
 
 
-def _rename_identifier(content: str, symbol: str, new_name: str) -> tuple[str, dict[str, Any]]:
+def _rename_identifier(
+    content: str,
+    symbol: str,
+    new_name: str,
+) -> tuple[str, dict[str, object]]:
     if not symbol or not new_name:
         return content, {"ok": False, "error": "symbol and new_name are required"}
     if not symbol.isidentifier() or not new_name.isidentifier():
@@ -165,7 +189,10 @@ def _rename_identifier(content: str, symbol: str, new_name: str) -> tuple[str, d
     try:
         tokens = list(tokenize.generate_tokens(io.StringIO(content).readline))
     except (tokenize.TokenError, IndentationError) as exc:
-        return content, {"ok": False, "error": f"Unable to tokenize Python source: {exc}"}
+        return content, {
+            "ok": False,
+            "error": f"Unable to tokenize Python source: {exc}",
+        }
 
     matches = [
         token
@@ -173,7 +200,10 @@ def _rename_identifier(content: str, symbol: str, new_name: str) -> tuple[str, d
         if token.type == tokenize.NAME and token.string == symbol
     ]
     if not matches:
-        return content, {"ok": False, "error": f"Identifier not found: {symbol}"}
+        return content, {
+            "ok": False,
+            "error": f"Identifier not found: {symbol}",
+        }
 
     lines = content.splitlines(keepends=True)
     offsets: list[int] = []
@@ -208,11 +238,17 @@ def _ensure_from_import(
     content: str,
     module: str,
     symbol: str,
-) -> tuple[str, dict[str, Any]]:
+) -> tuple[str, dict[str, object]]:
     if not module or not symbol:
-        return content, {"ok": False, "error": "module and symbol are required"}
+        return content, {
+            "ok": False,
+            "error": "module and symbol are required",
+        }
     if not symbol.isidentifier():
-        return content, {"ok": False, "error": "symbol must be a valid Python identifier"}
+        return content, {
+            "ok": False,
+            "error": "symbol must be a valid Python identifier",
+        }
 
     tree_or_error = _parse_module(content)
     if isinstance(tree_or_error, str):
@@ -235,18 +271,27 @@ def _ensure_from_import(
             }
 
     for node in tree_or_error.body:
-        if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module == module:
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.level == 0
+            and node.module == module
+        ):
             if node.end_lineno is None:
                 break
+
             lines = content.splitlines(keepends=True)
             line_index = node.lineno - 1
-            current = lines[line_index].rstrip("\\r\\n")
+            current = lines[line_index].rstrip("\r\n")
             import_index = current.index("import")
             prefix = current[: import_index + len("import")]
             imported_text = current[import_index + len("import"):].strip()
-            names = [item.strip() for item in imported_text.split(",") if item.strip()]
+            names = [
+                item.strip()
+                for item in imported_text.split(",")
+                if item.strip()
+            ]
             names.append(symbol)
-            newline = "\\r\\n" if "\\r\\n" in lines[line_index] else "\\n"
+            newline = "\r\n" if "\r\n" in lines[line_index] else "\n"
             lines[line_index] = f"{prefix} {', '.join(names)}{newline}"
             return "".join(lines), {
                 "ok": True,
@@ -266,12 +311,16 @@ def _ensure_from_import(
         ):
             insert_at = node.end_lineno or node.lineno
             continue
-        if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module == "__future__":
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.level == 0
+            and node.module == "__future__"
+        ):
             insert_at = node.end_lineno or node.lineno
             continue
         break
 
-    newline = "\\r\\n" if any("\\r\\n" in line for line in lines) else "\\n"
+    newline = "\r\n" if any("\r\n" in line for line in lines) else "\n"
     lines.insert(insert_at, f"from {module} import {symbol}{newline}")
     return "".join(lines), {
         "ok": True,
@@ -315,7 +364,11 @@ def python_symbol_edit(
 
     symbol = str(arguments.get("symbol", "")).strip()
     if operation == "add_function":
-        new_content, result = _add_function(content, symbol, str(arguments.get("function_code", "")))
+        new_content, result = _add_function(
+            content,
+            symbol,
+            str(arguments.get("function_code", "")),
+        )
     elif operation == "remove_function":
         new_content, result = _remove_function(content, symbol)
     elif operation == "rename_identifier":
@@ -349,8 +402,7 @@ def python_symbol_edit(
         }
 
     try:
-        _write_text = path.write_text
-        _write_text(new_content, encoding="utf-8", newline="")
+        _write_text(path, new_content, encoding="utf-8", newline="")
     except OSError as exc:
         return {"ok": False, "error": f"Unable to write file: {exc}"}
 
