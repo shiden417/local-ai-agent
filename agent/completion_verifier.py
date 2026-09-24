@@ -30,6 +30,7 @@ class CompletionVerifier:
                 "file_mutation",
                 "create_file",
                 "edit_file",
+                "python_symbol_edit",
             }:
                 continue
             if not self._tool_payload_ok(message):
@@ -121,7 +122,7 @@ class CompletionVerifier:
         mutation_required = requirements.file_mutation
         process_required = requirements.process_execution
 
-        mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file"}
+        mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file", "python_symbol_edit"}
         successful_mutations = [
             message
             for message in messages
@@ -201,7 +202,7 @@ class CompletionVerifier:
                     "in multiple target paths, but these paths have no successful file mutation "
                     "evidence: "
                     + ", ".join(missing_required_paths)
-                    + ". Modify each required target with the file_mutation Tool before completion."
+                    + ". Modify each required target with a file mutation Tool before completion."
                 )
 
             requirement_gaps = self.requirement_gaps(verification_goal, messages)
@@ -219,7 +220,7 @@ class CompletionVerifier:
             )
 
         if self._is_read_only_request(verification_goal):
-            mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file"}
+            mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file", "python_symbol_edit"}
             if any(
                 message.get("role") == "tool"
                 and message.get("name") in mutation_tools
@@ -291,7 +292,7 @@ class CompletionVerifier:
                 )
             return None
 
-        if name in {"file_mutation", "create_file", "edit_file", "delete_file"}:
+        if name in {"file_mutation", "create_file", "edit_file", "delete_file", "python_symbol_edit"}:
             path = str(payload.get("path", "")).strip()
             if not path:
                 return (
@@ -354,6 +355,7 @@ class CompletionVerifier:
                 "file_mutation",
                 "create_file",
                 "edit_file",
+                "python_symbol_edit",
                 "delete_file",
             }:
                 continue
@@ -524,7 +526,7 @@ class CompletionVerifier:
             if message.get("role") != "tool":
                 continue
             name = str(message.get("name", ""))
-            if name not in {"file_mutation", "create_file", "edit_file"}:
+            if name not in {"file_mutation", "create_file", "edit_file", "python_symbol_edit"}:
                 continue
             try:
                 payload = json.loads(str(message.get("content", "")))
