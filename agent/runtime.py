@@ -212,7 +212,8 @@ class AgentRuntime:
 
         is_follow_up = routing_text != user_input
         current_task = self.task_manager.create(user_input)
-        read_only_request = self._is_read_only_request(routing_text)
+        task_requirements = classify_task_requirements(routing_text)
+        read_only_request = task_requirements.read_only
         current_task.messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_input},
@@ -312,11 +313,21 @@ class AgentRuntime:
             ]
 
             excluded_tools = set(self.task.disabled_tools)
-            if read_only_request:
-                excluded_tools.update(
-                    {"file_mutation", "create_file", "edit_file", "delete_file",
-                     "run_python_script", "execute_command"}
+            mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file"}
+            if read_only_request or task_requirements.mutation_forbidden:
+                excluded_tools.update(mutation_tools)
+                llm_messages.append(
+                    {
+                        "role": "system",
+                        "content": (
+                            "File mutation guard: the task prohibits workspace file changes. "
+                            "Do not use file_mutation, create_file, edit_file, or delete_file. "
+                            "Read-only observation and non-file task operations remain allowed."
+                        ),
+                    }
                 )
+            if read_only_request:
+                excluded_tools.update({"run_python_script", "execute_command"})
                 llm_messages.append(
                     {
                         "role": "system",
@@ -326,6 +337,18 @@ class AgentRuntime:
                             "Do not use any file mutation or process-execution Tool. "
                             "Use only read-only observations such as read_file or search_files. "
                             "If the requested information is already observed, answer directly."
+                        ),
+                    }
+                )
+            if task_requirements.protected_paths:
+                protected = ", ".join(task_requirements.protected_paths)
+                llm_messages.append(
+                    {
+                        "role": "system",
+                        "content": (
+                            "Protected file guard: the following paths must not be modified "
+                            f"by this task: {protected}. You may modify other files only when "
+                            "the goal explicitly requires it."
                         ),
                     }
                 )
@@ -662,16 +685,30 @@ class AgentRuntime:
                     else:
                         print("[Tool] blocked by recovery quarantine")
                 elif (
-                    self._is_read_only_request(routing_text)
-                    and name in {"file_mutation", "create_file", "edit_file", "delete_file",
-                                  "run_python_script", "execute_command"}
+                    (
+                        task_requirements.mutation_forbidden
+                        or (
+                            name in {"file_mutation", "create_file", "edit_file", "delete_file"}
+                            and self._is_protected_mutation_path(
+                                arguments,
+                                task_requirements,
+                            )
+                        )
+                    )
+                    and name in {"file_mutation", "create_file", "edit_file", "delete_file"}
                 ):
                     safety_decision = "task_tool_blocked"
                     result = {
                         "ok": False,
                         "error": (
-                            f"Tool '{name}' is not available for this read-only task. "
-                            "Use only read-only observation Tools."
+                            (
+                                f"Tool '{name}' is not available because this task prohibits "
+                                "workspace file changes."
+                            )
+                            if task_requirements.mutation_forbidden
+                            else (
+                                f"Tool '{name}' cannot modify a protected path for this task."
+                            )
                         ),
                         "task_tool_blocked": True,
                     }
@@ -923,6 +960,36 @@ class AgentRuntime:
             and name != "finish_task"
             and self.task.last_failure_status == STATUS_INVALID_INPUT
         )
+
+    def _is_protected_mutation_path(
+        self,
+        arguments: dict[str, Any],
+        requirements,
+    ) -> bool:
+        path_value = str(arguments.get("path", "")).strip()
+        if not path_value or not requirements.protected_paths:
+            return False
+
+        candidate = Path(path_value)
+        if not candidate.is_absolute():
+            candidate = self.working_directory / candidate
+        try:
+            candidate = candidate.resolve()
+        except OSError:
+            candidate = candidate.absolute()
+
+        candidate_key = str(candidate).casefold()
+        for raw_path in requirements.protected_paths:
+            protected = Path(raw_path)
+            if not protected.is_absolute():
+                protected = self.working_directory / protected
+            try:
+                protected = protected.resolve()
+            except OSError:
+                protected = protected.absolute()
+            if str(protected).casefold() == candidate_key:
+                return True
+        return False
 
     @staticmethod
     def _is_read_only_request(goal: str) -> bool:
