@@ -144,6 +144,24 @@ def test_requires_process_execution_recognizes_japanese_continuation() -> None:
     )
 
 
+def test_mutation_completion_requirement_requires_execute_command_for_process_task() -> None:
+    required, message = AgentRuntime._mutation_completion_requirement(
+        'PowerShellから python -c "print(\'JARVIS benchmark\')" を実行し、終了コード0を確認してください。',
+        [],
+    )
+
+    assert required is True
+    assert "execute_command" in message
+
+
+def test_file_save_request_is_still_a_file_mutation_requirement() -> None:
+    from agent.completion_verifier import CompletionVerifier
+
+    assert CompletionVerifier._requires_file_mutation(
+        "results.txtに実行結果を保存してください。"
+    )
+
+
 def test_mutation_completion_requirement_requires_successful_file_change() -> None:
     required, message = AgentRuntime._mutation_completion_requirement(
         "tests/test_example.py に回帰テストを1件追加してください。",
