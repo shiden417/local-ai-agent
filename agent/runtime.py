@@ -871,17 +871,26 @@ class AgentRuntime:
         goal: str,
         messages: list[dict[str, Any]],
     ) -> tuple[bool, str]:
-        """Keep explicit mutation tasks from being completed before a mutation succeeds."""
+        """Keep explicit mutation tasks from being completed before their required evidence exists."""
         text = str(goal).casefold()
         mutation_required = bool(
             re.search(
-                r"(追加|作成|修正|変更|編集|削除|書き換え|保存|実装|add|create|modify|change|edit|delete|update|implement|write)",
+                r"(追加|作成|修正|変更|編集|削除|書き換え|保存|実装|"
+                r"add|create|modify|change|edit|delete|update|implement|write)",
                 text,
                 flags=re.IGNORECASE,
             )
         )
         if not mutation_required:
             return False, ""
+
+        verification_required = bool(
+            re.search(
+                r"(テスト|回帰|検証|pytest|test|regression|verify|validation)",
+                text,
+                flags=re.IGNORECASE,
+            )
+        )
 
         mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file"}
         successful_mutation = False
@@ -900,23 +909,26 @@ class AgentRuntime:
                 successful_mutation = True
             if name == "execute_command":
                 command = str(payload.get("command", "")).casefold()
-                if "pytest" in command and payload.get("exit_code") == 0:
+                if payload.get("exit_code") == 0 and (
+                    "pytest" in command or "test" in command
+                ):
                     successful_test = True
 
-        if successful_mutation:
-            if successful_test:
-                return False, ""
+        if not successful_mutation:
             return True, (
-                "This task explicitly requires a file change. The change has succeeded, "
-                "but verification has not yet succeeded. Run the required test/verification "
-                "before giving a completion answer."
+                "This task explicitly requires a file change. Do not answer with an "
+                "explanation or summary yet. Use the appropriate file mutation Tool now, "
+                "then inspect its result. Do not declare completion without a successful mutation."
             )
 
-        return True, (
-            "This task explicitly requires a file change. Do not answer with an explanation "
-            "or summary yet. Use the appropriate file mutation Tool now, then inspect its "
-            "result. Do not declare completion without a successful mutation."
-        )
+        if verification_required and not successful_test:
+            return True, (
+                "The requested file change has succeeded, but the task explicitly requires "
+                "testing or verification. Run the relevant test/verification command and "
+                "inspect its result before giving a completion answer."
+            )
+
+        return False, ""
 
     @staticmethod
     def _looks_like_unexecuted_action_intent(content: str) -> bool:
