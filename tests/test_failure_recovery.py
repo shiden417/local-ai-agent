@@ -315,3 +315,12 @@ def test_completion_verifier_rejects_protected_mutation(
 
     assert error is not None
     assert "protected file" in error
+
+
+def test_task_requirements_detect_explicit_execute_command() -> None:
+    req = classify_task_requirements(
+        'execute_command Toolを使って python -c "print(1)" を実行してください。'
+    )
+
+    assert req.process_execution is True
+    assert req.required_process_tool == "execute_command"
