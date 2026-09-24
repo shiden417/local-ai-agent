@@ -642,7 +642,22 @@ class AgentRuntime:
                 call_count = self.loop_guard.record(name, arguments)
                 self._last_tool_duration_ms = 0
                 safety_decision = AUTO_ALLOW
-                if (
+                if name in excluded_tools:
+                    safety_decision = "task_tool_blocked"
+                    result = {
+                        "ok": False,
+                        "error": (
+                            f"Tool '{name}' is not available for this task. "
+                            "Use only the Tools exposed by the Runtime for the current task."
+                        ),
+                        "task_tool_blocked": True,
+                    }
+                    self.task.disable_tool(name)
+                    if self.terminal_ui is not None:
+                        self.terminal_ui.info(f"Tool blocked for task: {name}")
+                    else:
+                        print(f"[Tool] blocked for task: {name}")
+                elif (
                     self.task.recovery_tool == name
                     and not self._can_retry_recovery_tool(name)
                 ):
