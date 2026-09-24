@@ -1651,6 +1651,38 @@ class AgentRuntime:
             self.terminal_ui.final(content)
         return content
 
+    @staticmethod
+    def _effective_task_requirements(
+        user_input: str,
+        routing_text: str,
+        *,
+        is_follow_up: bool,
+    ) -> TaskRequirements:
+        """Use the latest follow-up for action intent while retaining prior target constraints."""
+        if not is_follow_up:
+            return classify_task_requirements(routing_text)
+
+        current = classify_task_requirements(user_input)
+        inherited = classify_task_requirements(routing_text)
+
+        protected_paths = list(inherited.protected_paths)
+        for path in current.protected_paths:
+            if path not in protected_paths:
+                protected_paths.append(path)
+
+        return replace(
+            current,
+            protected_paths=tuple(protected_paths),
+            required_mutation_paths=(
+                current.required_mutation_paths
+                or inherited.required_mutation_paths
+            ),
+            required_process_tool=(
+                current.required_process_tool
+                or inherited.required_process_tool
+            ),
+        )
+
     def _routing_text(self, user_input: str) -> str:
         """Expand clear follow-ups with the previous session topic for task reasoning."""
         if not self.session_manager.has_context:
