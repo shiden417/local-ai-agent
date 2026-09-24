@@ -660,6 +660,25 @@ class AgentRuntime:
                         self.terminal_ui.info(f"Tool blocked by recovery quarantine: {name}")
                     else:
                         print("[Tool] blocked by recovery quarantine")
+                elif (
+                    self._is_read_only_request(routing_text)
+                    and name in {"file_mutation", "create_file", "edit_file", "delete_file",
+                                  "run_python_script", "execute_command"}
+                ):
+                    safety_decision = "task_tool_blocked"
+                    result = {
+                        "ok": False,
+                        "error": (
+                            f"Tool '{name}' is not available for this read-only task. "
+                            "Use only read-only observation Tools."
+                        ),
+                        "task_tool_blocked": True,
+                    }
+                    self.task.disable_tool(name)
+                    if self.terminal_ui is not None:
+                        self.terminal_ui.info(f"Tool blocked for read-only task: {name}")
+                    else:
+                        print(f"[Tool] blocked for read-only task: {name}")
                 elif name in excluded_tools:
                     safety_decision = "task_tool_blocked"
                     result = {
@@ -910,15 +929,20 @@ class AgentRuntime:
         text = str(goal).casefold()
         has_mutation_intent = bool(
             re.search(
-                r"(?:追加|作成|修正|変更|編集|削除|書き換え)(?!しない|禁止|不要|せず|しません)",
+                r"(?:追加|作成|修正|変更|編集|削除|書き換え)(?:してください|して|し|する|します|を)",
                 text,
             )
             or re.search(
-                r"(?:実装)(?:して|する|してください|します|を)",
+                r"(?:実装)(?:してください|して|する|します|を)",
                 text,
             )
             or re.search(
-                r"\b(?:add|create|modify|change|edit|delete|update|implement|write)\b",
+                r"\b(?:please\s+)?(?:add|create|modify|change|edit|delete|update|write)\s+(?:a|an|the|new|this|that|file|folder|directory|line|code|test)\b",
+                text,
+                flags=re.IGNORECASE,
+            )
+            or re.search(
+                r"\b(?:please\s+)?implement\s+(?:a|an|the|new|this|that|feature|function|method|class)\b",
                 text,
                 flags=re.IGNORECASE,
             )
