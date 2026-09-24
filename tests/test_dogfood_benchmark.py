@@ -6,6 +6,8 @@ from tools.dogfood_benchmark import (
     _add_required_regression_test,
     _inject_truncation_bug,
     _successful_pytest_command,
+    _task1_passed,
+    _task2_passed,
 )
 
 
@@ -92,6 +94,123 @@ def test_successful_pytest_command_requires_passing_output() -> None:
 
     assert _successful_pytest_command(runtime) is True
 
+
+
+def test_task1_accepts_equivalent_repair_that_uses_tail(tmp_path: Path) -> None:
+    from agent.observation import truncate_text
+
+    observation = tmp_path / "agent" / "observation.py"
+    observation.parent.mkdir()
+    injected = (
+        "def truncate_text(text, max_chars=8000):\n"
+        "    tail = 4\n"
+        "    return text[:2] + text[-2:]\n"
+    )
+    repaired = (
+        "def truncate_text(text, max_chars=8000):\n"
+        "    tail = 4\n"
+        "    return text[:2] + text[len(text) - tail:]\n"
+    )
+    observation.write_text(repaired, encoding="utf-8")
+    tests = tmp_path / "tests" / "test_observation.py"
+    tests.parent.mkdir(exist_ok=True)
+    original_tests = "original tests"
+    tests.write_text(original_tests, encoding="utf-8")
+    runtime = SimpleNamespace(
+        current_task=SimpleNamespace(
+            messages=[
+                {
+                    "role": "tool",
+                    "name": "execute_command",
+                    "content": json.dumps(
+                        {
+                            "ok": True,
+                            "exit_code": 0,
+                            "command": "python -m pytest -q",
+                            "stdout": "10 passed",
+                        }
+                    ),
+                }
+            ]
+        )
+    )
+
+    ok, details = _task1_passed(tmp_path, injected, original_tests, runtime)
+
+    assert ok is True
+    assert "bug_repaired=True" in details
+
+
+def test_task2_rejects_existing_test_modification(tmp_path: Path) -> None:
+    path = tmp_path / "tests" / "test_completion_verifier.py"
+    path.parent.mkdir()
+    original = "def test_existing():\n    assert 1 == 1\n"
+    path.write_text(
+        "def test_existing():\n    assert 1 == 2\n\n"
+        "def test_completion_verifier_accepts_blocked_status():\n"
+        "    assert 'blocked' == 'blocked'\n",
+        encoding="utf-8",
+    )
+    runtime = SimpleNamespace(
+        current_task=SimpleNamespace(
+            messages=[
+                {
+                    "role": "tool",
+                    "name": "execute_command",
+                    "content": json.dumps(
+                        {
+                            "ok": True,
+                            "exit_code": 0,
+                            "command": "python -m pytest -q",
+                            "stdout": "11 passed",
+                        }
+                    ),
+                }
+            ]
+        )
+    )
+
+    ok, details = _task2_passed(tmp_path, original, runtime)
+
+    assert ok is False
+    assert "existing_tests_preserved=False" in details
+
+
+def test_task2_accepts_append_only_blocked_regression_test(tmp_path: Path) -> None:
+    path = tmp_path / "tests" / "test_completion_verifier.py"
+    path.parent.mkdir()
+    original = "def test_existing():\n    assert 1 == 1\n"
+    path.write_text(
+        original
+        + "\n"
+        + "def test_completion_verifier_accepts_blocked_status():\n"
+        + "    result = {'completion_status': 'blocked', 'summary': 'blocked'}\n"
+        + "    assert result['completion_status'] == 'blocked'\n",
+        encoding="utf-8",
+    )
+    runtime = SimpleNamespace(
+        current_task=SimpleNamespace(
+            messages=[
+                {
+                    "role": "tool",
+                    "name": "execute_command",
+                    "content": json.dumps(
+                        {
+                            "ok": True,
+                            "exit_code": 0,
+                            "command": "python -m pytest -q",
+                            "stdout": "11 passed",
+                        }
+                    ),
+                }
+            ]
+        )
+    )
+
+    ok, details = _task2_passed(tmp_path, original, runtime)
+
+    assert ok is True
+    assert "existing_tests_preserved=True" in details
 
 
 def test_dogfood_environment_validator_uses_current_interpreter() -> None:
