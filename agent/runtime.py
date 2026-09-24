@@ -359,6 +359,19 @@ class AgentRuntime:
                         ),
                     }
                 )
+            if task_requirements.required_mutation_paths:
+                required_targets = ", ".join(task_requirements.required_mutation_paths)
+                llm_messages.append(
+                    {
+                        "role": "system",
+                        "content": (
+                            "Required mutation targets: the following file paths are explicit "
+                            "targets of this task and must each receive the necessary file "
+                            "change before completion: "
+                            f"{required_targets}. Use file_mutation for these workspace edits."
+                        ),
+                    }
+                )
             if task_requirements.protected_paths:
                 protected = ", ".join(task_requirements.protected_paths)
                 llm_messages.append(
@@ -1092,6 +1105,19 @@ class AgentRuntime:
         if mutation_rejected and not successful_mutation:
             return False, ""
 
+        if requirements.file_mutation and requirements.required_mutation_paths:
+            missing_paths = [
+                required_path
+                for required_path in requirements.required_mutation_paths
+                if not AgentRuntime._has_successful_mutation_path(messages, required_path)
+            ]
+            if missing_paths:
+                return True, (
+                    "This task requires successful file mutations in every explicit target path: "
+                    + ", ".join(missing_paths)
+                    + ". Use file_mutation on each missing target before completion."
+                )
+
         if requirements.file_mutation and not successful_mutation:
             return True, (
                 "This task explicitly requires a file change. Do not answer with an "
@@ -1119,6 +1145,40 @@ class AgentRuntime:
             )
 
         return False, ""
+
+    @staticmethod
+    def _has_successful_mutation_path(
+        messages: list[dict[str, Any]],
+        required_path: str,
+    ) -> bool:
+        required = Path(required_path)
+        if not required.is_absolute():
+            required = Path.cwd() / required
+        required_key = str(required.absolute()).casefold()
+
+        for message in messages:
+            if message.get("role") != "tool" or message.get("name") not in {
+                "file_mutation",
+                "create_file",
+                "edit_file",
+                "delete_file",
+            }:
+                continue
+            if not AgentRuntime._tool_message_ok(message):
+                continue
+            try:
+                payload = json.loads(str(message.get("content", "")))
+            except json.JSONDecodeError:
+                continue
+            raw_path = str(payload.get("path", "")).strip()
+            if not raw_path:
+                continue
+            target = Path(raw_path)
+            if not target.is_absolute():
+                target = Path.cwd() / target
+            if str(target.absolute()).casefold() == required_key:
+                return True
+        return False
 
     @staticmethod
     def _tool_message_ok(message: dict[str, Any]) -> bool:
