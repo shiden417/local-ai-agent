@@ -283,6 +283,7 @@ def test_runtime_initializes_with_absolute_working_directory(tmp_path: Path) -> 
         "ask_user",
         "finish_task",
         "file_mutation",
+        "python_symbol_edit",
         "run_python_script",
         "execute_command",
         "save_memory",
