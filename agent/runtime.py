@@ -728,6 +728,28 @@ class AgentRuntime:
                     else:
                         print(f"[Tool] blocked for read-only task: {name}")
                 elif (
+                    name == "execute_command"
+                    and task_requirements.file_mutation
+                    and self._looks_like_workspace_mutating_command(arguments)
+                ):
+                    safety_decision = "task_command_blocked"
+                    result = {
+                        "ok": False,
+                        "error": (
+                            "This task requires a workspace file change. Use the "
+                            "file_mutation Tool for file edits instead of shell/file-writing "
+                            "commands through execute_command. execute_command remains "
+                            "available for tests and read-only/process verification."
+                        ),
+                        "task_tool_blocked": True,
+                    }
+                    if self.terminal_ui is not None:
+                        self.terminal_ui.info(
+                            "Blocked shell file mutation; use file_mutation instead"
+                        )
+                    else:
+                        print("[Tool] blocked shell file mutation; use file_mutation instead")
+                                elif (
                     name in {"file_mutation", "create_file", "edit_file", "delete_file"}
                     and self._is_protected_mutation_path(arguments, task_requirements)
                 ):
@@ -1026,6 +1048,24 @@ class AgentRuntime:
     @staticmethod
     def _is_read_only_request(goal: str) -> bool:
         return classify_task_requirements(goal).read_only
+
+    @staticmethod
+    def _mutation_completion_requirement(
+    @staticmethod
+    def _looks_like_workspace_mutating_command(arguments: dict[str, Any]) -> bool:
+        command = str(arguments.get("command", "")).strip()
+        if not command:
+            return False
+
+        patterns = (
+            r"\b(?:add-content|set-content|out-file|remove-item|move-item|copy-item|new-item)\b",
+            r"\b(?:tee|sed)\s+[^\n]*?(?:-i|--in-place)\b",
+            r"\b(?:echo|printf|write-output)\b[^\n]*(?:>>|>)\s*[^>]",
+            r"(?:>>|>)\s*[\"']?(?:[A-Za-z]:)?[^\n]+$",
+            r"\[\s*io\.file\s*\]\s*::\s*(?:writealltext|appendalltext|writeallbytes)\s*\(",
+        )
+        lowered = command.casefold()
+        return any(re.search(pattern, lowered, re.IGNORECASE) for pattern in patterns)
 
     @staticmethod
     def _mutation_completion_requirement(
