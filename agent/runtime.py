@@ -834,7 +834,15 @@ class AgentRuntime:
                 flags=re.IGNORECASE | re.DOTALL,
             )
         )
-        return has_action_verb and has_command_shape
+        has_verification_intent = bool(
+            re.search(
+                r"(?:テスト(?:スイート|全体|全部)?|test(?:\s+suite)?|pytest)"
+                r".{0,48}(?:実行|再実行|実施|確認|検証|成功|pass|run|execute|verify|check)",
+                text,
+                flags=re.IGNORECASE | re.DOTALL,
+            )
+        )
+        return has_action_verb and (has_command_shape or has_verification_intent)
 
     def _run_conversation(self, user_input: str, run_id: str | None = None) -> str:
         """Answer without creating a Task or exposing operational Tools."""
