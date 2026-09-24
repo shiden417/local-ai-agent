@@ -49,7 +49,11 @@ def execute_command(
     wrapped_command = (
         "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
         "$OutputEncoding = [System.Text.Encoding]::UTF8; "
-        f"& {{ {command} }}"
+        "& { "
+        f"{command}; "
+        "if ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE }; "
+        "if (-not $?) { exit 1 } "
+        "}"
     )
 
     try:
