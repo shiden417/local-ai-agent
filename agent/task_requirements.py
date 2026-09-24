@@ -87,10 +87,10 @@ _PYTHON_COMMAND_RE = re.compile(
 )
 
 _REQUIRED_FUNCTION_RE = re.compile(
-    r"\\b(?P<name>[A-Za-z_][A-Za-z0-9_]*)\\s*\\([^()\\n]{0,80}\\)\\s*"
-    r"(?:を|が|は)?\\s*(?:追加|作成|実装|変更|修正|更新)\\b"
-    r"|\\b(?:add|create|implement|modify|change|update)\\s+"
-    r"(?P<english_name>[A-Za-z_][A-Za-z0-9_]*)\\s*\\([^()\\n]{0,80}\\)",
+    r"\b(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*\([^()\n]{0,80}\)\s*"
+    r"(?:を|が|は)?\s*(?:追加|作成|実装|変更|修正|更新)\b"
+    r"|\b(?:add|create|implement|modify|change|update)\s+"
+    r"(?P<english_name>[A-Za-z_][A-Za-z0-9_]*)\s*\([^()\n]{0,80}\)",
     re.IGNORECASE,
 )
 
