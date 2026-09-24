@@ -102,6 +102,23 @@ class CompletionVerifier:
                     "Run the relevant test command and inspect its result before completion."
                 )
 
+            missing_required_paths = [
+                required_path
+                for required_path in requirements.required_mutation_paths
+                if not self._has_successful_mutation_path(
+                    successful_mutations,
+                    required_path,
+                )
+            ]
+            if missing_required_paths:
+                return (
+                    "System Verification Failed: this task explicitly requires file changes "
+                    "in multiple target paths, but these paths have no successful file mutation "
+                    "evidence: "
+                    + ", ".join(missing_required_paths)
+                    + ". Modify each required target with the file_mutation Tool before completion."
+                )
+
         if process_required and not self._has_successful_command(messages):
             return (
                 "System Verification Failed: this task explicitly requires process/command execution, "
@@ -226,6 +243,47 @@ class CompletionVerifier:
             return None
 
         return None
+
+    def _has_successful_mutation_path(
+        self,
+        messages: list[dict[str, Any]],
+        required_path: str,
+    ) -> bool:
+        required = Path(required_path)
+        if not required.is_absolute():
+            required = self.working_directory / required
+        try:
+            required_key = str(required.resolve()).casefold()
+        except OSError:
+            required_key = str(required.absolute()).casefold()
+
+        for message in messages:
+            if message.get("role") != "tool" or message.get("name") not in {
+                "file_mutation",
+                "create_file",
+                "edit_file",
+                "delete_file",
+            }:
+                continue
+            if not self._tool_payload_ok(message):
+                continue
+            try:
+                payload = json.loads(str(message.get("content", "")))
+            except json.JSONDecodeError:
+                continue
+            raw_path = str(payload.get("path", "")).strip()
+            if not raw_path:
+                continue
+            target = Path(raw_path)
+            if not target.is_absolute():
+                target = self.working_directory / target
+            try:
+                target_key = str(target.resolve()).casefold()
+            except OSError:
+                target_key = str(target.absolute()).casefold()
+            if target_key == required_key:
+                return True
+        return False
 
     @staticmethod
     def _tool_payload_ok(message: dict[str, Any]) -> bool:
