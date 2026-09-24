@@ -33,6 +33,8 @@ def classify_tool_outcome(tool_name: str, result: dict[str, Any]) -> str:
         return STATUS_NOT_FOUND
     if "permission" in error or "access denied" in error or "forbidden" in error:
         return STATUS_PERMISSION_DENIED
+    if "already exists" in error:
+        return STATUS_INVALID_INPUT
     if "must be" in error or "invalid" in error or "required" in error:
         return STATUS_INVALID_INPUT
     if tool_name in {"search_web", "fetch_web_page"}:
