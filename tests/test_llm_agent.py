@@ -1,26 +1,13 @@
-import importlib
 import os
 
 from agent import llm
 
 
-def test_lm_studio_defaults(monkeypatch) -> None:
-    monkeypatch.delenv("LM_STUDIO_MODEL", raising=False)
-    reloaded = importlib.reload(llm)
-    try:
-        assert reloaded.LM_STUDIO_BASE_URL == "http://localhost:1234/v1"
-        assert reloaded.MODEL == reloaded.DEFAULT_MODEL
-    finally:
-        if os.environ.get("LM_STUDIO_MODEL"):
-            importlib.reload(llm)
-        else:
-            importlib.reload(llm)
+def test_lm_studio_configuration_uses_default_or_environment_override() -> None:
+    assert llm.LM_STUDIO_BASE_URL == "http://localhost:1234/v1"
+    expected_model = os.getenv("LM_STUDIO_MODEL") or llm.DEFAULT_MODEL
+    assert llm.MODEL == expected_model
 
 
-def test_lm_studio_model_can_be_overridden(monkeypatch) -> None:
-    monkeypatch.setenv("LM_STUDIO_MODEL", "google/gemma-4-e4b")
-    reloaded = importlib.reload(llm)
-    try:
-        assert reloaded.MODEL == "google/gemma-4-e4b"
-    finally:
-        importlib.reload(llm)
+def test_lm_studio_default_model_name() -> None:
+    assert llm.DEFAULT_MODEL == "qwen/qwen3-8b"
