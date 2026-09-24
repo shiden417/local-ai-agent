@@ -248,7 +248,7 @@ def run_benchmark(
         ),
         (
             "Task 6: process execution",
-            "このworkspaceで、プロジェクト調査ではなく単純なコマンド実行Taskとして、python -c を使って JARVIS benchmark と表示し、終了コード0を確認してください。",
+            "このworkspaceで、プロジェクト調査ではなく単純なコマンド実行Taskとして、execute_command Toolを使い、PowerShellから python -c \"print('JARVIS benchmark')\" を実行し、終了コード0を確認してください。",
             lambda: _task_process_execution_succeeded(runtime),
         ),
         (
