@@ -1367,3 +1367,115 @@ def test_runtime_allows_read_verification_after_state_change(
     )
     assert runtime.run("test.txtを変更して内容を確認してください") == "変更後の内容を確認しました。"
     assert reads["count"] == 2
+
+
+def test_runtime_reprompts_when_model_claims_test_execution_without_tool(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    registry = ToolRegistry()
+    executed = []
+
+    def mutate(_working_directory, _arguments):
+        executed.append("file_mutation")
+        return {"ok": True}
+
+    def execute(_working_directory, _arguments):
+        executed.append("execute_command")
+        return {"ok": True, "stdout": "2 passed"}
+
+    registry.register(
+        ToolDefinition(
+            name="file_mutation",
+            description="Edit file",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "operation": {"type": "string"},
+                    "path": {"type": "string"},
+                },
+                "required": ["operation", "path"],
+            },
+            handler=mutate,
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="execute_command",
+            description="Execute a command",
+            parameters={
+                "type": "object",
+                "properties": {"command": {"type": "string"}},
+                "required": ["command"],
+            },
+            handler=execute,
+        )
+    )
+
+    def response(content="", tool_calls=None):
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content=content,
+                        tool_calls=tool_calls or [],
+                    )
+                )
+            ]
+        )
+
+    def call(call_id, name, arguments):
+        return SimpleNamespace(
+            id=call_id,
+            function=SimpleNamespace(name=name, arguments=arguments),
+        )
+
+    responses = [
+        response(
+            tool_calls=[
+                call(
+                    "edit-1",
+                    "file_mutation",
+                    '{"operation":"edit","path":"calculator.py"}',
+                )
+            ]
+        ),
+        response(
+            "その後、テストスイート全体を再実行した結果、全テストが成功することを確認できました。"
+        ),
+        response(
+            tool_calls=[
+                call(
+                    "test-1",
+                    "execute_command",
+                    '{"command":"python -m pytest -q"}',
+                )
+            ]
+        ),
+        response("修正後にテストを実行し、成功を確認しました。"),
+    ]
+    captured_messages = []
+
+    def fake_ask_llm(messages, tools=None):
+        captured_messages.append(messages)
+        return responses.pop(0)
+
+    monkeypatch.setattr(runtime_module, "ask_llm", fake_ask_llm)
+
+    runtime = AgentRuntime(
+        tmp_path,
+        tool_registry=registry,
+        confirm=lambda _message: True,
+    )
+
+    assert runtime.run("calculator.pyを修正してテストしてください") == (
+        "修正後にテストを実行し、成功を確認しました。"
+    )
+    assert executed == ["file_mutation", "execute_command"]
+    assert any(
+        "no structured Tool call was made" in str(message.get("content", ""))
+        for messages in captured_messages
+        for message in messages
+        if message.get("role") == "system"
+    )
