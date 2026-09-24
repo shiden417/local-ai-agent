@@ -213,6 +213,9 @@ def run_benchmark(
                 (root / "src/calculator.py").read_text(encoding="utf-8")
                 == "def add(a, b):\n    return a + b\n\ndef multiply(a, b):\n    return a * b\n"
                 and (root / "tests/test_calculator.py").read_text(encoding="utf-8") == expected_test_source
+                and (root / "app.py").read_text(encoding="utf-8").endswith("    return add(2, 3)\n")
+                and (root / "config.json").read_text(encoding="utf-8") == '{"mode": "stable", "version": 1}\n'
+                and (root / "README.md").read_text(encoding="utf-8") == "# Calculator\n\nBasic calculator project.\n"
                 and _has_successful_pytest(runtime)
             ),
         ),
@@ -225,6 +228,7 @@ def run_benchmark(
                 and "def test_subtract():" in (root / "tests/test_calculator.py").read_text(encoding="utf-8")
                 and (root / "app.py").read_text(encoding="utf-8").endswith("    return add(2, 3)\n")
                 and (root / "config.json").read_text(encoding="utf-8") == '{"mode": "stable", "version": 1}\n'
+                and (root / "README.md").read_text(encoding="utf-8") == "# Calculator\n\nBasic calculator project.\n"
                 and _has_successful_pytest(runtime)
             ),
         ),
@@ -271,6 +275,16 @@ def run_benchmark(
             lambda: (
                 not _successful(runtime, {"file_mutation", "create_file", "edit_file", "delete_file"})
                 and _successful(runtime, {"read_file", "search_files"})
+                and all(
+                    (
+                        str(result.get("path", "")).replace("\\", "/").casefold().endswith("config.json")
+                        or all(
+                            str(match.get("path", "")).replace("\\", "/").casefold().endswith("config.json")
+                            for match in result.get("matches", [])
+                        )
+                    )
+                    for result in _successful(runtime, {"read_file", "search_files"})
+                )
             ),
         ),
         (
