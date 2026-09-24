@@ -1926,6 +1926,14 @@ def test_read_only_request_allows_describing_existing_implementation() -> None:
     )
 
 
+def test_read_only_request_does_not_treat_function_name_as_mutation() -> None:
+    goal = (
+        "calculator.py の add 関数を調査して、現在の実装内容を確認してください。"
+        "ファイルは変更しないでください。"
+    )
+    assert AgentRuntime._is_read_only_request(goal)
+
+
 def test_read_only_request_detection() -> None:
     assert AgentRuntime._is_read_only_request(
         "calculator.pyを調査して確認してください。ファイルは変更しないでください。"
