@@ -47,18 +47,30 @@ def _parse_args() -> argparse.Namespace:
 
 def _seed_workspace(root: Path) -> None:
     (root / "calculator.py").write_text(
-        "def add(a, b):\n"
-        "    return a - b\n\n"
-        "def multiply(a, b):\n"
-        "    return a * b\n",
+        "def add(a, b):
+"
+        "    return a - b
+
+"
+        "def multiply(a, b):
+"
+        "    return a * b
+",
         encoding="utf-8",
     )
     (root / "test_calculator.py").write_text(
-        "from calculator import add, multiply\n\n"
-        "def test_add():\n"
-        "    assert add(2, 3) == 5\n\n"
-        "def test_multiply():\n"
-        "    assert multiply(2, 3) == 6\n",
+        "from calculator import add, multiply
+
+"
+        "def test_add():
+"
+        "    assert add(2, 3) == 5
+
+"
+        "def test_multiply():
+"
+        "    assert multiply(2, 3) == 6
+",
         encoding="utf-8",
     )
 
@@ -98,7 +110,8 @@ def _task_test_execution_succeeded(runtime) -> bool:
     for result in _tool_results(runtime, {"execute_command", "run_python_script"}):
         if not bool(result.get("ok")):
             continue
-        output = "\\n".join(
+        output = "
+".join(
             str(result.get(key, ""))
             for key in ("stdout", "stderr")
         )
@@ -120,11 +133,13 @@ def _task_process_execution_succeeded(runtime) -> bool:
             return True
     return False
 
+
 def _task_used_tool(runtime, names: set[str]) -> bool:
     task = runtime.task
     if task is None:
         return False
     return any(observation.tool in names and observation.ok for observation in task.observations)
+
 
 def _check_exact(path: Path, expected: str) -> bool:
     try:
@@ -165,7 +180,15 @@ def _trace_summary(path: Path) -> dict[str, int]:
             metrics["tool_duration_ms"] += int(event.get("duration_ms", 0) or 0)
     return metrics
 
-def run_benchmark(root: Path, *, model: str | None, max_iterations: int, output: Path | None = None, thinking_mode: str | None = None) -> int:
+
+def run_benchmark(
+    root: Path,
+    *,
+    model: str | None,
+    max_iterations: int,
+    output: Path | None = None,
+    thinking_mode: str | None = None,
+) -> int:
     if model:
         os.environ["LM_STUDIO_MODEL"] = model
     if thinking_mode:
@@ -196,6 +219,32 @@ def run_benchmark(root: Path, *, model: str | None, max_iterations: int, output:
     print(f"Workspace: {root}")
     print()
 
+    calculator_source = (
+        "def add(a, b):
+"
+        "    return a - b
+
+"
+        "def multiply(a, b):
+"
+        "    return a * b
+"
+    )
+    test_calculator_source = (
+        "from calculator import add, multiply
+
+"
+        "def test_add():
+"
+        "    assert add(2, 3) == 5
+
+"
+        "def test_multiply():
+"
+        "    assert multiply(2, 3) == 6
+"
+    )
+
     tasks = [
         (
             "Task 1: file creation",
@@ -205,26 +254,32 @@ def run_benchmark(root: Path, *, model: str | None, max_iterations: int, output:
         (
             "Task 2: session follow-up",
             "そのファイルの2行目に Session Context works を追加してください。既存の1行目は変更しないでください。確認してください。",
-            lambda: _check_exact(root / "hello.txt", "Hello JARVIS\nSession Context works") and _successful_tool(runtime, {"file_mutation", "run_python_script", "execute_command"}),
+            lambda: _check_exact(root / "hello.txt", "Hello JARVIS
+Session Context works") and _successful_tool(runtime, {"file_mutation", "run_python_script", "execute_command"}),
         ),
         (
             "Task 3: read-only investigation",
             "calculator.py の add 関数を調査して、現在の実装内容を確認してください。ファイルは変更しないでください。",
-            lambda: _check_exact(root / "calculator.py", "def add(a, b):\n    return a - b\n\ndef multiply(a, b):\n    return a * b\n") and _task_used_tool(runtime, {"read_file", "search_files"}),
+            lambda: _check_exact(root / "calculator.py", calculator_source) and _task_used_tool(runtime, {"read_file", "search_files"}),
         ),
         (
             "Task 4: file search",
             "workspace内で multiply という語があるファイルを検索して確認してください。ファイルを変更しないでください。",
-            lambda: _task_used_tool(runtime, {"search_files"}),
+            lambda: _check_exact(root / "calculator.py", calculator_source) and _task_used_tool(runtime, {"search_files"}),
         ),
         (
             "Task 5: investigate, edit, test",
             "calculator.py を調査してください。add関数にバグがあります。原因を修正し、python -m pytest -q を実行して、全テストが成功することを確認してください。test_calculator.py は変更しないでください。",
-            lambda: (_check_exact(root / "calculator.py", "def add(a, b):\n    return a + b\n\ndef multiply(a, b):\n    return a * b\n") and _check_exact(root / "test_calculator.py", "from calculator import add, multiply\n\ndef test_add():\n    assert add(2, 3) == 5\n\ndef test_multiply():\n    assert multiply(2, 3) == 6\n") and _successful_tool(runtime, {"file_mutation"}) and _task_test_execution_succeeded(runtime)),
+            lambda: (_check_exact(root / "calculator.py", "def add(a, b):
+    return a + b
+
+def multiply(a, b):
+    return a * b
+") and _check_exact(root / "test_calculator.py", test_calculator_source) and _successful_tool(runtime, {"file_mutation"}) and _task_test_execution_succeeded(runtime)),
         ),
         (
             "Task 6: process execution",
-            "このworkspaceで python -c を使って JARVIS benchmark と表示するコマンドを実行し、終了コード0を確認してください。",
+            "このworkspaceで、プロジェクト調査ではなく単純なコマンド実行Taskとして、python -c を使って JARVIS benchmark と表示し、終了コード0を確認してください。不要なファイル調査や変更はしないでください。",
             lambda: _task_process_execution_succeeded(runtime),
         ),
         (
@@ -239,10 +294,19 @@ def run_benchmark(root: Path, *, model: str | None, max_iterations: int, output:
         ),
     ]
 
+    reset_before_tasks = {
+        "Task 3: read-only investigation",
+        "Task 4: file search",
+        "Task 5: investigate, edit, test",
+    }
+
     results: list[dict[str, object]] = []
     started_all = time.perf_counter()
     passed = 0
     for label, prompt, check in tasks:
+        if label in reset_before_tasks:
+            _seed_workspace(root)
+
         print(f"[RUN] {label}")
         try:
             result, elapsed, task_metrics = _run_task(runtime, prompt)
