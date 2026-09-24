@@ -2219,3 +2219,59 @@ def test_workspace_mutating_echo_redirection_is_blocked() -> None:
     assert not AgentRuntime._looks_like_workspace_mutating_command(
         {"command": 'python -c "print(\'JARVIS V10\')"'}
     )
+
+
+
+def test_runtime_requirements_satisfied_after_successful_edit_and_pytest() -> None:
+    messages = [
+        {
+            "role": "tool",
+            "name": "file_mutation",
+            "content": json.dumps({"ok": True, "path": "src/calculator.py"}),
+        },
+        {
+            "role": "tool",
+            "name": "execute_command",
+            "content": json.dumps(
+                {
+                    "ok": True,
+                    "command": "python -m pytest -q tests/",
+                    "exit_code": 0,
+                    "stdout": "2 passed",
+                }
+            ),
+        },
+    ]
+
+    assert AgentRuntime._runtime_requirements_satisfied(
+        "src/calculator.pyを修正して、python -m pytest -q tests/ を実行して確認してください。",
+        messages,
+    )
+
+
+def test_runtime_requirements_satisfied_requires_all_explicit_mutation_paths() -> None:
+    messages = [
+        {
+            "role": "tool",
+            "name": "file_mutation",
+            "content": json.dumps({"ok": True, "path": "src/calculator.py"}),
+        },
+        {
+            "role": "tool",
+            "name": "execute_command",
+            "content": json.dumps(
+                {
+                    "ok": True,
+                    "command": "python -m pytest -q tests/",
+                    "exit_code": 0,
+                    "stdout": "2 passed",
+                }
+            ),
+        },
+    ]
+
+    assert not AgentRuntime._runtime_requirements_satisfied(
+        "src/calculator.py と tests/test_calculator.py の両方を修正して、"
+        "python -m pytest -q tests/ を実行して確認してください。",
+        messages,
+    )
