@@ -223,7 +223,7 @@ class CompletionVerifier:
         text = str(goal).casefold()
         return bool(
             re.search(
-                r"(?:テスト|回帰|pytest|regression|verify|validation|検証)|\\btest(?:ing|s)?\\b",
+                r"(?:テスト|回帰|pytest|regression|verify|validation|検証)|\btest(?:ing|s)?\b",
                 text,
                 flags=re.IGNORECASE,
             )
@@ -246,9 +246,9 @@ class CompletionVerifier:
             output = "\n".join(str(payload.get(key, "")) for key in ("stdout", "stderr")).casefold()
             if "pytest" in command or "pytest" in output:
                 return True
-            if re.search(r"\btest(?:ing|s)?\\b", command) and re.search(r"pass|success", output):
+            if re.search(r"\btest(?:ing|s)?\b", command) and re.search(r"pass|success", output):
                 return True
-            if re.search(r"\b\\d+\\s+passed\\b", output):
+            if re.search(r"\b\d+\s+passed\b", output):
                 return True
         return False
 
