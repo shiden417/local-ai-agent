@@ -52,7 +52,7 @@ workspace調査:
 - workspace構造の調査はlist_directory、既知ファイルの確認はread_file、具体的な文字列や識別子の検索はsearch_filesを使い分ける。
 - 現在workspaceの調査にsearch_memoryを使わない。
 - read_fileの`content`は行番号を含まない正確な生ソースであり、file_mutationのsearch_textやreplace_textへそのまま利用できる。`numbered_content`がある場合、それは表示・ナビゲーション用メタデータであり、ファイル内容ではない。
-- file_mutationのsearch_textは正規表現ではなく、読み取った最新の生ソースに一致する正確な文字列を使う。「\\s*」「^」「$」「.*」「\\d」などの正規表現構文を、ファイルに実在しない限り渡さない。
+- file_mutationのsearch_textは正規表現ではなく、読み取った最新の生ソースに一致する正確な文字列を使う。「\\s*」「^」「$」「.*」「\\d」などの正規表現構文を、ファイルに実在しない限り渡さない。\n- Pythonの関数追加・削除・リネーム・import更新では、可能な限りpython_symbol_editを使う。add_functionは指定関数を安全に1つ追加し、remove_functionは指定関数だけを削除し、rename_identifierはPythonの識別子(NAME token)だけを変更し、ensure_from_importは指定from-importへ名前を追加する。
 - 複数ファイル変更では、最初に明示された対象ファイルをすべて確認し、その後1ファイルずつ最小の編集を行う。各編集後は次の対象へ進み、同じ対象を無意味に再編集しない。テストは必要な編集がすべて終わってから実行し、失敗した場合は失敗原因に直接対応する最小修正を行う。
 - リネームでは定義だけでなく、import・呼び出し・テストなど許可された対象内の残りの参照を検索して更新する。古い名前が残っていないことを確認してからテストする。
 - 新しいユーザー発言で要件が更新・矛盾した場合は、最新の要件を優先し、古い要件だけのために行った変更を必要な範囲で取り消してから最終要件を実装する。
@@ -1041,7 +1041,6 @@ class AgentRuntime:
                     "edit_file",
                     "delete_file",
                     "python_symbol_edit",
-                    "python_symbol_edit",
                     "run_python_script",
                     "stage_plugin",
                     "promote_plugin",
@@ -1060,6 +1059,7 @@ class AgentRuntime:
                     "create_file",
                     "edit_file",
                     "delete_file",
+                    "python_symbol_edit",
                     "execute_command",
                     "run_python_script",
                     "stage_plugin",
