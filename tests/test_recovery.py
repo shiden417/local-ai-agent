@@ -62,3 +62,20 @@ def test_invalid_file_edit_recovery_guidance_avoids_line_number_prefixes() -> No
     guidance = recovery_guidance("file_mutation", STATUS_INVALID_INPUT)
     assert "search_text" in guidance
     assert "read_file line-number prefixes" in guidance
+
+
+
+def test_classify_search_text_not_found_as_invalid_input() -> None:
+    from agent.recovery import STATUS_INVALID_INPUT, classify_tool_outcome
+
+    result = {"ok": False, "error": "search_text was not found"}
+
+    assert classify_tool_outcome("file_mutation", result) == STATUS_INVALID_INPUT
+
+
+def test_classify_file_target_directory_mistake_as_invalid_input() -> None:
+    from agent.recovery import STATUS_INVALID_INPUT, classify_tool_outcome
+
+    result = {"ok": False, "error": "Not a directory: agent/observation.py"}
+
+    assert classify_tool_outcome("list_directory", result) == STATUS_INVALID_INPUT
