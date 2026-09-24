@@ -52,7 +52,7 @@ workspace調査:
 - workspace構造の調査はlist_directory、既知ファイルの確認はread_file、具体的な文字列や識別子の検索はsearch_filesを使い分ける。
 - 現在workspaceの調査にsearch_memoryを使わない。
 - read_fileの結果に付く「1:」「2:」などの行番号は表示用メタデータであり、ファイル内容ではない。file_mutationのsearch_textやreplace_textに行番号を含めない。
-- file_mutationのsearch_textは正規表現ではなく、読み取った最新の生ソースに一致する正確な文字列を使う。「\s*」などの正規表現構文をそのまま渡さない。
+- file_mutationのsearch_textは正規表現ではなく、読み取った最新の生ソースに一致する正確な文字列を使う。「\\s*」などの正規表現構文をそのまま渡さない。
 
 重要: LLMはGoal達成のための判断を行い、Runtimeが状態・安全性・進捗・完了確認を管理し、Toolが実際の操作を行います。
 """
