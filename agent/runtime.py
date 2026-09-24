@@ -1050,8 +1050,6 @@ class AgentRuntime:
         return classify_task_requirements(goal).read_only
 
     @staticmethod
-    def _mutation_completion_requirement(
-    @staticmethod
     def _looks_like_workspace_mutating_command(arguments: dict[str, Any]) -> bool:
         command = str(arguments.get("command", "")).strip()
         if not command:
