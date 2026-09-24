@@ -1850,6 +1850,32 @@ def test_completion_verifier_rejects_finish_without_required_mutation(tmp_path: 
     assert "file change" in error
 
 
+def test_completion_verifier_accepts_process_execution_without_file_change(tmp_path: Path) -> None:
+    from agent.completion_verifier import CompletionVerifier
+
+    task = SimpleNamespace(
+        goal="単純なコマンド実行Taskとして、python -c を使って JARVIS benchmark と表示し、終了コード0を確認してください。",
+        messages=[
+            {
+                "role": "tool",
+                "name": "execute_command",
+                "content": json.dumps(
+                    {
+                        "ok": True,
+                        "exit_code": 0,
+                        "stdout": "JARVIS benchmark\n",
+                    }
+                ),
+            }
+        ],
+    )
+
+    assert CompletionVerifier(tmp_path).verify(
+        task,
+        {"completion_status": "completed"},
+    ) is None
+
+
 def test_completion_verifier_does_not_require_file_mutation_for_memory_save(tmp_path: Path) -> None:
     from agent.completion_verifier import CompletionVerifier
 
@@ -1892,6 +1918,12 @@ def test_completion_verifier_rejects_blocked_required_process_execution(tmp_path
 
     assert error is not None
     assert "execute_command" in error
+
+
+def test_read_only_request_allows_describing_existing_implementation() -> None:
+    assert AgentRuntime._is_read_only_request(
+        "calculator.pyのadd関数を調査して、現在の実装内容を確認してください。ファイルは変更しないでください。"
+    )
 
 
 def test_read_only_request_detection() -> None:
