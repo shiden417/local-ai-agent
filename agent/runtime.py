@@ -916,11 +916,11 @@ class AgentRuntime:
         return "Agentの最大反復回数に達したため、処理を終了しました。"
 
     def _can_retry_recovery_tool(self, name: str) -> bool:
-        """Allow a corrected retry for recoverable file-mutation input errors."""
+        """Allow a corrected retry when the previous Tool failed from invalid input."""
         return bool(
             self.task is not None
             and self.task.recovery_tool == name
-            and name == "file_mutation"
+            and name != "finish_task"
             and self.task.last_failure_status == STATUS_INVALID_INPUT
         )
 
@@ -1001,25 +1001,31 @@ class AgentRuntime:
 
     @staticmethod
     def _has_successful_command_execution(messages: list[dict[str, Any]]) -> bool:
-        """Return True when execute_command completed successfully."""
-        for message in messages:
-            if message.get("role") != "tool" or message.get("name") != "execute_command":
-                continue
-            try:
-                payload = json.loads(str(message.get("content", "")))
-            except json.JSONDecodeError:
-                continue
-            if (
-                isinstance(payload, dict)
-                and payload.get("ok")
-                and payload.get("exit_code") == 0
-            ):
-                return True
-        return False
+        """Return True only when the latest execute_command succeeded."""
+        command_messages = [
+            message
+            for message in messages
+            if message.get("role") == "tool"
+            and message.get("name") == "execute_command"
+        ]
+        if not command_messages:
+            return False
+
+        message = command_messages[-1]
+        try:
+            payload = json.loads(str(message.get("content", "")))
+        except json.JSONDecodeError:
+            return False
+        return bool(
+            isinstance(payload, dict)
+            and payload.get("ok")
+            and payload.get("exit_code") == 0
+        )
 
     @staticmethod
     def _has_successful_test_execution(messages: list[dict[str, Any]]) -> bool:
-        """Return True when a test command already completed successfully."""
+        """Return True only when the latest test execution succeeded."""
+        test_messages: list[dict[str, Any]] = []
         for message in messages:
             if message.get("role") != "tool" or message.get("name") != "execute_command":
                 continue
@@ -1027,21 +1033,31 @@ class AgentRuntime:
                 payload = json.loads(str(message.get("content", "")))
             except json.JSONDecodeError:
                 continue
-            if not isinstance(payload, dict) or not payload.get("ok"):
+            if not isinstance(payload, dict):
                 continue
             command = str(payload.get("command", "")).casefold()
             stdout = str(payload.get("stdout", ""))
-            if payload.get("exit_code") not in (None, 0):
-                continue
-            if "pytest" in command:
-                return True
-            if re.search(r"\btest(?:ing|s)?\b", command) and (
-                "pass" in stdout.casefold() or "success" in stdout.casefold()
+            if "pytest" in command or re.search(r"\btest(?:ing|s)?\b", command) or re.search(
+                r"\b\d+\s+passed\b", stdout, re.IGNORECASE
             ):
-                return True
-            if not command and re.search(r"\b\d+\s+passed\b", stdout, re.IGNORECASE):
-                return True
-        return False
+                test_messages.append(payload)
+
+        if not test_messages:
+            return False
+
+        payload = test_messages[-1]
+        if not payload.get("ok") or payload.get("exit_code") not in (None, 0):
+            return False
+
+        command = str(payload.get("command", "")).casefold()
+        stdout = str(payload.get("stdout", ""))
+        if "pytest" in command:
+            return True
+        if re.search(r"\btest(?:ing|s)?\b", command) and (
+            "pass" in stdout.casefold() or "success" in stdout.casefold()
+        ):
+            return True
+        return bool(re.search(r"\b\d+\s+passed\b", stdout, re.IGNORECASE))
 
     @staticmethod
     def _looks_like_unexecuted_action_intent(content: str) -> bool:
