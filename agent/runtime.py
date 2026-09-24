@@ -211,6 +211,7 @@ class AgentRuntime:
 
         is_follow_up = routing_text != user_input
         current_task = self.task_manager.create(user_input)
+        read_only_request = self._is_read_only_request(routing_text)
         current_task.messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_input},
@@ -310,6 +311,23 @@ class AgentRuntime:
             ]
 
             excluded_tools = set(self.task.disabled_tools)
+            if read_only_request:
+                excluded_tools.update(
+                    {"file_mutation", "create_file", "edit_file", "delete_file",
+                     "run_python_script", "execute_command"}
+                )
+                llm_messages.append(
+                    {
+                        "role": "system",
+                        "content": (
+                            "Read-only task guard: the user explicitly requested "
+                            "investigation/search/verification without modifying files. "
+                            "Do not use any file mutation or process-execution Tool. "
+                            "Use only read-only observations such as read_file or search_files. "
+                            "If the requested information is already observed, answer directly."
+                        ),
+                    }
+                )
             if (
                 self.task.recovery_tool
                 and not self._can_retry_recovery_tool(self.task.recovery_tool)
@@ -866,6 +884,30 @@ class AgentRuntime:
             and name == "file_mutation"
             and self.task.last_failure_status == STATUS_INVALID_INPUT
         )
+
+    @staticmethod
+    def _is_read_only_request(goal: str) -> bool:
+        """Detect explicit requests that prohibit local mutation/execution."""
+        text = str(goal).casefold()
+        has_read_intent = bool(
+            re.search(
+                r"(調査|調べ|検索|探して|確認|閲覧|読み|分析|diagnos|investigat|"
+                r"inspect|search|review|read|check|verify)",
+                text,
+                flags=re.IGNORECASE,
+            )
+        )
+        has_no_change = bool(
+            re.search(
+                r"(変更しない|変更なし|変更は不要|変更禁止|改変しない|改変禁止|"
+                r"修正しない|修正禁止|編集しない|編集禁止|ファイルを変更しない|"
+                r"do not (?:modify|change|edit)|without (?:modifying|changing|editing)|"
+                r"read[- ]?only|no changes?)",
+                text,
+                flags=re.IGNORECASE,
+            )
+        )
+        return has_read_intent and has_no_change
 
     @staticmethod
     def _mutation_completion_requirement(
