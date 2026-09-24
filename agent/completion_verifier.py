@@ -185,7 +185,7 @@ class CompletionVerifier:
         )
         has_japanese_mutation = bool(
             re.search(
-                r"(?:追加|作成|修正|変更|編集|削除|書き換え)(?:してください|して|し|する|します|を)",
+                r"(?:追加|作成|修正|変更|編集|削除|書き換え)(?!しない)(?:してください|して|する|します|を)",
                 text,
             )
             or re.search(
@@ -278,7 +278,7 @@ class CompletionVerifier:
         text = str(goal).casefold()
         has_mutation_intent = bool(
             re.search(
-                r"(?:追加|作成|修正|変更|編集|削除|書き換え)(?:してください|して|し|する|します|を)",
+                r"(?:追加|作成|修正|変更|編集|削除|書き換え)(?!しない)(?:してください|して|する|します|を)",
                 text,
             )
             or re.search(
