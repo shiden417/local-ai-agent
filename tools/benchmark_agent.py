@@ -74,7 +74,7 @@ def _run_task(runtime, prompt: str) -> tuple[str, float, dict[str, int]]:
 
 
 def _tool_results(runtime, names: set[str]) -> list[dict[str, object]]:
-    task = runtime.task
+    task = runtime.current_task
     if task is None:
         return []
     results: list[dict[str, object]] = []
