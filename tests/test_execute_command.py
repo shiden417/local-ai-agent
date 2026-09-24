@@ -37,3 +37,13 @@ def test_execute_command_truncates_large_output(tmp_path: Path) -> None:
 
     assert result["ok"] is True
     assert len(result["stdout"]) <= 8_000
+
+
+def test_execute_command_propagates_native_process_failure(tmp_path: Path) -> None:
+    result = execute_command(
+        'python -c "raise SystemExit(3)"',
+        working_directory=tmp_path,
+    )
+
+    assert result["ok"] is False
+    assert result["exit_code"] == 3
