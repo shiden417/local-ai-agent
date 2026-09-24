@@ -185,17 +185,22 @@ class CompletionVerifier:
         )
         has_japanese_mutation = bool(
             re.search(
-                r"(?:追加|作成|修正|変更|編集|削除|書き換え)(?!しない|禁止|不要|しなく)",
+                r"(?:追加|作成|修正|変更|編集|削除|書き換え)(?:してください|して|し|する|します|を)",
                 text,
             )
             or re.search(
-                r"実装(?:して|する|してください|します|を)",
+                r"実装(?:してください|して|する|します|を)",
                 text,
             )
         )
         has_english_mutation = bool(
             re.search(
-                r"\b(?:add|create|modify|change|edit|delete|update|implement|write)\b",
+                r"\b(?:please\s+)?(?:add|create|modify|change|edit|delete|update|write)\s+(?:a|an|the|new|this|that|file|folder|directory|line|code|test)\b",
+                text,
+                flags=re.IGNORECASE,
+            )
+            or re.search(
+                r"\b(?:please\s+)?implement\s+(?:a|an|the|new|this|that|feature|function|method|class)\b",
                 text,
                 flags=re.IGNORECASE,
             )
@@ -273,11 +278,20 @@ class CompletionVerifier:
         text = str(goal).casefold()
         has_mutation_intent = bool(
             re.search(
-                r"(?:追加|作成|修正|変更|編集|削除|書き換え|実装)(?!しない|禁止|不要|せず|しません)",
+                r"(?:追加|作成|修正|変更|編集|削除|書き換え)(?:してください|して|し|する|します|を)",
                 text,
             )
             or re.search(
-                r"\b(?:add|create|modify|change|edit|delete|update|implement|write)\b",
+                r"実装(?:してください|して|する|します|を)",
+                text,
+            )
+            or re.search(
+                r"\b(?:please\s+)?(?:add|create|modify|change|edit|delete|update|write)\s+(?:a|an|the|new|this|that|file|folder|directory|line|code|test)\b",
+                text,
+                flags=re.IGNORECASE,
+            )
+            or re.search(
+                r"\b(?:please\s+)?implement\s+(?:a|an|the|new|this|that|feature|function|method|class)\b",
                 text,
                 flags=re.IGNORECASE,
             )
