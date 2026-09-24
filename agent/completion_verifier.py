@@ -45,7 +45,8 @@ class CompletionVerifier:
             )
             if not successful_mutation:
                 return (
-                    "System Verification Failed: this task explicitly requires a file change. "
+                    "System Verification Failed: no successful action has been observed "
+                    "before finish_task; this task explicitly requires a file change. "
                     "No successful file mutation was observed. "
                     "Perform the requested file mutation first."
                 )
@@ -194,11 +195,11 @@ class CompletionVerifier:
         )
         has_japanese_mutation = bool(
             re.search(
-                r"(?:追加|作成|修正|変更|編集|削除|書き換え|保存|書き込み)(?!しない)(?:してください|して|した|し|する|します|を)",
+                r"(?:追加|作成|修正|変更|編集|削除|書き換え|保存|書き込み)\s*(?:してください|して|した|しろ|する|します|を)",
                 text,
             )
             or re.search(
-                r"実装(?!しない)(?:してください|して|した|し|する|します|を)",
+                r"実装\s*(?:してください|して|した|しろ|する|します|を)",
                 text,
             )
         )
@@ -266,7 +267,7 @@ class CompletionVerifier:
         )
         has_process_context = bool(
             re.search(
-                r"(?:コマンド|プロセス|python|pytest|powershell|terminal|shell|"
+                r"(?:コマンド|プロセス|PowerShell|terminal|shell|execute_command|"
                 r"command|process)",
                 text,
                 flags=re.IGNORECASE,
