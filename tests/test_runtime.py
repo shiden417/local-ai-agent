@@ -1484,4 +1484,73 @@ def test_unexecuted_action_intent_matches_past_test_claim() -> None:
         "修正後、python -m pytest -q を実行した結果、すべてのテストが成功することを確認できました。"
     )
     assert runtime_module.AgentRuntime._looks_like_unexecuted_action_intent(content)
+def test_runtime_retries_corrected_file_mutation_after_invalid_input(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    registry = ToolRegistry()
+    executed = []
+
+    def mutate(_working_directory, arguments):
+        executed.append(arguments)
+        if arguments["operation"] == "create":
+            return {"ok": False, "error": "File already exists: hello.txt"}
+        return {"ok": True, "path": "hello.txt"}
+
+    registry.register(
+        ToolDefinition(
+            name="file_mutation",
+            description="Edit a file",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "operation": {"type": "string"},
+                    "path": {"type": "string"},
+                    "search_text": {"type": "string"},
+                    "replace_text": {"type": "string"},
+                },
+                "required": ["operation", "path"],
+            },
+            handler=mutate,
+        )
+    )
+
+    def response(tool_calls=None, content=""):
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content=content,
+                        tool_calls=tool_calls or [],
+                    )
+                )
+            ]
+        )
+
+    def call(call_id, arguments):
+        return SimpleNamespace(
+            id=call_id,
+            function=SimpleNamespace(
+                name="file_mutation",
+                arguments=json.dumps(arguments),
+            ),
+        )
+
+    responses = [
+        response(tool_calls=[call("create-1", {"operation": "create", "path": "hello.txt"})]),
+        response(tool_calls=[call("edit-1", {"operation": "edit", "path": "hello.txt", "search_text": "old", "replace_text": "new"})]),
+        response(content="ファイルを正常に更新しました。"),
+    ]
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm",
+        lambda _messages, tools=None: responses.pop(0),
+    )
+
+    runtime = AgentRuntime(tmp_path, tool_registry=registry)
+    assert runtime.run("hello.txtを更新してください") == "ファイルを正常に更新しました。"
+    assert [item["operation"] for item in executed] == ["create", "edit"]
+
+
 
