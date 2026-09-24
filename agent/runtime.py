@@ -1234,6 +1234,7 @@ class AgentRuntime:
         return unread
 
     def _progress_ledger(
+        self,
         goal: str,
         messages: list[dict[str, Any]],
     ) -> str:
