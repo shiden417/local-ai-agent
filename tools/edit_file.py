@@ -55,13 +55,30 @@ def edit_file(
         return {"ok": False, "error": f"Unable to read file: {exc}"}
 
     occurrence_count = content.count(search_text)
+    recovered = False
+
+    if occurrence_count == 0:
+        recovery_candidates = [
+            _strip_read_file_line_numbers(search_text),
+            _decode_literal_escapes(search_text),
+            _strip_read_file_line_numbers(_decode_literal_escapes(search_text)),
+        ]
+        for candidate in recovery_candidates:
+            if not candidate or candidate == search_text:
+                continue
+            candidate_count = content.count(candidate)
+            if candidate_count == 1:
+                search_text = candidate
+                occurrence_count = 1
+                recovered = True
+                break
 
     if occurrence_count == 0:
         return {
             "ok": False,
             "error": (
                 "search_text was not found. Use exact source text from the latest file contents; "
-                "do not include read_file line-number prefixes such as \"12: \"."
+                "do not include read_file line-number prefixes such as \\"12: \\"."
             ),
         }
 
@@ -101,4 +118,21 @@ def edit_file(
         "path": to_display_path(working_directory, path),
         "replacements": 1,
         "diff": diff,
+        "search_text_recovered": recovered,
     }
+
+
+
+def _strip_read_file_line_numbers(value: str) -> str:
+    lines = value.splitlines()
+    if not lines or not all(line.lstrip().split(":", 1)[0].isdigit() and ":" in line for line in lines):
+        return value
+    return "\n".join(line.split(":", 1)[1].lstrip() for line in lines)
+
+
+def _decode_literal_escapes(value: str) -> str:
+    return (
+        value.replace("\\\\n", "\n")
+        .replace("\\\\r", "\r")
+        .replace('\\\\\"', '"')
+    )
