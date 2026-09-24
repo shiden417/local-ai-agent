@@ -187,12 +187,22 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
             if not path or path in protected_paths or path in required_mutation_paths:
                 continue
 
-            context_after = raw_text[match.end(): match.end() + 100]
-            context_before = raw_text[max(0, match.start() - 40): match.start()]
-            negative_context = bool(
-                _NO_CHANGE_RE.search(context_after)
-                or _NO_CHANGE_RE.search(context_before)
-            )
+            sentence_start = max(
+                raw_text.rfind("。", 0, match.start()),
+                raw_text.rfind("\n", 0, match.start()),
+            ) + 1
+            sentence_end_candidates = [
+                position
+                for position in (
+                    raw_text.find("。", match.end()),
+                    raw_text.find("\n", match.end()),
+                )
+                if position >= 0
+            ]
+            sentence_end = min(sentence_end_candidates) if sentence_end_candidates else len(raw_text)
+            context_before = raw_text[sentence_start: match.start()]
+            context_after = raw_text[match.end(): sentence_end]
+            negative_context = bool(_NO_CHANGE_RE.search(context_after))
             positive_context = bool(
                 _JAPANESE_MUTATION_RE.search(context_after)
                 or _JAPANESE_IMPLEMENT_RE.search(context_after)
