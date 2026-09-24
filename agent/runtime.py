@@ -1233,7 +1233,6 @@ class AgentRuntime:
 
         return unread
 
-    @staticmethod
     def _progress_ledger(
         goal: str,
         messages: list[dict[str, Any]],
