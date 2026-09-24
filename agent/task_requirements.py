@@ -118,7 +118,7 @@ _PROTECTED_PATH_LIST_RE = re.compile(
 _POSITIVE_PATH_LIST_RE = re.compile(
     rf"(?P<paths>{_FILE_PATH_TOKEN}(?:\s*(?:,|、|と|および|and)\s*{_FILE_PATH_TOKEN})+)\s*"
     r"(?:の)?(?:両方|すべて|とも)?\s*"
-    r"(?:必要に応じて\s*)?(?:を|は|が)?\s*"
+    r"(?:を|は|が)?\s*(?:必要に応じて\s*)?"
     r"(?:追加|追記|作成|修正|変更|編集|削除|書き換え|保存|書き込み|リネーム|名前変更)"
     r"\s*(?:してください|して|し、|した|する|します|を)",
     re.IGNORECASE,
