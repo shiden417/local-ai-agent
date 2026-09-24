@@ -189,7 +189,7 @@ class CompletionVerifier:
                 text,
             )
             or re.search(
-                r"実装(?:してください|して|する|します|を)",
+                r"実装(?!しない)(?:してください|して|する|します|を)",
                 text,
             )
         )
@@ -282,7 +282,7 @@ class CompletionVerifier:
                 text,
             )
             or re.search(
-                r"実装(?:してください|して|する|します|を)",
+                r"実装(?!しない)(?:してください|して|する|します|を)",
                 text,
             )
             or re.search(
