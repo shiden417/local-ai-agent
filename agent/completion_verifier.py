@@ -5,6 +5,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from agent.task_requirements import classify_task_requirements
+
 
 class CompletionVerifier:
     """Deterministically verify that an Agent task has concrete evidence of completion."""
@@ -185,159 +187,19 @@ class CompletionVerifier:
 
     @staticmethod
     def _requires_file_mutation(goal: str) -> bool:
-        text = str(goal).casefold()
-        has_file_context = bool(
-            re.search(
-                r"(?:ファイル|file|\.py\b|\.txt\b|\.json\b|\.md\b|workspace|path|directory|コード)",
-                text,
-                flags=re.IGNORECASE,
-            )
-        )
-        has_japanese_mutation = bool(
-            re.search(
-                r"(?:追加|作成|修正|変更|編集|削除|書き換え|保存|書き込み)\s*(?:してください|して|した|しろ|する|します|を)",
-                text,
-            )
-            or re.search(
-                r"実装\s*(?:してください|して|した|しろ|する|します|を)",
-                text,
-            )
-        )
-        has_english_mutation = bool(
-            re.search(
-                r"\b(?:please\s+)?(?:add|create|modify|change|edit|delete|update|write)\s+(?:a|an|the|new|this|that|file|folder|directory|line|code|test)\b",
-                text,
-                flags=re.IGNORECASE,
-            )
-            or re.search(
-                r"\b(?:please\s+)?implement\s+(?:a|an|the|new|this|that|feature|function|method|class)\b",
-                text,
-                flags=re.IGNORECASE,
-            )
-        )
-        # File-mutation completion is required only when the request identifies a
-        # file/code target. Memory persistence is intentionally a separate capability.
-        return has_file_context and (has_japanese_mutation or has_english_mutation)
+        return classify_task_requirements(goal).file_mutation
 
     @staticmethod
     def _requires_test_verification(goal: str) -> bool:
-        text = str(goal).casefold()
-        return bool(
-            re.search(
-                r"(?:テスト|回帰|pytest|regression|verify|validation|検証)|\btest(?:ing|s)?\b",
-                text,
-                flags=re.IGNORECASE,
-            )
-        )
-
-    @staticmethod
-    def _has_successful_test(messages: list[dict[str, Any]]) -> bool:
-        for message in messages:
-            if message.get("role") != "tool" or message.get("name") not in {"execute_command", "run_python_script"}:
-                continue
-            try:
-                payload = json.loads(str(message.get("content", "")))
-            except json.JSONDecodeError:
-                continue
-            if not isinstance(payload, dict) or not payload.get("ok"):
-                continue
-            if payload.get("exit_code") not in (None, 0):
-                continue
-            command = str(payload.get("command", "")).casefold()
-            output = "\n".join(str(payload.get(key, "")) for key in ("stdout", "stderr")).casefold()
-            if "pytest" in command or "pytest" in output:
-                return True
-            if re.search(r"\btest(?:ing|s)?\b", command) and re.search(r"pass|success", output):
-                return True
-            if re.search(r"\b\d+\s+passed\b", output):
-                return True
-        return False
+        return classify_task_requirements(goal).test_verification
 
     @staticmethod
     def _requires_process_execution(goal: str) -> bool:
-        text = str(goal).casefold()
-        has_execution_intent = bool(
-            re.search(
-                r"(?:コマンド(?:を|の)?実行|コマンド実行|プロセス(?:を|の)?実行|"
-                r"実行(?:してください|して|し、|する|します)|\bexecute\b|\brun\b|"
-                r"command execution|process execution)",
-                text,
-                flags=re.IGNORECASE,
-            )
-        )
-        has_process_context = bool(
-            re.search(
-                r"(?:コマンド|プロセス|PowerShell|terminal|shell|execute_command|"
-                r"command|process)",
-                text,
-                flags=re.IGNORECASE,
-            )
-        )
-        return has_execution_intent and has_process_context
-
-    @staticmethod
-    def _has_successful_command(messages: list[dict[str, Any]]) -> bool:
-        for message in messages:
-            if message.get("role") != "tool" or message.get("name") != "execute_command":
-                continue
-            try:
-                payload = json.loads(str(message.get("content", "")))
-            except json.JSONDecodeError:
-                continue
-            if isinstance(payload, dict) and payload.get("ok") and payload.get("exit_code") == 0:
-                return True
-        return False
-
-    @staticmethod
-    def _tool_payload_ok(message: dict[str, Any]) -> bool:
-        try:
-            payload = json.loads(str(message.get("content", "")))
-        except json.JSONDecodeError:
-            return False
-        return isinstance(payload, dict) and bool(payload.get("ok"))
+        return classify_task_requirements(goal).process_execution
 
     @staticmethod
     def _is_read_only_request(goal: str) -> bool:
-        text = str(goal).casefold()
-        has_mutation_intent = bool(
-            re.search(
-                r"(?:追加|作成|修正|変更|編集|削除|書き換え)(?!しない)(?:してください|して|する|します|を)",
-                text,
-            )
-            or re.search(
-                r"実装(?!しない)(?:してください|して|する|します|を)",
-                text,
-            )
-            or re.search(
-                r"\b(?:please\s+)?(?:add|create|modify|change|edit|delete|update|write)\s+(?:a|an|the|new|this|that|file|folder|directory|line|code|test)\b",
-                text,
-                flags=re.IGNORECASE,
-            )
-            or re.search(
-                r"\b(?:please\s+)?implement\s+(?:a|an|the|new|this|that|feature|function|method|class)\b",
-                text,
-                flags=re.IGNORECASE,
-            )
-        )
-        has_read_intent = bool(
-            re.search(
-                r"(調査|調べ|検索|探して|確認|閲覧|読み|分析|diagnos|investigat|"
-                r"inspect|search|review|read|check|verify)",
-                text,
-                flags=re.IGNORECASE,
-            )
-        )
-        has_no_change = bool(
-            re.search(
-                r"(変更しない|変更なし|変更は不要|変更禁止|改変しない|改変禁止|"
-                r"修正しない|修正禁止|編集しない|編集禁止|ファイルを変更しない|"
-                r"do not (?:modify|change|edit)|without (?:modifying|changing|editing)|"
-                r"read[- ]?only|no changes?)",
-                text,
-                flags=re.IGNORECASE,
-            )
-        )
-        return has_read_intent and has_no_change and not has_mutation_intent
+        return classify_task_requirements(goal).read_only
 
     def _requires_python_test_after_mutation(
         self,
