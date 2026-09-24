@@ -7,6 +7,69 @@ from agent.tool_registry import ToolDefinition, ToolRegistry
 import agent.runtime as runtime_module
 
 
+def test_mutation_completion_requirement_does_not_treat_test_filename_as_test_request() -> None:
+    messages = [
+        {
+            "role": "tool",
+            "name": "file_mutation",
+            "content": json.dumps({"ok": True, "path": "test.txt"}),
+        }
+    ]
+
+    required, message = AgentRuntime._mutation_completion_requirement(
+        "test.txtを修正してください。",
+        messages,
+    )
+
+    assert required is False
+    assert message == ""
+
+
+def test_mutation_completion_requirement_accepts_user_rejection() -> None:
+    messages = [
+        {
+            "role": "tool",
+            "name": "file_mutation",
+            "content": json.dumps(
+                {"ok": False, "user_rejected": True, "error": "rejected"}
+            ),
+        }
+    ]
+
+    required, message = AgentRuntime._mutation_completion_requirement(
+        "ファイルを変更してください。",
+        messages,
+    )
+
+    assert required is False
+    assert message == ""
+
+
+def test_mutation_completion_requirement_accepts_successful_test_without_exit_code() -> None:
+    messages = [
+        {
+            "role": "tool",
+            "name": "file_mutation",
+            "content": json.dumps({"ok": True, "path": "calculator.py"}),
+        },
+        {
+            "role": "tool",
+            "name": "execute_command",
+            "content": json.dumps(
+                {"ok": True, "command": "python -m pytest -q", "stdout": "2 passed"}
+            ),
+        },
+    ]
+
+    required, message = AgentRuntime._mutation_completion_requirement(
+        "calculator.pyを修正してテストしてください。",
+        messages,
+    )
+
+    assert required is False
+    assert message == ""
+
+
 def test_mutation_completion_requirement_requires_successful_file_change() -> None:
     required, message = AgentRuntime._mutation_completion_requirement(
         "tests/test_example.py に回帰テストを1件追加してください。",
