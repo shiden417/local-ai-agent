@@ -49,6 +49,17 @@ class CompletionVerifier:
             )
         ]
 
+        if (
+            process_required
+            and not mutation_required
+            and successful_mutations
+            and not requirements.mutation_forbidden
+        ):
+            return (
+                "System Verification Failed: this process-only task did not request a "
+                "workspace file change, but a file mutation was executed."
+            )
+
         if requirements.mutation_forbidden and successful_mutations:
             if requirements.read_only:
                 return (
