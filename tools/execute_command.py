@@ -24,6 +24,7 @@ def execute_command(
             "ok": False,
             "exit_code": -1,
             "stdout": "",
+            "command": command,
             "stderr": "command must not be empty",
         }
 
@@ -34,6 +35,7 @@ def execute_command(
             "ok": False,
             "exit_code": -1,
             "stdout": "",
+            "command": command,
             "stderr": f"作業ディレクトリが存在しません: {cwd}",
         }
 
@@ -43,6 +45,7 @@ def execute_command(
             "ok": False,
             "exit_code": -1,
             "stdout": "",
+            "command": command,
             "stderr": scope_error,
             "timed_out": False,
             "blocked": True,
@@ -98,6 +101,7 @@ def execute_command(
             return {
                 "ok": False,
                 "exit_code": -1,
+                "command": command,
                 "stdout": _bound_output(stdout),
                 "stderr": _bound_output(stderr),
                 "timed_out": True,
@@ -106,6 +110,7 @@ def execute_command(
         return {
             "ok": process.returncode == 0,
             "exit_code": process.returncode,
+            "command": command,
             "stdout": _bound_output(stdout),
             "stderr": _bound_output(stderr),
             "timed_out": False,
@@ -114,6 +119,7 @@ def execute_command(
         return {
             "ok": False,
             "exit_code": -1,
+            "command": command,
             "stdout": "",
             "stderr": f"コマンド実行中にエラーが発生しました: {exc}",
             "timed_out": False,
