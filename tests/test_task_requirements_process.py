@@ -29,3 +29,15 @@ def test_required_symbols_track_explicit_function_additions() -> None:
     )
 
     assert requirements.required_symbols == ("subtract",)
+
+
+
+def test_latest_function_requirement_overrides_obsolete_removal() -> None:
+    requirements = classify_task_requirements(
+        "calculator に subtract(a, b) を追加してください。"
+        "tests/test_calculator.py にもテストを追加してください。"
+        "要件が更新されました。先ほどの subtract は不要です。"
+        "subtract を削除し、代わりに divide(a, b) を追加してください。"
+    )
+
+    assert requirements.required_symbols == ("divide",)
