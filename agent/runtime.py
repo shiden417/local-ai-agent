@@ -749,7 +749,7 @@ class AgentRuntime:
                         )
                     else:
                         print("[Tool] blocked shell file mutation; use file_mutation instead")
-                                elif (
+                elif (
                     name in {"file_mutation", "create_file", "edit_file", "delete_file"}
                     and self._is_protected_mutation_path(arguments, task_requirements)
                 ):
