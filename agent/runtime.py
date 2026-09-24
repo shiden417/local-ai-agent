@@ -893,6 +893,16 @@ class AgentRuntime:
     def _is_read_only_request(goal: str) -> bool:
         """Detect explicit requests that prohibit local mutation/execution."""
         text = str(goal).casefold()
+        has_mutation_intent = bool(
+            re.search(
+                r"(?:追加|作成|修正|変更|編集|削除|書き換え|保存|実装)"
+                r"(?:して|し|を)?(?:ください|してください|します|する|行って|行います|実施|してみて)|"
+                r"(?:add|create|modify|change|edit|delete|update|implement|write)"
+                r"\\b.*\\b(?:please|requested|request|now|this task)",
+                text,
+                flags=re.IGNORECASE,
+            )
+        )
         has_read_intent = bool(
             re.search(
                 r"(調査|調べ|検索|探して|確認|閲覧|読み|分析|diagnos|investigat|"
@@ -911,7 +921,7 @@ class AgentRuntime:
                 flags=re.IGNORECASE,
             )
         )
-        return has_read_intent and has_no_change
+        return has_read_intent and has_no_change and not has_mutation_intent
 
     @staticmethod
     def _mutation_completion_requirement(
