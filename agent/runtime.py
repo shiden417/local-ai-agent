@@ -895,10 +895,11 @@ class AgentRuntime:
         text = str(goal).casefold()
         has_mutation_intent = bool(
             re.search(
-                r"(?:追加|作成|修正|変更|編集|削除|書き換え|保存|実装)"
-                r"(?:して|し|を)?(?:ください|してください|します|する|行って|行います|実施|してみて)|"
-                r"(?:add|create|modify|change|edit|delete|update|implement|write)"
-                r"\\b.*\\b(?:please|requested|request|now|this task)",
+                r"(?:追加|作成|修正|変更|編集|削除|書き換え|実装)(?!しない|禁止|不要|せず|しません)",
+                text,
+            )
+            or re.search(
+                r"\\b(?:add|create|modify|change|edit|delete|update|implement|write)\\b",
                 text,
                 flags=re.IGNORECASE,
             )
