@@ -139,19 +139,22 @@ def _run_agent_task(runtime, prompt: str) -> str:
 
 def _task1_passed(
     workspace: Path,
-    original_observation: str,
+    injected_observation: str,
     original_tests: str,
     runtime,
 ) -> tuple[bool, str]:
     observation = (workspace / "agent" / "observation.py").read_text(encoding="utf-8")
     tests = (workspace / "tests" / "test_observation.py").read_text(encoding="utf-8")
 
-    source_restored = observation == original_observation
+    bug_repaired = (
+        observation != injected_observation
+        and bool(re.search(r"return .*tail", observation))
+    )
     tests_preserved = tests == original_tests
     pytest_ok = _successful_pytest_command(runtime)
-    ok = source_restored and tests_preserved and pytest_ok
+    ok = bug_repaired and tests_preserved and pytest_ok
     details = (
-        f"source_restored={source_restored}, "
+        f"bug_repaired={bug_repaired}, "
         f"tests_preserved={tests_preserved}, "
         f"pytest_ok={pytest_ok}"
     )
@@ -161,13 +164,24 @@ def _task1_passed(
 def _task2_passed(workspace: Path, original_completion_tests: str, runtime) -> tuple[bool, str]:
     path = workspace / "tests" / "test_completion_verifier.py"
     content = path.read_text(encoding="utf-8")
+    added_text = content[len(original_completion_tests):] if content.startswith(
+        original_completion_tests
+    ) else ""
     test_added = (
-        "def test_completion_verifier_accepts_blocked_finish" in content
-        and content != original_completion_tests
+        bool(added_text)
+        and bool(re.search(r"def\s+test_[A-Za-z0-9_]*blocked", added_text))
+        and "completion_status" in added_text
+        and '"blocked"' in added_text
     )
+    existing_tests_preserved = content.startswith(original_completion_tests)
     pytest_ok = _successful_pytest_command(runtime)
-    ok = test_added and pytest_ok
-    return ok, f"test_added={test_added}, pytest_ok={pytest_ok}"
+    ok = test_added and existing_tests_preserved and pytest_ok
+    return (
+        ok,
+        f"test_added={test_added}, "
+        f"existing_tests_preserved={existing_tests_preserved}, "
+        f"pytest_ok={pytest_ok}",
+    )
 
 
 def run_dogfooding(
@@ -188,7 +202,7 @@ def run_dogfooding(
 
     workspace.mkdir(parents=True, exist_ok=True)
     _copy_project(workspace)
-    original_observation, _ = _inject_truncation_bug(workspace)
+    _, injected_observation = _inject_truncation_bug(workspace)
     original_tests = _add_required_regression_test(workspace)
     completion_tests = (workspace / "tests" / "test_completion_verifier.py").read_text(
         encoding="utf-8"
@@ -225,9 +239,10 @@ def run_dogfooding(
             "次の保守Taskです。"
             "agent/completion_verifier.py の現在の実装を確認し、"
             "finish_task が completion_status=blocked の明示的な結果を受け入れることを"
-            "保証する回帰テストを tests/test_completion_verifier.py に1件追加してください。"
-            "本番コードは変更せず、既存テストの意図を維持してください。"
-            "追加後に python -m pytest -q を実行して全テスト成功を確認してください。",
+            "保証する回帰テストを tests/test_completion_verifier.py の末尾に1件追加してください。"
+            "既存のテスト関数・アサーション・コードは一切変更・削除しないでください。"
+            "新しいtest関数を末尾に追加するだけにしてください。"
+            "本番コードは変更せず、追加後に python -m pytest -q を実行して全テスト成功を確認してください。",
         ),
     ]
 
@@ -239,7 +254,7 @@ def run_dogfooding(
             if label.startswith("Task 1"):
                 ok, details = _task1_passed(
                     workspace,
-                    original_observation,
+                    injected_observation,
                     original_tests,
                     runtime,
                 )
