@@ -1026,7 +1026,8 @@ class AgentRuntime:
             return True, (
                 "This task explicitly requires a file change. Do not answer with an "
                 "explanation or summary yet. Use the appropriate file mutation Tool now, "
-                "then inspect its result. Do not declare completion without a successful mutation."
+                "then inspect its result. Do not declare completion without a successful mutation. "
+                "The Runtime requires a successful mutation before finish_task."
             )
 
         if process_required and not AgentRuntime._has_successful_command_execution(messages):
