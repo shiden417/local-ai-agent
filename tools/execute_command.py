@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import subprocess
 
 from agent.safety import validate_command_scope
@@ -56,6 +57,16 @@ def execute_command(
         "}"
     )
 
+    environment = os.environ.copy()
+    python_dir = str(Path(sys.executable).resolve().parent)
+    current_path = environment.get("PATH", "")
+    if python_dir not in current_path.split(os.pathsep):
+        environment["PATH"] = (
+            f"{python_dir}{os.pathsep}{current_path}"
+            if current_path
+            else python_dir
+        )
+
     try:
         process = subprocess.Popen(
             [
@@ -68,6 +79,7 @@ def execute_command(
             cwd=str(cwd),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            env=environment,
             text=True,
             encoding="utf-8",
             errors="replace",
