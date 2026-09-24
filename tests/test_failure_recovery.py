@@ -426,3 +426,18 @@ def test_runtime_mutation_scope_excludes_file_tools_for_process_task(
     assert captured
     assert "file_mutation" not in captured[0]
     assert "execute_command" in captured[0]
+
+
+def test_runtime_blocks_common_shell_file_writes_for_mutation_tasks() -> None:
+    assert AgentRuntime._looks_like_workspace_mutating_command(
+        {"command": "Add-Content -Path 'src/calculator.py' -Value 'def subtract(a, b):'"}
+    )
+    assert AgentRuntime._looks_like_workspace_mutating_command(
+        {"command": "echo hello >> README.md"}
+    )
+    assert not AgentRuntime._looks_like_workspace_mutating_command(
+        {"command": "python -m pytest -q"}
+    )
+    assert not AgentRuntime._looks_like_workspace_mutating_command(
+        {"command": "python -c \"print('JARVIS V10')\""}
+    )
