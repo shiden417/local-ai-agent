@@ -75,3 +75,46 @@ def test_qwen_no_think_mode_marks_latest_user_message(monkeypatch) -> None:
     llm.ask_llm([{"role": "user", "content": "調査してください"}])
 
     assert captured["messages"][-1]["content"].endswith("/no_think")
+    assert "extra_body" not in captured
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_reasoning"),
+    [
+        ("think", "on"),
+        ("no_think", "off"),
+    ],
+)
+def test_gemma_thinking_mode_uses_lm_studio_reasoning_control(
+    monkeypatch, mode: str, expected_reasoning: str
+) -> None:
+    captured = {}
+
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(ok=True)
+
+    monkeypatch.setattr(llm._client.chat.completions, "create", fake_create)
+    monkeypatch.setattr(llm, "MODEL", "google/gemma-4-e4b")
+    monkeypatch.setattr(llm, "THINKING_MODE", mode)
+
+    llm.ask_llm([{"role": "user", "content": "調査してください"}])
+
+    assert captured["extra_body"] == {"reasoning": expected_reasoning}
+    assert captured["messages"] == [{"role": "user", "content": "調査してください"}]
+
+
+def test_non_thinking_default_does_not_send_reasoning_control(monkeypatch) -> None:
+    captured = {}
+
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(ok=True)
+
+    monkeypatch.setattr(llm._client.chat.completions, "create", fake_create)
+    monkeypatch.setattr(llm, "MODEL", "google/gemma-4-e4b")
+    monkeypatch.setattr(llm, "THINKING_MODE", "default")
+
+    llm.ask_llm([{"role": "user", "content": "調査してください"}])
+
+    assert "extra_body" not in captured
