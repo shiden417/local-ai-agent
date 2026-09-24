@@ -899,7 +899,7 @@ class AgentRuntime:
                 text,
             )
             or re.search(
-                r"\\b(?:add|create|modify|change|edit|delete|update|implement|write)\\b",
+                r"\b(?:add|create|modify|change|edit|delete|update|implement|write)\\b",
                 text,
                 flags=re.IGNORECASE,
             )
