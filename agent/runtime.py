@@ -38,6 +38,7 @@ SYSTEM_PROMPT = """あなたはローカルで動作する汎用AI Agentです�
 - 「その」「それ」「前回」などは直前の話題とSession Contextから解決する。明確なら質問しない。
 - 同じToolと同じ引数、または同じ内容の観測を繰り返さない。失敗時はRecovery Guideに従い、直接関係する別手段を選ぶ。
 - 作成・修正・削除・実行など明示された操作は、説明だけで済ませず適切なToolを実行する。
+- 明示的な作成・修正・削除・追加要求は、対象Toolの成功結果と必要な検証が確認できるまで完了回答しない。
 - Toolを実行していない操作を完了したと主張しない。
 - finish_taskはGoal達成、または安全に進められないことが確認できたときだけ使う。ask_userは重要な選択が残り、推測すると誤る場合だけ使う。
 - run_python_scriptは専用Toolで代替できない補助手段として使う。
@@ -325,6 +326,18 @@ class AgentRuntime:
                 or self.task.no_progress_streak >= 2
                 or not available_tools
             )
+            mutation_required, mutation_error = self._mutation_completion_requirement(
+                current_task.goal,
+                current_task.messages,
+            )
+            if mutation_required:
+                force_synthesis = terminal_synthesis_required or not available_tools
+                llm_messages.append(
+                    {
+                        "role": "system",
+                        "content": mutation_error,
+                    }
+                )
             if self.task.recovery_tool:
                 if self._can_retry_recovery_tool(self.task.recovery_tool):
                     recovery_message = (
@@ -496,6 +509,20 @@ class AgentRuntime:
                                 "appropriate structured Tool now, then inspect its result before "
                                 "claiming completion. Do not infer that the operation succeeded."
                             ),
+                        }
+                    )
+                    continue
+
+                mutation_required, mutation_error = self._mutation_completion_requirement(
+                    current_task.goal,
+                    current_task.messages,
+                )
+                if mutation_required:
+                    current_task.messages.append(_message_to_dict(message))
+                    current_task.messages.append(
+                        {
+                            "role": "system",
+                            "content": mutation_error,
                         }
                     )
                     continue
@@ -837,6 +864,58 @@ class AgentRuntime:
             and self.task.recovery_tool == name
             and name == "file_mutation"
             and self.task.last_failure_status == STATUS_INVALID_INPUT
+        )
+
+    @staticmethod
+    def _mutation_completion_requirement(
+        goal: str,
+        messages: list[dict[str, Any]],
+    ) -> tuple[bool, str]:
+        """Keep explicit mutation tasks from being completed before a mutation succeeds."""
+        text = str(goal).casefold()
+        mutation_required = bool(
+            re.search(
+                r"(追加|作成|修正|変更|編集|削除|書き換え|保存|実装|add|create|modify|change|edit|delete|update|implement|write)",
+                text,
+                flags=re.IGNORECASE,
+            )
+        )
+        if not mutation_required:
+            return False, ""
+
+        mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file"}
+        successful_mutation = False
+        successful_test = False
+        for message in messages:
+            if message.get("role") != "tool":
+                continue
+            try:
+                payload = json.loads(str(message.get("content", "")))
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, dict) or not payload.get("ok"):
+                continue
+            name = str(message.get("name", ""))
+            if name in mutation_tools:
+                successful_mutation = True
+            if name == "execute_command":
+                command = str(payload.get("command", "")).casefold()
+                if "pytest" in command and payload.get("exit_code") == 0:
+                    successful_test = True
+
+        if successful_mutation:
+            if successful_test:
+                return False, ""
+            return True, (
+                "This task explicitly requires a file change. The change has succeeded, "
+                "but verification has not yet succeeded. Run the required test/verification "
+                "before giving a completion answer."
+            )
+
+        return True, (
+            "This task explicitly requires a file change. Do not answer with an explanation "
+            "or summary yet. Use the appropriate file mutation Tool now, then inspect its "
+            "result. Do not declare completion without a successful mutation."
         )
 
     @staticmethod
