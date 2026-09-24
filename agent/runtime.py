@@ -324,7 +324,7 @@ class AgentRuntime:
             ]
 
             excluded_tools = set(self.task.disabled_tools)
-            mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file", "python_symbol_edit"}
+            mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file", "python_symbol_edit", "replace_line"}
             if (
                 not task_requirements.file_mutation
                 or task_requirements.mutation_forbidden
@@ -384,6 +384,23 @@ class AgentRuntime:
                         ),
                     }
                 )
+            # Keep structural editing tools out of unrelated tasks so local models have a smaller action space.
+            explicit_python_targets = any(
+                path.casefold().endswith(".py")
+                for path in task_requirements.required_mutation_paths
+            )
+            structural_python_request = bool(
+                re.search(
+                    r"(リネーム|名前変更|関数(?:を|の)?(?:追加|削除|変更|修正)|rename|remove|delete|add|implement|function)",
+                    user_input,
+                    flags=re.IGNORECASE,
+                )
+                and (explicit_python_targets or ".py" in user_input.casefold())
+            )
+            if not structural_python_request:
+                excluded_tools.add("python_symbol_edit")
+            if "行" not in user_input and "line" not in user_input.casefold():
+                excluded_tools.add("replace_line")
             if task_requirements.required_mutation_paths:
                 required_targets = ", ".join(task_requirements.required_mutation_paths)
                 llm_messages.append(
@@ -393,7 +410,7 @@ class AgentRuntime:
                             "Required mutation targets: the following file paths are explicit "
                             "targets of this task and must each receive the necessary file "
                             "change before completion: "
-                            f"{required_targets}. Use file_mutation for these workspace edits."
+                            f"{required_targets}. Use the appropriate file mutation Tool for these workspace edits. For Python function additions/removals/renames/imports, prefer python_symbol_edit."
                         ),
                     }
                 )
@@ -807,7 +824,7 @@ class AgentRuntime:
                         print("[Tool] blocked by recovery quarantine")
                 elif (
                     task_requirements.mutation_forbidden
-                    and name in {"file_mutation", "create_file", "edit_file", "delete_file", "python_symbol_edit"}
+                    and name in {"file_mutation", "create_file", "edit_file", "delete_file", "python_symbol_edit", "replace_line"}
                 ):
                     safety_decision = "task_tool_blocked"
                     result = {
@@ -1065,6 +1082,7 @@ class AgentRuntime:
                     "edit_file",
                     "delete_file",
                     "python_symbol_edit",
+                    "replace_line",
                     "execute_command",
                     "run_python_script",
                     "stage_plugin",
