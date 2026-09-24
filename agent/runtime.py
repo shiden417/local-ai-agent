@@ -1070,9 +1070,9 @@ class AgentRuntime:
 
         patterns = (
             r"\b(?:add-content|set-content|out-file|remove-item|move-item|copy-item|new-item)\b",
-            r"\b(?:tee|sed)\s+[^\n]*?(?:-i|--in-place)\b",
-            r"\b(?:echo|printf|write-output)\b[^\n]*(?:>>|>)\s*[^>]",
-            r"(?:>>|>)\s*[\"']?(?:[A-Za-z]:)?[^\n]+$",
+            r"\b(?:tee|sed)\s+[\s\S]*?(?:-i|--in-place)\b",
+            r"\b(?:echo|printf|write-output)\b[\s\S]*(?:>>|>)\s*(?:[\"']?(?:[A-Za-z]:)?[^\s\"']+)",
+            r"(?:>>|>)\s*(?:[\"']?(?:[A-Za-z]:)?(?:[^\s\"']+|[\"'][^\"']+[\"']))",
             r"\[\s*io\.file\s*\]\s*::\s*(?:writealltext|appendalltext|writeallbytes)\s*\(",
         )
         lowered = command.casefold()
