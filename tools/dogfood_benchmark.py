@@ -75,10 +75,11 @@ def _add_required_regression_test(workspace: Path) -> str:
 def test_truncate_text_respects_max_chars_for_small_limits() -> None:
     text = "abcdefghijklmnopqrstuvwxyz"
 
-    result, truncated = truncate_text(text, max_chars=7)
+    result, truncated = truncate_text(text, max_chars=45)
 
     assert truncated is True
-    assert len(result) <= 7
+    assert len(result) == 45
+    assert result.endswith("z")
 """
     path.write_text(original + addition, encoding="utf-8")
     return original + addition
