@@ -319,7 +319,7 @@ class AgentRuntime:
             ]
 
             excluded_tools = set(self.task.disabled_tools)
-            mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file"}
+            mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file", "python_symbol_edit"}
             if (
                 not task_requirements.file_mutation
                 or task_requirements.mutation_forbidden
@@ -802,7 +802,7 @@ class AgentRuntime:
                         print("[Tool] blocked by recovery quarantine")
                 elif (
                     task_requirements.mutation_forbidden
-                    and name in {"file_mutation", "create_file", "edit_file", "delete_file"}
+                    and name in {"file_mutation", "create_file", "edit_file", "delete_file", "python_symbol_edit"}
                 ):
                     safety_decision = "task_tool_blocked"
                     result = {
@@ -847,7 +847,7 @@ class AgentRuntime:
                     else:
                         print("[Tool] blocked shell file mutation; use file_mutation instead")
                 elif (
-                    name in {"file_mutation", "create_file", "edit_file", "delete_file"}
+                    name in {"file_mutation", "create_file", "edit_file", "delete_file", "python_symbol_edit"}
                     and self._is_protected_mutation_path(arguments, task_requirements)
                 ):
                     safety_decision = "protected_path_blocked"
@@ -1040,6 +1040,8 @@ class AgentRuntime:
                     "create_file",
                     "edit_file",
                     "delete_file",
+                    "python_symbol_edit",
+                    "python_symbol_edit",
                     "run_python_script",
                     "stage_plugin",
                     "promote_plugin",
