@@ -1,8 +1,11 @@
+import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from tools.dogfood_benchmark import (
     _add_required_regression_test,
     _inject_truncation_bug,
+    _successful_pytest_command,
 )
 
 
@@ -36,3 +39,55 @@ def test_add_required_regression_test_is_deterministic(tmp_path: Path) -> None:
     assert result == content
     assert content.startswith(original)
     assert "test_truncate_text_respects_max_chars_for_small_limits" in content
+
+
+
+def test_successful_pytest_command_ignores_other_successful_tools() -> None:
+    runtime = SimpleNamespace(
+        current_task=SimpleNamespace(
+            messages=[
+                {
+                    "role": "tool",
+                    "name": "run_python_script",
+                    "content": json.dumps({
+                        "ok": True,
+                        "exit_code": 0,
+                        "stderr": "No module named pytest",
+                    }),
+                },
+                {
+                    "role": "tool",
+                    "name": "execute_command",
+                    "content": json.dumps({
+                        "ok": True,
+                        "exit_code": 0,
+                        "command": "python -c \"print('done')\"",
+                        "stdout": "done",
+                    }),
+                },
+            ]
+        )
+    )
+
+    assert _successful_pytest_command(runtime) is False
+
+
+def test_successful_pytest_command_requires_passing_output() -> None:
+    runtime = SimpleNamespace(
+        current_task=SimpleNamespace(
+            messages=[
+                {
+                    "role": "tool",
+                    "name": "execute_command",
+                    "content": json.dumps({
+                        "ok": True,
+                        "exit_code": 0,
+                        "command": "python -m pytest -q",
+                        "stdout": "35 passed in 1.2s",
+                    }),
+                }
+            ]
+        )
+    )
+
+    assert _successful_pytest_command(runtime) is True
