@@ -34,4 +34,4 @@ def test_edit_file_strips_read_file_prefixes_from_replacement_after_recovery(tmp
 
     assert result["ok"] is True
     assert result["search_text_recovered"] is True
-    assert path.read_text(encoding="utf-8") == "JARVIS SESSION\nSession Context works"
+    assert path.read_text(encoding="utf-8") == "JARVIS SESSION\nSession Context works\n"
