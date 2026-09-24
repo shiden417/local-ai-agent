@@ -33,6 +33,8 @@ class CompletionVerifier:
             return None
 
         mutation_required = self._requires_file_mutation(verification_goal)
+        process_required = self._requires_process_execution(verification_goal)
+
         if mutation_required:
             mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file"}
             successful_mutation = any(
@@ -43,8 +45,8 @@ class CompletionVerifier:
             )
             if not successful_mutation:
                 return (
-                    "System Verification Failed: no successful action has been observed, "
-                    "and this task explicitly requires a file change. "
+                    "System Verification Failed: this task explicitly requires a file change. "
+                    "No successful file mutation was observed. "
                     "Perform the requested file mutation first."
                 )
 
@@ -54,6 +56,13 @@ class CompletionVerifier:
                     "but no successful pytest/test execution was observed after the file change. "
                     "Run the relevant test command and inspect its result before completion."
                 )
+
+        if process_required and not self._has_successful_command(messages):
+            return (
+                "System Verification Failed: this task explicitly requires process/command execution, "
+                "but no successful execute_command result with exit_code 0 was observed. "
+                "Use execute_command and verify its result before completion."
+            )
 
         if self._is_read_only_request(verification_goal):
             mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file"}
@@ -185,11 +194,11 @@ class CompletionVerifier:
         )
         has_japanese_mutation = bool(
             re.search(
-                r"(?:追加|作成|修正|変更|編集|削除|書き換え)(?!しない)(?:してください|して|する|します|を)",
+                r"(?:追加|作成|修正|変更|編集|削除|書き換え)(?!しない)(?:してください|して|した|し|する|します|を)",
                 text,
             )
             or re.search(
-                r"実装(?!しない)(?:してください|して|する|します|を)",
+                r"実装(?!しない)(?:してください|して|した|し|する|します|を)",
                 text,
             )
         )
@@ -205,7 +214,9 @@ class CompletionVerifier:
                 flags=re.IGNORECASE,
             )
         )
-        return has_japanese_mutation or (has_file_context and has_english_mutation)
+        # File-mutation completion is required only when the request identifies a
+        # file/code target. Memory persistence is intentionally a separate capability.
+        return has_file_context and (has_japanese_mutation or has_english_mutation)
 
     @staticmethod
     def _requires_test_verification(goal: str) -> bool:
@@ -244,13 +255,24 @@ class CompletionVerifier:
     @staticmethod
     def _requires_process_execution(goal: str) -> bool:
         text = str(goal).casefold()
-        return bool(
+        has_execution_intent = bool(
             re.search(
-                r"(?:コマンド(?:を|の)?実行|コマンド実行|プロセス(?:を|の)?実行|実行してください|execute|run|command execution|process execution)",
+                r"(?:コマンド(?:を|の)?実行|コマンド実行|プロセス(?:を|の)?実行|"
+                r"実行(?:してください|して|し、|する|します)|\bexecute\b|\brun\b|"
+                r"command execution|process execution)",
                 text,
                 flags=re.IGNORECASE,
             )
         )
+        has_process_context = bool(
+            re.search(
+                r"(?:コマンド|プロセス|python|pytest|powershell|terminal|shell|"
+                r"command|process)",
+                text,
+                flags=re.IGNORECASE,
+            )
+        )
+        return has_execution_intent and has_process_context
 
     @staticmethod
     def _has_successful_command(messages: list[dict[str, Any]]) -> bool:
