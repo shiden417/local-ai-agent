@@ -671,6 +671,25 @@ class AgentRuntime:
                     )
                     continue
 
+                requirement_gaps = self.completion_verifier.requirement_gaps(
+                    routing_text,
+                    current_task.messages,
+                )
+                if requirement_gaps:
+                    current_task.messages.append(_message_to_dict(message))
+                    current_task.messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "The explicit requested change is not fully evidenced yet. "
+                                "Resolve these requirement gaps before giving a final answer: "
+                                + "; ".join(requirement_gaps)
+                                + "."
+                            ),
+                        }
+                    )
+                    continue
+
                 if self._is_stale_session_response(content, current_task):
                     current_task.messages.append(_message_to_dict(message))
                     current_task.messages.append(
@@ -1015,15 +1034,39 @@ class AgentRuntime:
                     outcome_status=outcome_status,
                     progress_state=progress_state.value,
                 )
+                workspace_state_changed = False
                 if bool(result.get("ok")) and name in {
                     "file_mutation",
+                    "create_file",
+                    "edit_file",
+                    "delete_file",
+                    "run_python_script",
+                    "stage_plugin",
+                    "promote_plugin",
+                }:
+                    workspace_state_changed = True
+
+                if (
+                    bool(result.get("ok"))
+                    and name == "execute_command"
+                    and self._looks_like_workspace_mutating_command(arguments)
+                ):
+                    workspace_state_changed = True
+
+                if bool(result.get("ok")) and name in {
+                    "file_mutation",
+                    "create_file",
+                    "edit_file",
+                    "delete_file",
                     "execute_command",
                     "run_python_script",
                     "stage_plugin",
                     "promote_plugin",
                 }:
-                    last_state_change_tool = name
                     self._environment_revision += 1
+
+                if workspace_state_changed:
+                    last_state_change_tool = name
                     self.loop_guard.reset_for_state_change(
                         preserve_name=name,
                         preserve_arguments=arguments,
@@ -1231,20 +1274,26 @@ class AgentRuntime:
                     latest_failure = "FAIL: " + command
 
         remaining = [path for path in explicit_targets if path not in mutated]
+        requirement_gaps = self.completion_verifier.requirement_gaps(
+            goal,
+            messages,
+        )
         return (
             "Progress ledger: "
             f"explicit mutation targets=[{', '.join(explicit_targets) or 'none'}]; "
             f"successfully mutated=[{', '.join(mutated) or 'none'}]; "
             f"already read=[{', '.join(read) or 'none'}]; "
             f"remaining explicit mutations=[{', '.join(remaining) or 'none'}]; "
+            f"requirement gaps=[{', '.join(requirement_gaps) or 'none'}]; "
             f"latest successful pytest={latest_test}; latest command failure={latest_failure}. "
-            "Do not repeat completed work. For each remaining target, make the smallest direct change "
-            "needed by the goal, then verify before finishing."
+            "Do not repeat completed work. Resolve every requirement gap before finishing. "
+            "For each remaining target, make the smallest direct change needed by the goal, "
+            "then verify before finishing."
         )
 
 
-    @staticmethod
     def _runtime_requirements_satisfied(
+        self,
         goal: str,
         messages: list[dict[str, Any]],
     ) -> bool:
@@ -1256,6 +1305,9 @@ class AgentRuntime:
             or requirements.process_execution
             or requirements.test_verification
         ):
+            return False
+
+        if self.completion_verifier.requirement_gaps(goal, messages):
             return False
 
         if requirements.file_mutation:
