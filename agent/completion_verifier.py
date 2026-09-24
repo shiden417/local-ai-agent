@@ -186,6 +186,62 @@ class CompletionVerifier:
         return None
 
     @staticmethod
+    def _tool_payload_ok(message: dict[str, Any]) -> bool:
+        try:
+            payload = json.loads(str(message.get("content", "")))
+        except json.JSONDecodeError:
+            return False
+        return isinstance(payload, dict) and bool(payload.get("ok"))
+
+    @staticmethod
+    def _has_successful_command(messages: list[dict[str, Any]]) -> bool:
+        for message in messages:
+            if message.get("role") != "tool" or message.get("name") != "execute_command":
+                continue
+            try:
+                payload = json.loads(str(message.get("content", "")))
+            except json.JSONDecodeError:
+                continue
+            if (
+                isinstance(payload, dict)
+                and payload.get("ok")
+                and payload.get("exit_code") == 0
+            ):
+                return True
+        return False
+
+    @staticmethod
+    def _has_successful_test(messages: list[dict[str, Any]]) -> bool:
+        for message in messages:
+            if message.get("role") != "tool":
+                continue
+            if message.get("name") not in {"execute_command", "run_python_script"}:
+                continue
+            try:
+                payload = json.loads(str(message.get("content", "")))
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, dict) or not payload.get("ok"):
+                continue
+            if payload.get("exit_code") not in (None, 0):
+                continue
+            command = str(payload.get("command", "")).casefold()
+            output = "\n".join(
+                str(payload.get(key, ""))
+                for key in ("stdout", "stderr")
+            ).casefold()
+            if "pytest" in command or "pytest" in output:
+                return True
+            if re.search(r"\btest(?:ing|s)?\b", command) and re.search(
+                r"pass|success",
+                output,
+            ):
+                return True
+            if re.search(r"\b\d+\s+passed\b", output):
+                return True
+        return False
+
+    @staticmethod
     def _requires_file_mutation(goal: str) -> bool:
         return classify_task_requirements(goal).file_mutation
 
