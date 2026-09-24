@@ -248,7 +248,7 @@ def run_benchmark(
         ),
         (
             "Task 6: process execution",
-            "このworkspaceで、プロジェクト調査ではなく単純なコマンド実行Taskとして、python -c を使って JARVIS benchmark と表示し、終了コード0を確認してください。不要なファイル調査や変更はしないでください。",
+            "このworkspaceで、プロジェクト調査ではなく単純なコマンド実行Taskとして、python -c を使って JARVIS benchmark と表示し、終了コード0を確認してください。",
             lambda: _task_process_execution_succeeded(runtime),
         ),
         (
