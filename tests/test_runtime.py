@@ -1508,6 +1508,23 @@ def test_has_successful_test_execution_after_pytest() -> None:
     assert AgentRuntime._has_successful_test_execution(messages) is True
 
 
+def test_has_successful_test_execution_accepts_passed_output_without_command() -> None:
+    messages = [
+        {
+            "role": "tool",
+            "name": "execute_command",
+            "content": json.dumps(
+                {
+                    "ok": True,
+                    "stdout": "2 passed",
+                }
+            ),
+        }
+    ]
+
+    assert AgentRuntime._has_successful_test_execution(messages) is True
+
+
 def test_has_successful_test_execution_is_false_for_unexecuted_claim() -> None:
     messages = [
         {
