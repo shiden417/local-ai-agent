@@ -2375,6 +2375,6 @@ def test_runtime_does_not_reset_loop_guard_after_non_mutating_command(
     )
 
     assert runtime.run(
-        'execute_command Toolを使って python -c "print(\\'JARVIS benchmark\\')" を実行してください。'
+        "execute_command Toolを使って python -c \"print('JARVIS benchmark')\" を実行してください。"
     ) == "コマンド実行を確認しました。"
     assert executed["count"] == 1
