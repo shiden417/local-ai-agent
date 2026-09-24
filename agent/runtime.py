@@ -1451,7 +1451,11 @@ class AgentRuntime:
 
     @staticmethod
     def _has_successful_command_execution(messages: list[dict[str, Any]]) -> bool:
-        """Return True only when the latest execute_command succeeded."""
+        """Return True when the latest actual execute_command attempt succeeded.
+
+        Runtime-only blocks such as Loop Guard repetition do not invalidate an
+        earlier successful command because no new process was actually run.
+        """
         command_messages = [
             message
             for message in messages
@@ -1461,16 +1465,27 @@ class AgentRuntime:
         if not command_messages:
             return False
 
-        message = command_messages[-1]
-        try:
-            payload = json.loads(str(message.get("content", "")))
-        except json.JSONDecodeError:
-            return False
-        return bool(
-            isinstance(payload, dict)
-            and payload.get("ok")
-            and payload.get("exit_code") == 0
-        )
+        non_execution_flags = {
+            "repeated_tool_call",
+            "recovery_blocked",
+            "task_tool_blocked",
+            "protected_path_blocked",
+            "user_rejected",
+        }
+        for message in reversed(command_messages):
+            try:
+                payload = json.loads(str(message.get("content", "")))
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, dict):
+                continue
+            if any(bool(payload.get(flag)) for flag in non_execution_flags):
+                continue
+            if "auto_mode" in payload and payload.get("auto_mode") == "deny":
+                continue
+            return bool(payload.get("ok") and payload.get("exit_code") == 0)
+
+        return False
 
     @staticmethod
     def _has_successful_test_execution(messages: list[dict[str, Any]]) -> bool:
