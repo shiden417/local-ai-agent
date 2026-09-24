@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import time
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -25,7 +26,7 @@ from agent.safety import AUTO_ALLOW, AUTO_DENY, SafetyPolicy
 from agent.task import TaskState, classify_progress
 from agent.trace import TraceRecorder
 from agent.task_manager import ManagedTask, TaskManager
-from agent.task_requirements import classify_task_requirements
+from agent.task_requirements import TaskRequirements, classify_task_requirements
 from agent.tool_registry import ToolRegistry
 from agent.tools import create_default_tool_registry
 
@@ -215,9 +216,13 @@ class AgentRuntime:
             )
             return self._run_conversation(user_input, run_id=run_id)
 
-        is_follow_up = routing_text != user_input
         current_task = self.task_manager.create(user_input)
-        task_requirements = classify_task_requirements(routing_text)
+        is_follow_up = routing_text != user_input
+        task_requirements = self._effective_task_requirements(
+            user_input,
+            routing_text,
+            is_follow_up=is_follow_up,
+        )
         read_only_request = task_requirements.read_only
         current_task.messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -672,7 +677,7 @@ class AgentRuntime:
                     continue
 
                 requirement_gaps = self.completion_verifier.requirement_gaps(
-                    routing_text,
+                    user_input if is_follow_up else routing_text,
                     current_task.messages,
                 )
                 if requirement_gaps:
@@ -952,7 +957,7 @@ class AgentRuntime:
                     verification_error = self.completion_verifier.verify(
                         current_task,
                         result,
-                        goal_text=routing_text,
+                        goal_text=user_input if is_follow_up else routing_text,
                     )
                     if verification_error is not None:
                         result = {
