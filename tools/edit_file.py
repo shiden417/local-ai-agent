@@ -127,12 +127,17 @@ def _strip_read_file_line_numbers(value: str) -> str:
     lines = value.splitlines()
     if not lines or not all(line.lstrip().split(":", 1)[0].isdigit() and ":" in line for line in lines):
         return value
-    return "\n".join(line.split(":", 1)[1].lstrip() for line in lines)
+    return "\n".join(
+        (
+            rest[1:] if rest.startswith(" ") else rest
+        )
+        for rest in (line.split(":", 1)[1] for line in lines)
+    )
 
 
 def _decode_literal_escapes(value: str) -> str:
     return (
-        value.replace("\\\\n", "\n")
-        .replace("\\\\r", "\r")
-        .replace('\\\\\"', '"')
+        value.replace("\\n", "\n")
+        .replace("\\r", "\r")
+        .replace('\\\"', '"')
     )
