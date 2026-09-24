@@ -116,7 +116,7 @@ def _successful_pytest_command(runtime) -> bool:
         if not bool(result.get("ok")) or result.get("exit_code") != 0:
             continue
         stdout = str(result.get("stdout", ""))
-        if re.search(r"\\b\\d+\\s+passed\\b", stdout, flags=re.IGNORECASE):
+        if re.search(r"\b\d+\s+passed\b", stdout, flags=re.IGNORECASE):
             return True
     return False
 
