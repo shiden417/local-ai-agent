@@ -1317,6 +1317,13 @@ def test_runtime_allows_verification_after_state_change(
     registry = ToolRegistry()
     calls = {"read": 0}
 
+    def read_file(_working_directory, _arguments):
+        calls["read"] += 1
+        return {
+            "ok": True,
+            "content": "new" if calls["read"] > 1 else "old",
+        }
+
     registry.register(
         ToolDefinition(
             name="read_file",
@@ -1326,10 +1333,7 @@ def test_runtime_allows_verification_after_state_change(
                 "properties": {"path": {"type": "string"}},
                 "required": ["path"],
             },
-            handler=lambda _working_directory, _arguments: {
-                "ok": True,
-                "content": "new" if calls.__setitem__("read", calls["read"] + 1) or calls["read"] > 1 else "old",
-            },
+            handler=read_file,
         )
     )
     registry.register(
