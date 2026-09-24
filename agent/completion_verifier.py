@@ -182,7 +182,7 @@ class CompletionVerifier:
                 text,
             )
             or re.search(
-                r"\\b(?:add|create|modify|change|edit|delete|update|implement|write)\\b",
+                r"\b(?:add|create|modify|change|edit|delete|update|implement|write)\\b",
                 text,
                 flags=re.IGNORECASE,
             )
@@ -213,12 +213,12 @@ class CompletionVerifier:
             if payload.get("exit_code") not in (None, 0):
                 continue
             command = str(payload.get("command", "")).casefold()
-            output = "\\n".join(str(payload.get(key, "")) for key in ("stdout", "stderr")).casefold()
+            output = "\n".join(str(payload.get(key, "")) for key in ("stdout", "stderr")).casefold()
             if "pytest" in command or "pytest" in output:
                 return True
-            if re.search(r"\\btest(?:ing|s)?\\b", command) and re.search(r"pass|success", output):
+            if re.search(r"\btest(?:ing|s)?\\b", command) and re.search(r"pass|success", output):
                 return True
-            if re.search(r"\\b\\d+\\s+passed\\b", output):
+            if re.search(r"\b\\d+\\s+passed\\b", output):
                 return True
         return False
 
