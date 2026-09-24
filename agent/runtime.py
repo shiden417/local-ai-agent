@@ -975,7 +975,7 @@ class AgentRuntime:
         # "call:run_python_script{...}" instead of a structured tool call.
         return bool(
             re.search(
-                r"(?:^|[\\s<])(?:call|tool_call)\\s*:\\s*[a-z_][a-z0-9_]*\\s*[<{]",
+                r"(?:^|[\s<])(?:call|tool_call)\s*:\s*[a-z_][a-z0-9_]*\s*[<{]",
                 text,
             )
         )
