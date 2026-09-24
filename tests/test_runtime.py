@@ -70,6 +70,80 @@ def test_mutation_completion_requirement_accepts_successful_test_without_exit_co
     assert message == ""
 
 
+def test_mutation_completion_requirement_does_not_treat_memory_save_as_file_mutation() -> None:
+    required, message = AgentRuntime._mutation_completion_requirement(
+        "Benchmarkの識別子 jarvis-benchmark をMemoryに保存し、その後検索して確認してください。",
+        [],
+    )
+
+    assert required is False
+    assert message == ""
+
+
+def test_completion_verifier_requires_file_change_for_explicit_edit() -> None:
+    from agent.completion_verifier import CompletionVerifier
+
+    task = SimpleNamespace(
+        goal=(
+            "calculator.py を調査してください。add関数にバグがあります。"
+            "原因を修正し、python -m pytest -q を実行して、全テストが成功することを確認してください。"
+            "test_calculator.py は変更しないでください。"
+        ),
+        messages=[
+            {
+                "role": "tool",
+                "name": "read_file",
+                "content": json.dumps({"ok": True, "path": "calculator.py"}),
+            }
+        ],
+    )
+
+    error = CompletionVerifier(Path.cwd()).verify(
+        task,
+        {"completion_status": "completed", "summary": "修正してテストしました。"},
+    )
+
+    assert error is not None
+    assert "file change" in error
+
+
+def test_completion_verifier_requires_process_execution_after_file_change(tmp_path: Path) -> None:
+    from agent.completion_verifier import CompletionVerifier
+
+    task = SimpleNamespace(
+        goal=(
+            "calculator.py を修正して、python -m pytest -q を実行して、"
+            "全テストが成功することを確認してください。"
+        ),
+        messages=[
+            {
+                "role": "tool",
+                "name": "file_mutation",
+                "content": json.dumps({"ok": True, "path": "calculator.py"}),
+            }
+        ],
+    )
+
+    error = CompletionVerifier(tmp_path).verify(
+        task,
+        {"completion_status": "completed", "summary": "修正しました。"},
+    )
+
+    assert error is not None
+    assert "pytest/test execution" in error or "execute_command" in error
+
+
+def test_requires_process_execution_recognizes_japanese_continuation() -> None:
+    from agent.completion_verifier import CompletionVerifier
+
+    assert CompletionVerifier._requires_process_execution(
+        'python -m pytest -q を実行して、全テストが成功することを確認してください。'
+    )
+    assert CompletionVerifier._requires_process_execution(
+        'PowerShellから python -c "print(\'JARVIS benchmark\')" を実行し、終了コード0を確認してください。'
+    )
+
+
 def test_mutation_completion_requirement_requires_successful_file_change() -> None:
     required, message = AgentRuntime._mutation_completion_requirement(
         "tests/test_example.py に回帰テストを1件追加してください。",
