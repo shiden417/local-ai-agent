@@ -331,23 +331,37 @@ class AgentRuntime:
                     }
                 )
             if read_only_request:
-                excluded_tools.update({"run_python_script", "execute_command"})
-                llm_messages.append(
-                    {
-                        "role": "system",
-                        "content": (
-                            "Read-only task guard: the user explicitly requested "
-                            "investigation/search/verification without modifying files. "
-                            "Do not use any file mutation or process-execution Tool. "
-                            "Use only read-only observations such as read_file or search_files. "
-                            "If the requested information is already observed, answer directly."
-                        ),
-                    }
-                )
-            if (
-                task_requirements.required_process_tool == "execute_command"
-                and not read_only_request
-            ):
+                # Read-only forbids workspace mutation, but an explicitly requested
+                # process/command execution is still allowed. This distinction matters
+                # for tasks such as "do not change files; run pytest and report the result."
+                if task_requirements.process_execution:
+                    excluded_tools.add("run_python_script")
+                    llm_messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "Read-only task guard: the user forbids workspace file changes. "
+                                "Do not use file mutation Tools. A process/command execution is "
+                                "explicitly requested, so execute it with execute_command and "
+                                "treat the command as verification/process work, not a file edit."
+                            ),
+                        }
+                    )
+                else:
+                    excluded_tools.update({"run_python_script", "execute_command"})
+                    llm_messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "Read-only task guard: the user explicitly requested "
+                                "investigation/search/verification without modifying files. "
+                                "Do not use any file mutation or process-execution Tool. "
+                                "Use only read-only observations such as read_file or search_files. "
+                                "If the requested information is already observed, answer directly."
+                            ),
+                        }
+                    )
+            if task_requirements.required_process_tool == "execute_command":
                 excluded_tools.add("run_python_script")
                 llm_messages.append(
                     {
