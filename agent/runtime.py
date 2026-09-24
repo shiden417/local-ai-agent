@@ -12,7 +12,11 @@ from agent.completion_verifier import CompletionVerifier
 from agent.llm import MODEL, ask_llm
 from agent.loop_guard import ToolLoopGuard
 from agent.observation import truncate_text
-from agent.recovery import classify_tool_outcome, recovery_guidance
+from agent.recovery import (
+    STATUS_INVALID_INPUT,
+    classify_tool_outcome,
+    recovery_guidance,
+)
 from agent.request_classifier import RequestClassifier, RequestMode
 from agent.session import SessionManager
 from agent.environment import build_environment_context, extract_related_paths
@@ -305,7 +309,10 @@ class AgentRuntime:
             ]
 
             excluded_tools = set(self.task.disabled_tools)
-            if self.task.recovery_tool:
+            if (
+                self.task.recovery_tool
+                and not self._can_retry_recovery_tool(self.task.recovery_tool)
+            ):
                 excluded_tools.add(self.task.recovery_tool)
 
             available_tools = self.tool_registry.schemas_for(
@@ -319,18 +326,28 @@ class AgentRuntime:
                 or not available_tools
             )
             if self.task.recovery_tool:
+                if self._can_retry_recovery_tool(self.task.recovery_tool):
+                    recovery_message = (
+                        f"Recovery mode: the previous '{self.task.recovery_tool}' call "
+                        "failed because its arguments were invalid for the current state. "
+                        "Correct the arguments and retry that Tool if it is the direct "
+                        "way to continue. Never repeat the identical failed arguments. "
+                        "Then reassess the goal."
+                    )
+                else:
+                    recovery_message = (
+                        f"Recovery mode: the previous Tool "
+                        f"'{self.task.recovery_tool}' failed. "
+                        "Do not use that Tool in the next step. "
+                        "Use a directly relevant alternative observation "
+                        "within the workspace, then reassess the goal. "
+                        "Do not investigate unrelated OS settings or "
+                        "system internals."
+                    )
                 llm_messages.append(
                     {
                         "role": "system",
-                        "content": (
-                            f"Recovery mode: the previous Tool "
-                            f"'{self.task.recovery_tool}' failed. "
-                            "Do not use that Tool in the next step. "
-                            "Use a directly relevant alternative observation "
-                            "within the workspace, then reassess the goal. "
-                            "Do not investigate unrelated OS settings or "
-                            "system internals."
-                        ),
+                        "content": recovery_message,
                     }
                 )
             if self.task.last_tool_result_truncated:
@@ -575,7 +592,10 @@ class AgentRuntime:
                 call_count = self.loop_guard.record(name, arguments)
                 self._last_tool_duration_ms = 0
                 safety_decision = AUTO_ALLOW
-                if self.task.recovery_tool == name:
+                if (
+                    self.task.recovery_tool == name
+                    and not self._can_retry_recovery_tool(name)
+                ):
                     safety_decision = "recovery_blocked"
                     result = {
                         "ok": False,
@@ -809,6 +829,15 @@ class AgentRuntime:
             tool_calls=self.task.tool_calls,
         )
         return "Agentの最大反復回数に達したため、処理を終了しました。"
+
+    def _can_retry_recovery_tool(self, name: str) -> bool:
+        """Allow a corrected retry for recoverable file-mutation input errors."""
+        return bool(
+            self.task is not None
+            and self.task.recovery_tool == name
+            and name == "file_mutation"
+            and self.task.last_failure_status == STATUS_INVALID_INPUT
+        )
 
     @staticmethod
     def _looks_like_unexecuted_action_intent(content: str) -> bool:
