@@ -212,6 +212,11 @@ def run_benchmark(
                     and "RECOVERED" in str(result.get("stdout", ""))
                     for result in _tool_results(runtime, {"execute_command"})
                 )
+                and (root / "recovery.txt").read_text(encoding="utf-8") == "RECOVERED\n"
+                and not _successful_tools(
+                    runtime,
+                    {"file_mutation", "create_file", "edit_file", "delete_file"},
+                )
             ),
         ),
         (
@@ -292,6 +297,11 @@ def run_benchmark(
                 len(_successful_command_results(runtime)) >= 2
                 and _successful_command_results(runtime)[-1].get("exit_code") == 0
                 and "FINAL" in str(_successful_command_results(runtime)[-1].get("stdout", ""))
+                and not _successful_tools(
+                    runtime,
+                    {"file_mutation", "create_file", "edit_file", "delete_file"},
+                )
+                and not (root / "final_output.txt").exists()
             ),
         ),
     ]
