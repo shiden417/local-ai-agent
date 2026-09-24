@@ -1748,3 +1748,81 @@ def test_runtime_retries_corrected_file_mutation_after_invalid_input(
 
 
 
+
+
+
+def test_read_only_request_detection() -> None:
+    assert AgentRuntime._is_read_only_request(
+        "calculator.pyを調査して確認してください。ファイルは変更しないでください。"
+    )
+    assert not AgentRuntime._is_read_only_request(
+        "calculator.pyを修正してください。"
+    )
+
+
+def test_read_only_completion_verifier_rejects_mutation(tmp_path: Path) -> None:
+    from agent.completion_verifier import CompletionVerifier
+
+    task = SimpleNamespace(
+        goal="calculator.pyを調査してください。ファイルは変更しないでください。",
+        messages=[
+            {
+                "role": "tool",
+                "name": "read_file",
+                "content": json.dumps({"ok": True, "path": "calculator.py"}),
+            },
+            {
+                "role": "tool",
+                "name": "file_mutation",
+                "content": json.dumps({"ok": True, "path": "calculator.py"}),
+            },
+        ],
+    )
+    result = {"ok": True, "completion_status": "completed", "summary": "done"}
+
+    error = CompletionVerifier(tmp_path).verify(task, result)
+
+    assert error is not None
+    assert "read-only" in error
+
+
+def test_read_only_runtime_excludes_mutation_and_execution_tools(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    captured_tools: list[list[dict]] = []
+
+    def response(content: str):
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content=content,
+                        tool_calls=[],
+                    )
+                )
+            ]
+        )
+
+    def fake_ask_llm(_messages, tools=None):
+        captured_tools.append(tools or [])
+        return response("調査結果を確認しました。")
+
+    monkeypatch.setattr(runtime_module, "ask_llm", fake_ask_llm)
+
+    runtime = AgentRuntime(tmp_path, confirm=lambda _message: True)
+
+    assert runtime.run(
+        "calculator.pyを調査して確認してください。ファイルは変更しないでください。"
+    ) == "調査結果を確認しました。"
+
+    names = {
+        item["function"]["name"]
+        for item in captured_tools[0]
+    }
+    assert "read_file" in names
+    assert "search_files" in names
+    assert "file_mutation" not in names
+    assert "execute_command" not in names
+    assert "run_python_script" not in names
