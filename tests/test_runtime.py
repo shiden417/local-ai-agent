@@ -2222,7 +2222,7 @@ def test_workspace_mutating_echo_redirection_is_blocked() -> None:
 
 
 
-def test_runtime_requirements_satisfied_after_successful_edit_and_pytest() -> None:
+def test_runtime_requirements_satisfied_after_successful_edit_and_pytest(tmp_path: Path) -> None:
     messages = [
         {
             "role": "tool",
@@ -2249,7 +2249,7 @@ def test_runtime_requirements_satisfied_after_successful_edit_and_pytest() -> No
     )
 
 
-def test_runtime_requirements_satisfied_requires_all_explicit_mutation_paths() -> None:
+def test_runtime_requirements_satisfied_requires_all_explicit_mutation_paths(tmp_path: Path) -> None:
     messages = [
         {
             "role": "tool",
