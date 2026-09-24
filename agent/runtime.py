@@ -820,7 +820,7 @@ class AgentRuntime:
         has_action_verb = bool(
             re.search(
                 r"(?:実行|起動|テスト|確認|検証|調査|変更|修正|削除|作成|保存|検索)"
-                r".{0,24}(?:します|する|してください|していきます|行います|実施します)"
+                r".{0,24}(?:します|する|してください|していきます|行います|実施します|しました|した|できました|できています)"
                 r"|(?:execute|run|test|verify|check|inspect|modify|edit|delete|create|save|search)"
                 r".{0,32}(?:next|now|before|then|will|should|need)",
                 text,
