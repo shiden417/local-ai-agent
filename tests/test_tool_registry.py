@@ -126,3 +126,16 @@ def test_tool_registry_caches_schemas_until_registration_changes() -> None:
         )
     )
     assert {item["function"]["name"] for item in registry.schemas_for()} == {"inspect", "write"}
+
+
+def test_default_file_mutation_description_guides_exact_edit_text() -> None:
+    from agent.tools import create_default_tool_registry
+
+    registry = create_default_tool_registry()
+    schema = next(
+        item for item in registry.schemas_for(include_control_tools=True)
+        if item["function"]["name"] == "file_mutation"
+    )
+    description = schema["function"]["description"]
+    assert "exact source text" in description
+    assert "line-number prefixes" in description
