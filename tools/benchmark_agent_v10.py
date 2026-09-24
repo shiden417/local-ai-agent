@@ -34,9 +34,10 @@ def _seed_workspace(root: Path, *, broken_add: bool = True) -> None:
     src.mkdir(parents=True, exist_ok=True)
     tests.mkdir(parents=True, exist_ok=True)
 
+    add_return = "a + 1" if broken_add else "a + b"
     (src / "calculator.py").write_text(
         "def add(a, b):\n"
-        "    return a + 1\n\n"
+        f"    return {add_return}\n\n"
         "def multiply(a, b):\n"
         "    return a * b\n",
         encoding="utf-8",
@@ -303,7 +304,9 @@ def run_benchmark(
             "app.py、config.json、README.md は変更しないでください。python -m pytest -q を実行して全テスト成功を確認してください。",
             lambda: (
                 "def product(a, b):" in (root / "src/calculator.py").read_text(encoding="utf-8")
+                and "multiply" not in (root / "src/calculator.py").read_text(encoding="utf-8")
                 and "from src.calculator import add, product" in (root / "tests/test_calculator.py").read_text(encoding="utf-8")
+                and "def test_product():" in (root / "tests/test_calculator.py").read_text(encoding="utf-8")
                 and "multiply" not in (root / "tests/test_calculator.py").read_text(encoding="utf-8")
                 and (root / "app.py").read_text(encoding="utf-8").endswith("    return add(2, 3)\n")
                 and (root / "config.json").read_text(encoding="utf-8") == '{"mode": "stable", "version": 1}\n'
