@@ -201,12 +201,11 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
                 if position >= 0
             ]
             sentence_end = min(sentence_end_candidates) if sentence_end_candidates else len(raw_text)
-            next_path_start = (
-                path_matches[index + 1].start()
-                if index + 1 < len(path_matches)
-                else len(raw_text)
-            )
-            context_end = min(sentence_end, next_path_start)
+            context_end = sentence_end
+            if index + 1 < len(path_matches):
+                next_path = path_matches[index + 1].group(0)
+                if next_path in protected_paths:
+                    context_end = min(context_end, path_matches[index + 1].start())
             context_before = raw_text[sentence_start: match.start()]
             context_after = raw_text[match.end(): context_end]
             negative_context = bool(_NO_CHANGE_RE.search(context_after))
