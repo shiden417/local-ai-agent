@@ -136,8 +136,14 @@ def _strip_read_file_line_numbers(value: str) -> str:
 
 
 def _decode_literal_escapes(value: str) -> str:
+    decoded = value
+    # Models may serialize a newline as either \\n or \\\\n.
+    while "\\\\n" in decoded:
+        decoded = decoded.replace("\\\\n", "\\n")
+    while "\\\\r" in decoded:
+        decoded = decoded.replace("\\\\r", "\\r")
     return (
-        value.replace("\\n", "\n")
+        decoded.replace("\\n", "\n")
         .replace("\\r", "\r")
         .replace('\\\"', '"')
     )
