@@ -176,15 +176,25 @@ class CompletionVerifier:
     @staticmethod
     def _requires_file_mutation(goal: str) -> bool:
         text = str(goal).casefold()
+        has_file_context = bool(
+            re.search(
+                r"(?:ファイル|file|\.py\b|\.txt\b|\.json\b|\.md\b|workspace|path|directory|コード)",
+                text,
+                flags=re.IGNORECASE,
+            )
+        )
         return bool(
             re.search(
                 r"(?:追加|作成|修正|変更|編集|削除|書き換え|実装)(?!しない|禁止|不要|しなく)",
                 text,
             )
-            or re.search(
-                r"\b(?:add|create|modify|change|edit|delete|update|implement|write)\\b",
-                text,
-                flags=re.IGNORECASE,
+            or (
+                has_file_context
+                and re.search(
+                    r"\b(?:add|create|modify|change|edit|delete|update|implement|write)\b",
+                    text,
+                    flags=re.IGNORECASE,
+                )
             )
         )
 
@@ -257,6 +267,17 @@ class CompletionVerifier:
     @staticmethod
     def _is_read_only_request(goal: str) -> bool:
         text = str(goal).casefold()
+        has_mutation_intent = bool(
+            re.search(
+                r"(?:追加|作成|修正|変更|編集|削除|書き換え|実装)(?!しない|禁止|不要|せず|しません)",
+                text,
+            )
+            or re.search(
+                r"\b(?:add|create|modify|change|edit|delete|update|implement|write)\b",
+                text,
+                flags=re.IGNORECASE,
+            )
+        )
         has_read_intent = bool(
             re.search(
                 r"(調査|調べ|検索|探して|確認|閲覧|読み|分析|diagnos|investigat|"
@@ -275,7 +296,7 @@ class CompletionVerifier:
                 flags=re.IGNORECASE,
             )
         )
-        return has_read_intent and has_no_change
+        return has_read_intent and has_no_change and not has_mutation_intent
 
     def _requires_python_test_after_mutation(
         self,
