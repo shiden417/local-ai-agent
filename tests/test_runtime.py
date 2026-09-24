@@ -1227,3 +1227,135 @@ def test_system_prompt_is_compact_but_retains_core_agent_rules() -> None:
     assert len(prompt) < 2600
     for phrase in ("Tool", "Recovery Guide", "finish_task", "ask_user", "Session Context", "Web"):
         assert phrase in prompt
+
+
+def test_runtime_recovers_raw_tool_call_markup(tmp_path: Path, monkeypatch) -> None:
+    registry = ToolRegistry()
+    executed = {"count": 0}
+
+    def run_script(_working_directory, arguments):
+        executed["count"] += 1
+        return {"ok": True, "stdout": arguments["script"]}
+
+    registry.register(
+        ToolDefinition(
+            name="run_python_script",
+            description="Run Python",
+            parameters={
+                "type": "object",
+                "properties": {"script": {"type": "string"}},
+                "required": ["script"],
+            },
+            handler=run_script,
+        )
+    )
+
+    def response(content="", tool_calls=None):
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content=content,
+                        tool_calls=tool_calls or [],
+                    )
+                )
+            ]
+        )
+
+    structured = SimpleNamespace(
+        id="call-1",
+        function=SimpleNamespace(
+            name="run_python_script",
+            arguments='{"script":"print(1)"}',
+        ),
+    )
+    responses = [
+        response('<|tool_call>call:run_python_script{"script":"print(1)"}<|tool_call>'),
+        response(tool_calls=[structured]),
+        response("実行しました。"),
+    ]
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm",
+        lambda _messages, tools=None: responses.pop(0),
+    )
+
+    runtime = AgentRuntime(tmp_path, tool_registry=registry)
+    assert runtime.run("Pythonを実行してください") == "実行しました。"
+    assert executed["count"] == 1
+
+
+def test_runtime_allows_read_verification_after_state_change(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    registry = ToolRegistry()
+    reads = {"count": 0}
+
+    def read_file(_working_directory, _arguments):
+        reads["count"] += 1
+        return {"ok": True, "content": "new" if reads["count"] > 1 else "old"}
+
+    registry.register(
+        ToolDefinition(
+            name="read_file",
+            description="Read file",
+            parameters={
+                "type": "object",
+                "properties": {"path": {"type": "string"}},
+                "required": ["path"],
+            },
+            handler=read_file,
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="file_mutation",
+            description="Edit file",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "operation": {"type": "string"},
+                    "path": {"type": "string"},
+                },
+                "required": ["operation", "path"],
+            },
+            handler=lambda _working_directory, _arguments: {"ok": True},
+        )
+    )
+
+    def response(tool_calls=None, content=""):
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content=content,
+                        tool_calls=tool_calls or [],
+                    )
+                )
+            ]
+        )
+
+    def call(call_id, name, arguments):
+        return SimpleNamespace(
+            id=call_id,
+            function=SimpleNamespace(name=name, arguments=arguments),
+        )
+
+    responses = [
+        response(tool_calls=[call("read-1", "read_file", '{"path":"test.txt"}')]),
+        response(tool_calls=[call("edit-1", "file_mutation", '{"operation":"edit","path":"test.txt"}')]),
+        response(tool_calls=[call("read-2", "read_file", '{"path":"test.txt"}')]),
+        response(content="変更後の内容を確認しました。"),
+    ]
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm",
+        lambda _messages, tools=None: responses.pop(0),
+    )
+
+    runtime = AgentRuntime(tmp_path, tool_registry=registry)
+    assert runtime.run("test.txtを変更して内容を確認してください") == "変更後の内容を確認しました。"
+    assert reads["count"] == 2
