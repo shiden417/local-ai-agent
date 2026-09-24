@@ -412,6 +412,27 @@ class AgentRuntime:
                 include_control_tools=True,
             )
 
+            completion_ready = self._runtime_requirements_satisfied(
+                current_task.goal,
+                current_task.messages,
+            )
+            if completion_ready:
+                available_tools = [
+                    schema
+                    for schema in available_tools
+                    if str(schema.get("function", {}).get("name", "")) == "finish_task"
+                ]
+                llm_messages.append(
+                    {
+                        "role": "system",
+                        "content": (
+                            "All runtime-verifiable task requirements are satisfied: required "
+                            "mutations/process execution/tests have succeeded. Do not perform "
+                            "additional verification or unrelated operations. Call finish_task now."
+                        ),
+                    }
+                )
+
             force_synthesis = (
                 terminal_synthesis_required
                 or self.task.no_progress_streak >= 2
@@ -1094,6 +1115,46 @@ class AgentRuntime:
         )
         lowered = command.casefold()
         return any(re.search(pattern, lowered, re.IGNORECASE) for pattern in patterns)
+
+    @staticmethod
+    def _runtime_requirements_satisfied(
+        goal: str,
+        messages: list[dict[str, Any]],
+    ) -> bool:
+        """Return True when all explicitly requested operational requirements are satisfied."""
+        requirements = classify_task_requirements(goal)
+
+        if not (
+            requirements.file_mutation
+            or requirements.process_execution
+            or requirements.test_verification
+        ):
+            return False
+
+        if requirements.file_mutation:
+            if requirements.required_mutation_paths:
+                if any(
+                    not AgentRuntime._has_successful_mutation_path(messages, path)
+                    for path in requirements.required_mutation_paths
+                ):
+                    return False
+            else:
+                mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file"}
+                if not any(
+                    message.get("role") == "tool"
+                    and message.get("name") in mutation_tools
+                    and AgentRuntime._tool_message_ok(message)
+                    for message in messages
+                ):
+                    return False
+
+        if requirements.process_execution and not AgentRuntime._has_successful_command_execution(messages):
+            return False
+
+        if requirements.test_verification and not AgentRuntime._has_successful_test_execution(messages):
+            return False
+
+        return True
 
     @staticmethod
     def _mutation_completion_requirement(
