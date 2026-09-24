@@ -19,11 +19,41 @@ class CompletionVerifier:
         *,
         goal_text: str | None = None,
     ) -> str | None:
-        if str(result.get("completion_status", "")).strip().lower() == "blocked":
-            return None
-
+        completion_status = str(result.get("completion_status", "")).strip().lower()
         verification_goal = goal_text or task.goal
         messages = getattr(task, "messages", None) or []
+
+        if completion_status == "blocked":
+            if self._requires_process_execution(verification_goal) and not self._has_successful_command(messages):
+                return (
+                    "System Verification Failed: this task explicitly requires a process/command execution, "
+                    "but no successful execute_command result was observed. Do not mark the task blocked; "
+                    "use the available execution Tool first."
+                )
+            return None
+
+        mutation_required = self._requires_file_mutation(verification_goal)
+        if mutation_required:
+            mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file"}
+            successful_mutation = any(
+                message.get("role") == "tool"
+                and message.get("name") in mutation_tools
+                and self._tool_payload_ok(message)
+                for message in messages
+            )
+            if not successful_mutation:
+                return (
+                    "System Verification Failed: this task explicitly requires a file change, "
+                    "but no successful file mutation was observed before completion. "
+                    "Perform the requested file mutation first."
+                )
+
+            if self._requires_test_verification(verification_goal) and not self._has_successful_test(messages):
+                return (
+                    "System Verification Failed: this task explicitly requires testing/verification, "
+                    "but no successful pytest/test execution was observed after the file change. "
+                    "Run the relevant test command and inspect its result before completion."
+                )
 
         if self._is_read_only_request(verification_goal):
             mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file"}
@@ -142,6 +172,79 @@ class CompletionVerifier:
             return None
 
         return None
+
+    @staticmethod
+    def _requires_file_mutation(goal: str) -> bool:
+        text = str(goal).casefold()
+        return bool(
+            re.search(
+                r"(?:追加|作成|修正|変更|編集|削除|書き換え|保存|実装)(?!しない|禁止|不要|しなく)",
+                text,
+            )
+            or re.search(
+                r"\\b(?:add|create|modify|change|edit|delete|update|implement|write)\\b",
+                text,
+                flags=re.IGNORECASE,
+            )
+        )
+
+    @staticmethod
+    def _requires_test_verification(goal: str) -> bool:
+        text = str(goal).casefold()
+        return bool(
+            re.search(
+                r"(?:テスト|回帰|pytest|regression|verify|validation|検証|確認)|\\btest(?:ing|s)?\\b",
+                text,
+                flags=re.IGNORECASE,
+            )
+        )
+
+    @staticmethod
+    def _has_successful_test(messages: list[dict[str, Any]]) -> bool:
+        for message in messages:
+            if message.get("role") != "tool" or message.get("name") not in {"execute_command", "run_python_script"}:
+                continue
+            try:
+                payload = json.loads(str(message.get("content", "")))
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, dict) or not payload.get("ok"):
+                continue
+            if payload.get("exit_code") not in (None, 0):
+                continue
+            command = str(payload.get("command", "")).casefold()
+            output = "\\n".join(str(payload.get(key, "")) for key in ("stdout", "stderr")).casefold()
+            if "pytest" in command or "pytest" in output:
+                return True
+            if re.search(r"\\btest(?:ing|s)?\\b", command) and re.search(r"pass|success", output):
+                return True
+            if re.search(r"\\b\\d+\\s+passed\\b", output):
+                return True
+        return False
+
+    @staticmethod
+    def _requires_process_execution(goal: str) -> bool:
+        text = str(goal).casefold()
+        return bool(
+            re.search(
+                r"(?:コマンド(?:を|の)?実行|コマンド実行|プロセス(?:を|の)?実行|実行してください|execute|run|command execution|process execution)",
+                text,
+                flags=re.IGNORECASE,
+            )
+        )
+
+    @staticmethod
+    def _has_successful_command(messages: list[dict[str, Any]]) -> bool:
+        for message in messages:
+            if message.get("role") != "tool" or message.get("name") != "execute_command":
+                continue
+            try:
+                payload = json.loads(str(message.get("content", "")))
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict) and payload.get("ok") and payload.get("exit_code") == 0:
+                return True
+        return False
 
     @staticmethod
     def _tool_payload_ok(message: dict[str, Any]) -> bool:
