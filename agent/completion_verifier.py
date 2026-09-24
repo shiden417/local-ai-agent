@@ -49,6 +49,12 @@ class CompletionVerifier:
             )
         ]
 
+        if not requirements.file_mutation and successful_mutations and not requirements.read_only:
+            return (
+                "System Verification Failed: this task did not request a workspace file change, "
+                "but a file mutation was executed. Do not claim completion after an out-of-scope mutation."
+            )
+
         if requirements.mutation_forbidden and successful_mutations:
             if requirements.read_only:
                 return (
