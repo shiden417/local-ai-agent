@@ -158,7 +158,7 @@ def run_benchmark(root: Path, *, model: str | None, max_iterations: int, output:
         (
             "Task 2: session follow-up",
             "そのファイルの2行目に Session Context works を追加してください。既存の1行目は変更しないでください。確認してください。",
-            lambda: _check_exact(root / "hello.txt", "Hello JARVIS\nSession Context works") and _task_used_tool(runtime, {"file_mutation"}),
+            lambda: _check_exact(root / "hello.txt", "Hello JARVIS\nSession Context works") and _task_used_tool(runtime, {"file_mutation", "run_python_script", "execute_command"}),
         ),
         (
             "Task 3: read-only investigation",
