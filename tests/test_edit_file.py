@@ -74,3 +74,39 @@ def test_edit_file_rejects_invalid_python_before_writing(tmp_path: Path) -> None
     assert result["validation_failed"] is True
     assert "Python syntax validation failed" in result["error"]
     assert target.read_text(encoding="utf-8") == original
+
+
+
+def test_edit_file_recovers_line_number_prefixes(tmp_path: Path) -> None:
+    target = tmp_path / "sample.py"
+    target.write_text("alpha = 1\nbeta = 2\n", encoding="utf-8")
+
+    result = edit_file(
+        tmp_path,
+        {
+            "path": "sample.py",
+            "search_text": "10: alpha = 1\n11: beta = 2",
+            "replace_text": "alpha = 3\nbeta = 4",
+        },
+    )
+
+    assert result["ok"] is True
+    assert result["search_text_recovered"] is True
+    assert target.read_text(encoding="utf-8") == "alpha = 3\nbeta = 4\n"
+
+
+def test_edit_file_recovers_literal_newline_escapes(tmp_path: Path) -> None:
+    target = tmp_path / "sample.py"
+    target.write_text("alpha = 1\nbeta = 2\n", encoding="utf-8")
+
+    result = edit_file(
+        tmp_path,
+        {
+            "path": "sample.py",
+            "search_text": "alpha = 1\\\\nbeta = 2",
+            "replace_text": "alpha = 3\nbeta = 4",
+        },
+    )
+
+    assert result["ok"] is True
+    assert result["search_text_recovered"] is True
