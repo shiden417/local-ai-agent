@@ -1548,7 +1548,11 @@ def test_runtime_retries_corrected_file_mutation_after_invalid_input(
         lambda _messages, tools=None: responses.pop(0),
     )
 
-    runtime = AgentRuntime(tmp_path, tool_registry=registry)
+    runtime = AgentRuntime(
+        tmp_path,
+        tool_registry=registry,
+        confirm=lambda _message: True,
+    )
     assert runtime.run("hello.txtを修正してください") == "ファイルを正常に更新しました。"
     assert [item["operation"] for item in executed] == ["create", "edit"]
 
