@@ -109,11 +109,11 @@ _PROTECTED_PATH_RE = re.compile(
 _GLOBAL_NO_FILE_MUTATION_RE = re.compile(
     r"(?:"
     r"ファイル(?:は|を)?(?:絶対に)?(?:変更|修正|編集|削除|書き換え|更新)\s*"
-    r"(?:しない|しません|禁止|しないで(?:ください|下さい)?)"
+    r"(?:しない|しません|禁止|しないで(?:ください|下さい)?|せず|せずに|することなく)"
     r"|"
     r"(?:ワークスペース|workspace)(?:内|の)?(?:ファイル|files?)\s*"
     r"(?:は|を)?\s*(?:絶対に)?(?:変更|修正|編集|削除|書き換え|更新|modify|change|edit|delete)\s*"
-    r"(?:しない|しません|禁止|しないで(?:ください|下さい)?|not|never)"
+    r"(?:しない|しません|禁止|しないで(?:ください|下さい)?|せず|せずに|することなく|not|never)"
     r"|"
     r"(?:do\s+not|don't|without|never)\s+(?:modify|change|edit|delete|update)\s+"
     r"(?:any\s+)?(?:workspace\s+)?files?"
