@@ -91,3 +91,10 @@ def test_successful_pytest_command_requires_passing_output() -> None:
     )
 
     assert _successful_pytest_command(runtime) is True
+
+
+
+def test_dogfood_environment_validator_uses_current_interpreter() -> None:
+    from tools.dogfood_benchmark import _validate_dogfood_environment
+
+    _validate_dogfood_environment()
