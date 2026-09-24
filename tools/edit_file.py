@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Any
 import difflib
 
+from tools.source_validation import validate_python_syntax
+
 from tools.path_utils import resolve_workspace_path, to_display_path
 
 
@@ -70,6 +72,15 @@ def edit_file(
         }
 
     new_content = content.replace(search_text, replace_text, 1)
+
+    validation_error = validate_python_syntax(path, new_content)
+    if validation_error is not None:
+        return {
+            "ok": False,
+            "error": validation_error,
+            "path": to_display_path(working_directory, path),
+            "validation_failed": True,
+        }
 
     try:
         _write_text(path, new_content)
