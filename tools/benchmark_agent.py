@@ -30,7 +30,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--thinking-mode",
         choices=("default", "think", "no_think"),
-        help="Optional Qwen3 Thinking mode for this benchmark run.",
+        help="Optional model Thinking mode for this benchmark run. Qwen uses /think or /no_think; supported LM Studio reasoning models use the reasoning API control.",
     )
     parser.add_argument(
         "--keep-workspace",
