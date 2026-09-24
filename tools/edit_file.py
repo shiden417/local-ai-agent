@@ -90,6 +90,17 @@ def edit_file(
 
     new_content = content.replace(search_text, replace_text, 1)
 
+    if new_content == content:
+        return {
+            "ok": False,
+            "error": (
+                "edit would not change the file because search_text and replace_text "
+                "produce identical content."
+            ),
+            "path": to_display_path(working_directory, path),
+            "no_op": True,
+        }
+
     validation_error = validate_python_syntax(path, new_content)
     if validation_error is not None:
         return {
