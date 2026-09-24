@@ -22,10 +22,6 @@ def _read_text(path: Path) -> str:
         return path.read_text(encoding="cp932", errors="replace")
 
 
-def _write_text(path: Path, content: str) -> None:
-    path.write_text(content, encoding="utf-8", newline="")
-
-
 def _validate_python_path(path: Path) -> str | None:
     if path.suffix.casefold() != ".py":
         return "python_symbol_edit only supports .py files."
@@ -74,14 +70,13 @@ def _add_function(content: str, symbol: str, function_code: str) -> tuple[str, d
     tree_or_error = _parse_module(content)
     if isinstance(tree_or_error, str):
         return content, {"ok": False, "error": tree_or_error}
-    tree = tree_or_error
 
     if not symbol:
         return content, {"ok": False, "error": "symbol must not be empty"}
     if not function_code.strip():
         return content, {"ok": False, "error": "function_code must not be empty"}
 
-    if _function_nodes(tree, symbol):
+    if _function_nodes(tree_or_error, symbol):
         return content, {
             "ok": False,
             "error": f"Top-level function already exists: {symbol}",
@@ -94,13 +89,12 @@ def _add_function(content: str, symbol: str, function_code: str) -> tuple[str, d
             "error": f"function_code is not valid Python: {new_tree_or_error}",
         }
 
-    new_tree = new_tree_or_error
     top_level_functions = [
         node
-        for node in new_tree.body
+        for node in new_tree_or_error.body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     ]
-    if len(new_tree.body) != 1 or len(top_level_functions) != 1:
+    if len(new_tree_or_error.body) != 1 or len(top_level_functions) != 1:
         return content, {
             "ok": False,
             "error": "function_code must contain exactly one top-level function.",
@@ -116,9 +110,8 @@ def _add_function(content: str, symbol: str, function_code: str) -> tuple[str, d
             ),
         }
 
-    suffix = "" if not content else ("
-" if content.endswith("\n") else "\n\n")
-    new_content = content + suffix + function_code.strip() + "\n"
+    suffix = "" if not content else ("\\n" if content.endswith("\\n") else "\\n\\n")
+    new_content = content + suffix + function_code.strip() + "\\n"
     return new_content, {"ok": True, "operation": "add_function", "symbol": symbol}
 
 
@@ -126,9 +119,8 @@ def _remove_function(content: str, symbol: str) -> tuple[str, dict[str, Any]]:
     tree_or_error = _parse_module(content)
     if isinstance(tree_or_error, str):
         return content, {"ok": False, "error": tree_or_error}
-    tree = tree_or_error
 
-    matches = _function_nodes(tree, symbol)
+    matches = _function_nodes(tree_or_error, symbol)
     if not matches:
         return content, {
             "ok": False,
@@ -147,15 +139,12 @@ def _remove_function(content: str, symbol: str) -> tuple[str, dict[str, Any]]:
     lines = content.splitlines(keepends=True)
     start = _node_start_line(node) - 1
     end = node.end_lineno
-
-    # Remove one immediately following blank line so neighboring top-level
-    # definitions do not accumulate extra spacing.
     if end < len(lines) and not lines[end].strip():
         end += 1
 
     new_content = "".join(lines[:start] + lines[end:])
-    if new_content and not new_content.endswith("\n"):
-        new_content += "\n"
+    if new_content and not new_content.endswith("\\n"):
+        new_content += "\\n"
     return new_content, {"ok": True, "operation": "remove_function", "symbol": symbol}
 
 
@@ -228,9 +217,8 @@ def _ensure_from_import(
     tree_or_error = _parse_module(content)
     if isinstance(tree_or_error, str):
         return content, {"ok": False, "error": tree_or_error}
-    tree = tree_or_error
 
-    for node in tree.body:
+    for node in tree_or_error.body:
         if (
             isinstance(node, ast.ImportFrom)
             and node.level == 0
@@ -246,19 +234,19 @@ def _ensure_from_import(
                 "no_op": True,
             }
 
-    for node in tree.body:
+    for node in tree_or_error.body:
         if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module == module:
             if node.end_lineno is None:
                 break
             lines = content.splitlines(keepends=True)
             line_index = node.lineno - 1
-            current = lines[line_index].rstrip("\r\n")
-            prefix = current[: current.index("import") + len("import")]
-            imported_text = current[current.index("import") + len("import"):].strip()
+            current = lines[line_index].rstrip("\\r\\n")
+            import_index = current.index("import")
+            prefix = current[: import_index + len("import")]
+            imported_text = current[import_index + len("import"):].strip()
             names = [item.strip() for item in imported_text.split(",") if item.strip()]
-            if symbol not in [item.split(" as ", 1)[0].strip() for item in names]:
-                names.append(symbol)
-            newline = "\r\n" if current and "\r\n" in lines[line_index] else "\n"
+            names.append(symbol)
+            newline = "\\r\\n" if "\\r\\n" in lines[line_index] else "\\n"
             lines[line_index] = f"{prefix} {', '.join(names)}{newline}"
             return "".join(lines), {
                 "ok": True,
@@ -270,8 +258,12 @@ def _ensure_from_import(
 
     lines = content.splitlines(keepends=True)
     insert_at = 0
-    for node in tree.body:
-        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+    for node in tree_or_error.body:
+        if (
+            isinstance(node, ast.Expr)
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str)
+        ):
             insert_at = node.end_lineno or node.lineno
             continue
         if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module == "__future__":
@@ -279,7 +271,7 @@ def _ensure_from_import(
             continue
         break
 
-    newline = "\r\n" if any("\r\n" in line for line in lines) else "\n"
+    newline = "\\r\\n" if any("\\r\\n" in line for line in lines) else "\\n"
     lines.insert(insert_at, f"from {module} import {symbol}{newline}")
     return "".join(lines), {
         "ok": True,
@@ -294,7 +286,7 @@ def python_symbol_edit(
     working_directory: str | Path,
     arguments: dict[str, Any],
 ) -> dict[str, Any]:
-    """Apply a deterministic AST/token-aware edit to a Python file."""
+    """Apply a deterministic, Python-aware edit to one .py file."""
     operation = str(arguments.get("operation", "")).strip().lower()
     requested_path = str(arguments.get("path", "")).strip()
 
@@ -323,11 +315,7 @@ def python_symbol_edit(
 
     symbol = str(arguments.get("symbol", "")).strip()
     if operation == "add_function":
-        new_content, result = _add_function(
-            content,
-            symbol,
-            str(arguments.get("function_code", "")),
-        )
+        new_content, result = _add_function(content, symbol, str(arguments.get("function_code", "")))
     elif operation == "remove_function":
         new_content, result = _remove_function(content, symbol)
     elif operation == "rename_identifier":
@@ -350,16 +338,23 @@ def python_symbol_edit(
         result["path"] = to_display_path(working_directory, path)
         return result
 
-    validation_result = _validate_new_content(path, new_content)
-    if validation_result is not None:
-        return {**result, **validation_result, "path": to_display_path(working_directory, path)}
+    validation_error = validate_python_syntax(path, new_content)
+    if validation_error is not None:
+        return {
+            **result,
+            "ok": False,
+            "error": validation_error,
+            "validation_failed": True,
+            "path": to_display_path(working_directory, path),
+        }
 
     try:
-        path.write_text(new_content, encoding="utf-8", newline="")
+        _write_text = path.write_text
+        _write_text(new_content, encoding="utf-8", newline="")
     except OSError as exc:
         return {"ok": False, "error": f"Unable to write file: {exc}"}
 
-    result = {
+    return {
         **result,
         "path": to_display_path(working_directory, path),
         "diff": "".join(
@@ -371,4 +366,3 @@ def python_symbol_edit(
             )
         ),
     }
-    return result
