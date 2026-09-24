@@ -14,6 +14,7 @@ class TaskRequirements:
     test_verification: bool
     mutation_forbidden: bool
     protected_paths: tuple[str, ...]
+    required_process_tool: str | None
 
 
 _FILE_CONTEXT_RE = re.compile(
@@ -161,6 +162,7 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
     )
 
     test_verification = bool(_TEST_REQUEST_RE.search(text))
+    required_process_tool = "execute_command" if "execute_command" in text else None
 
     return TaskRequirements(
         read_only=read_only,
@@ -169,4 +171,5 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
         test_verification=test_verification,
         mutation_forbidden=mutation_forbidden,
         protected_paths=tuple(protected_paths),
+        required_process_tool=required_process_tool,
     )
