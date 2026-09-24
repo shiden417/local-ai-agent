@@ -5,6 +5,7 @@ import difflib
 import io
 import tokenize
 from pathlib import Path
+from typing import Any
 
 from tools.path_utils import resolve_workspace_path, to_display_path
 from tools.source_validation import validate_python_syntax
@@ -402,7 +403,7 @@ def python_symbol_edit(
         }
 
     try:
-        _write_text(path, new_content, encoding="utf-8", newline="")
+        path.write_text(new_content, encoding="utf-8", newline="")
     except OSError as exc:
         return {"ok": False, "error": f"Unable to write file: {exc}"}
 
