@@ -59,9 +59,11 @@ def recovery_guidance(tool_name: str, status: str) -> str:
         STATUS_INVALID_INPUT: (
             "Recovery Guide: The previous Tool arguments were invalid. "
             "Correct the arguments from the concrete error message before retrying. "
-            "For file edit failures caused by search_text not being found, reuse exact source text "
-            "from the latest successful read; do not include read_file line-number prefixes and "
-            "do not repeat the same read unless the file state changed."
+            "For file_mutation edit failures caused by search_text not being found, use the exact "
+            "literal source text from the latest successful read_file result. Do not use regex syntax "
+            "such as \\s, .*, character classes, or anchors in search_text unless the Tool explicitly "
+            "supports regex. Do not include read_file line-number prefixes. Do not repeat the identical "
+            "failed arguments; change the arguments based on the concrete error."
         ),
         STATUS_PERMISSION_DENIED: (
             "Recovery Guide: The previous action was blocked by permissions. "
