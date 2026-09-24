@@ -2275,3 +2275,40 @@ def test_runtime_requirements_satisfied_requires_all_explicit_mutation_paths() -
         "python -m pytest -q tests/ を実行して確認してください。",
         messages,
     )
+
+
+
+def test_unread_required_mutation_paths_requires_preflight_for_existing_targets(tmp_path: Path) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "src" / "a.py").write_text("value = 1", encoding="utf-8")
+    (tmp_path / "tests" / "test_a.py").write_text("def test_a():\n    pass", encoding="utf-8")
+
+    runtime = AgentRuntime(tmp_path)
+
+    goal = "src/a.py と tests/test_a.py の両方を修正してください。"
+    assert runtime._unread_required_mutation_paths(goal, []) == [
+        "src/a.py",
+        "tests/test_a.py",
+    ]
+
+    messages = [
+        {
+            "role": "tool",
+            "name": "read_file",
+            "content": json.dumps({"ok": True, "path": "src/a.py"}),
+        }
+    ]
+    assert runtime._unread_required_mutation_paths(goal, messages) == [
+        "tests/test_a.py",
+    ]
+
+
+def test_unread_required_mutation_paths_ignores_missing_creation_targets(tmp_path: Path) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "a.py").write_text("value = 1", encoding="utf-8")
+
+    runtime = AgentRuntime(tmp_path)
+
+    goal = "src/a.py と src/new.py の両方を修正してください。"
+    assert runtime._unread_required_mutation_paths(goal, []) == ["src/a.py"]
