@@ -470,3 +470,17 @@ def test_runtime_requires_all_explicit_mutation_targets(tmp_path: Path) -> None:
 
     assert required is True
     assert "tests/test_calculator.py" in message
+
+
+def test_task_requirements_do_not_treat_negated_protection_as_protected_path() -> None:
+    req = classify_task_requirements(
+        "calculatorにsubtract(a, b)を追加してください。"
+        "src/calculator.py と tests/test_calculator.py の両方を変更し、"
+        "tests/test_calculator.py は変更禁止ではありません。"
+    )
+
+    assert req.protected_paths == ()
+    assert req.required_mutation_paths == (
+        "src/calculator.py",
+        "tests/test_calculator.py",
+    )
