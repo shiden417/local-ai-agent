@@ -494,6 +494,7 @@ class AgentRuntime:
                 if (
                     not unexecuted_action_recovery_used
                     and last_state_change_tool is not None
+                    and not self._has_successful_test_execution(current_task.messages)
                     and self._looks_like_unexecuted_action_intent(content)
                 ):
                     unexecuted_action_recovery_used = True
@@ -945,6 +946,30 @@ class AgentRuntime:
             )
 
         return False, ""
+
+    @staticmethod
+    def _has_successful_test_execution(messages: list[dict[str, Any]]) -> bool:
+        """Return True when a test command already completed successfully."""
+        for message in messages:
+            if message.get("role") != "tool" or message.get("name") != "execute_command":
+                continue
+            try:
+                payload = json.loads(str(message.get("content", "")))
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, dict) or not payload.get("ok"):
+                continue
+            command = str(payload.get("command", "")).casefold()
+            stdout = str(payload.get("stdout", ""))
+            if payload.get("exit_code") not in (None, 0):
+                continue
+            if "pytest" in command:
+                return True
+            if re.search(r"\btest(?:ing|s)?\b", command) and (
+                "pass" in stdout.casefold() or "success" in stdout.casefold()
+            ):
+                return True
+        return False
 
     @staticmethod
     def _looks_like_unexecuted_action_intent(content: str) -> bool:
