@@ -229,3 +229,89 @@ def test_loop_guard_blocks_identical_tool_call_after_two_attempts() -> None:
 
     assert guard.record("search_files", arguments) == 2
     assert guard.is_repetition("search_files", arguments) is True
+
+
+def test_task_requirements_extract_protected_path() -> None:
+    req = classify_task_requirements(
+        "calculator.pyを修正して、python -m pytest -qを実行してください。"
+        "test_calculator.py は変更しないでください。"
+    )
+
+    assert req.file_mutation is True
+    assert req.mutation_forbidden is False
+    assert req.protected_paths == ("test_calculator.py",)
+
+
+def test_task_requirements_detect_global_file_mutation_forbidden() -> None:
+    req = classify_task_requirements(
+        "jarvis-v9-memoryをMemoryに保存し、workspaceのファイルは変更しないでください。"
+    )
+
+    assert req.mutation_forbidden is True
+    assert req.file_mutation is False
+
+
+def test_runtime_blocks_protected_mutation_path(tmp_path: Path) -> None:
+    runtime = AgentRuntime(tmp_path)
+    requirements = classify_task_requirements(
+        "calculator.pyを修正してください。test_calculator.py は変更しないでください。"
+    )
+
+    assert runtime._is_protected_mutation_path(
+        {"path": "test_calculator.py"},
+        requirements,
+    ) is True
+    assert runtime._is_protected_mutation_path(
+        {"path": "calculator.py"},
+        requirements,
+    ) is False
+
+
+def test_completion_verifier_rejects_global_file_mutation(
+    tmp_path: Path,
+) -> None:
+    verifier = CompletionVerifier(tmp_path)
+    task = SimpleNamespace(
+        goal="Memoryに保存してください。workspaceのファイルは変更しないでください。",
+        messages=[
+            _tool(
+                "save_memory",
+                {"ok": True, "content": "memory"},
+            ),
+            _tool(
+                "file_mutation",
+                {"ok": True, "path": "memory_log.txt"},
+            ),
+        ],
+    )
+
+    error = verifier.verify(
+        task,
+        {"completion_status": "completed"},
+    )
+
+    assert error is not None
+    assert "prohibits workspace file changes" in error
+
+
+def test_completion_verifier_rejects_protected_mutation(
+    tmp_path: Path,
+) -> None:
+    verifier = CompletionVerifier(tmp_path)
+    task = SimpleNamespace(
+        goal="calculator.pyを修正してください。test_calculator.py は変更しないでください。",
+        messages=[
+            _tool(
+                "file_mutation",
+                {"ok": True, "path": "test_calculator.py"},
+            ),
+        ],
+    )
+
+    error = verifier.verify(
+        task,
+        {"completion_status": "completed"},
+    )
+
+    assert error is not None
+    assert "protected file" in error
