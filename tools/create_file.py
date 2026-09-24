@@ -15,6 +15,9 @@ def create_file(
 ) -> dict[str, Any]:
     """Create a new UTF-8 text file without overwriting an existing file."""
     requested_path = str(arguments.get("path", "")).strip()
+    if "content" not in arguments:
+        return {"ok": False, "error": "content is required for create"}
+
     content = str(arguments.get("content", ""))
 
     if not requested_path:
