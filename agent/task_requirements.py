@@ -16,6 +16,7 @@ class TaskRequirements:
     protected_paths: tuple[str, ...] = ()
     required_process_tool: str | None = None
     required_mutation_paths: tuple[str, ...] = ()
+    required_symbols: tuple[str, ...] = ()
 
 
 _FILE_CONTEXT_RE = re.compile(
@@ -84,6 +85,15 @@ _PYTHON_COMMAND_RE = re.compile(
     r"\bpython(?:\.exe)?\s+(?:-[a-z]+\b|[^\s]+\.py\b)",
     re.IGNORECASE,
 )
+
+_REQUIRED_FUNCTION_RE = re.compile(
+    r"\\b(?P<name>[A-Za-z_][A-Za-z0-9_]*)\\s*\\([^()\\n]{0,80}\\)\\s*"
+    r"(?:を|が|は)?\\s*(?:追加|作成|実装|変更|修正|更新)\\b"
+    r"|\\b(?:add|create|implement|modify|change|update)\\s+"
+    r"(?P<english_name>[A-Za-z_][A-Za-z0-9_]*)\\s*\\([^()\\n]{0,80}\\)",
+    re.IGNORECASE,
+)
+
 
 _TEST_REQUEST_RE = re.compile(
     r"(?:回帰|pytest|regression|全テスト"
@@ -190,6 +200,12 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
         file_mutation = False
 
     required_mutation_paths: list[str] = []
+    required_symbols: list[str] = []
+    for match in _REQUIRED_FUNCTION_RE.finditer(raw_text):
+        symbol = match.group("name") or match.group("english_name")
+        if symbol and symbol not in required_symbols:
+            required_symbols.append(symbol)
+
     if file_mutation:
         path_matches = list(re.finditer(_FILE_PATH_TOKEN, raw_text, re.IGNORECASE))
 
@@ -289,4 +305,5 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
         protected_paths=tuple(protected_paths),
         required_process_tool=required_process_tool,
         required_mutation_paths=tuple(required_mutation_paths),
+        required_symbols=tuple(required_symbols),
     )
