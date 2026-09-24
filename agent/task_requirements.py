@@ -1,0 +1,128 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+import re
+
+
+@dataclass(frozen=True)
+class TaskRequirements:
+    """Deterministic requirements inferred from the user's task wording."""
+
+    read_only: bool
+    file_mutation: bool
+    process_execution: bool
+    test_verification: bool
+
+
+_FILE_CONTEXT_RE = re.compile(
+    r"(?:ファイル|file|\.py\b|\.txt\b|\.json\b|\.md\b|"
+    r"\.yaml\b|\.yml\b|\.csv\b|workspace|path|directory|コード)",
+    re.IGNORECASE,
+)
+
+_JAPANESE_MUTATION_RE = re.compile(
+    r"(?:追加|作成|修正|変更|編集|削除|書き換え|保存|書き込み)"
+    r"\s*(?:してください|して|し、|した|しろ|する|します|を)"
+)
+
+_JAPANESE_IMPLEMENT_RE = re.compile(
+    r"実装\s*(?:してください|して|し、|した|しろ|する|します|を)"
+)
+
+_ENGLISH_MUTATION_RE = re.compile(
+    r"\b(?:please\s+)?(?:add|create|modify|change|edit|delete|update|write)"
+    r"\s+(?:a|an|the|new|this|that|file|folder|directory|line|code|test)\b",
+    re.IGNORECASE,
+)
+
+_ENGLISH_IMPLEMENT_RE = re.compile(
+    r"\b(?:please\s+)?implement"
+    r"\s+(?:a|an|the|new|this|that|feature|function|method|class)\b",
+    re.IGNORECASE,
+)
+
+_READ_INTENT_RE = re.compile(
+    r"(調査|調べ|検索|探して|確認|閲覧|読み|分析|"
+    r"diagnos|investigat|inspect|search|review|read|check|verify)",
+    re.IGNORECASE,
+)
+
+_NO_CHANGE_RE = re.compile(
+    r"(変更しない|変更なし|変更は不要|変更禁止|改変しない|改変禁止|"
+    r"修正しない|修正禁止|編集しない|編集禁止|ファイルを変更しない|"
+    r"do not\s+(?:modify|change|edit)|don't\s+(?:modify|change|edit)|"
+    r"without\s+(?:modifying|changing|editing)|read[- ]?only|no changes?)",
+    re.IGNORECASE,
+)
+
+_PROCESS_INTENT_RE = re.compile(
+    r"(?:コマンド(?:を|の)?実行|コマンド実行|"
+    r"プロセス(?:を|の)?実行|実行(?:してください|して|し、|する|します)|"
+    r"\bexecute\b|\brun\b|command execution|process execution)",
+    re.IGNORECASE,
+)
+
+_EXPLICIT_PROCESS_CONTEXT_RE = re.compile(
+    r"(?:コマンド|プロセス|PowerShell|terminal|shell|execute_command|"
+    r"command|process)",
+    re.IGNORECASE,
+)
+
+_PYTHON_COMMAND_RE = re.compile(
+    r"\bpython(?:\.exe)?\s+(?:-[a-z]+\b|[^\s]+\.py\b)",
+    re.IGNORECASE,
+)
+
+_TEST_REQUEST_RE = re.compile(
+    r"(?:テスト|回帰|pytest|regression|"
+    r"\btest(?:ing|s)?\s+(?:suite|case|coverage|run|result)\b|"
+    r"全テスト)",
+    re.IGNORECASE,
+)
+
+
+def _has_positive_mutation_intent(text: str) -> bool:
+    """Detect positive mutation requests without treating negative constraints as actions."""
+    positive_text = re.sub(
+        r"\b(?:do not|don't)\s+(?:modify|change|edit)\b",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    return bool(
+        _JAPANESE_MUTATION_RE.search(positive_text)
+        or _JAPANESE_IMPLEMENT_RE.search(positive_text)
+        or _ENGLISH_MUTATION_RE.search(positive_text)
+        or _ENGLISH_IMPLEMENT_RE.search(positive_text)
+    )
+
+
+def classify_task_requirements(goal: str) -> TaskRequirements:
+    text = str(goal).casefold()
+    file_context = bool(_FILE_CONTEXT_RE.search(text))
+    positive_mutation = _has_positive_mutation_intent(text)
+
+    read_only = bool(
+        _READ_INTENT_RE.search(text)
+        and _NO_CHANGE_RE.search(text)
+        and not positive_mutation
+    )
+
+    file_mutation = bool(file_context and positive_mutation)
+
+    process_context = bool(
+        _EXPLICIT_PROCESS_CONTEXT_RE.search(text)
+        or _PYTHON_COMMAND_RE.search(text)
+    )
+    process_execution = bool(
+        _PROCESS_INTENT_RE.search(text) and process_context
+    )
+
+    test_verification = bool(_TEST_REQUEST_RE.search(text))
+
+    return TaskRequirements(
+        read_only=read_only,
+        file_mutation=file_mutation,
+        process_execution=process_execution,
+        test_verification=test_verification,
+    )
