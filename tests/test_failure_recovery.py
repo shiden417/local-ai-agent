@@ -34,6 +34,27 @@ def test_task_requirements_detect_explicit_file_save() -> None:
     assert req.file_mutation is True
 
 
+
+def test_task_requirements_detect_japanese_no_change_without_verb_suffix() -> None:
+    req = classify_task_requirements(
+        'このworkspaceでファイルを変更せず、execute_command Toolを使って python -c "print(1)" を実行してください。'
+    )
+
+    assert req.file_mutation is False
+    assert req.mutation_forbidden is True
+    assert req.process_execution is True
+    assert req.required_process_tool == "execute_command"
+
+
+def test_task_requirements_ignore_negative_test_mentions() -> None:
+    req = classify_task_requirements(
+        "README.md に説明を追記してください。コード、テスト、config.json、app.pyは変更しないでください。"
+    )
+
+    assert req.file_mutation is True
+    assert req.test_verification is False
+
+
 def test_runtime_allows_corrected_retry_for_invalid_input() -> None:
     runtime = AgentRuntime(Path("."))
     runtime.task = SimpleNamespace(
