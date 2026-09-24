@@ -1227,3 +1227,199 @@ def test_system_prompt_is_compact_but_retains_core_agent_rules() -> None:
     assert len(prompt) < 2600
     for phrase in ("Tool", "Recovery Guide", "finish_task", "ask_user", "Session Context", "Web"):
         assert phrase in prompt
+
+
+def test_runtime_recovers_when_model_emits_raw_tool_call_markup(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="run_python_script",
+            description="Run a Python script",
+            parameters={
+                "type": "object",
+                "properties": {"script": {"type": "string"}},
+                "required": ["script"],
+            },
+            handler=lambda _working_directory, arguments: {
+                "ok": True,
+                "stdout": "ok",
+                "script": arguments["script"],
+            },
+        )
+    )
+
+    raw_tool_call = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    role="assistant",
+                    content='<|tool_call>call:run_python_script{"script":"print(1)"}<|tool_call>',
+                    tool_calls=[],
+                )
+            )
+        ]
+    )
+    structured_tool_call = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        SimpleNamespace(
+                            id="call-python",
+                            function=SimpleNamespace(
+                                name="run_python_script",
+                                arguments='{"script":"print(1)"}',
+                            ),
+                        )
+                    ],
+                )
+            )
+        ]
+    )
+    final = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    role="assistant",
+                    content="テスト実行が完了しました。",
+                    tool_calls=[],
+                )
+            )
+        ]
+    )
+
+    responses = [raw_tool_call, structured_tool_call, final]
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm",
+        lambda _messages, tools=None: responses.pop(0),
+    )
+
+    runtime = AgentRuntime(
+        tmp_path,
+        tool_registry=registry,
+    )
+
+    assert runtime.run("Pythonを実行してください") == "テスト実行が完了しました。"
+    assert runtime.task is not None
+    assert runtime.task.tool_calls == 1
+
+
+def test_runtime_allows_verification_after_state_change(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    registry = ToolRegistry()
+    calls = {"read": 0}
+
+    registry.register(
+        ToolDefinition(
+            name="read_file",
+            description="Read a file",
+            parameters={
+                "type": "object",
+                "properties": {"path": {"type": "string"}},
+                "required": ["path"],
+            },
+            handler=lambda _working_directory, _arguments: {
+                "ok": True,
+                "content": "new" if calls.__setitem__("read", calls["read"] + 1) or calls["read"] > 1 else "old",
+            },
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="file_mutation",
+            description="Mutate a file",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "operation": {"type": "string"},
+                    "path": {"type": "string"},
+                },
+                "required": ["operation", "path"],
+            },
+            handler=lambda _working_directory, _arguments: {
+                "ok": True,
+                "operation": "edit",
+                "path": "test.txt",
+            },
+        )
+    )
+
+    def tool_call(call_id: str, name: str, arguments: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            id=call_id,
+            function=SimpleNamespace(name=name, arguments=arguments),
+        )
+
+    responses = [
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="",
+                        tool_calls=[
+                            tool_call("read-1", "read_file", '{"path":"test.txt"}')
+                        ],
+                    )
+                )
+            ]
+        ),
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="",
+                        tool_calls=[
+                            tool_call("edit-1", "file_mutation", '{"operation":"edit","path":"test.txt"}')
+                        ],
+                    )
+                )
+            ]
+        ),
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="",
+                        tool_calls=[
+                            tool_call("read-2", "read_file", '{"path":"test.txt"}')
+                        ],
+                    )
+                )
+            ]
+        ),
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        role="assistant",
+                        content="変更後の内容を確認しました。",
+                        tool_calls=[],
+                    )
+                )
+            ]
+        ),
+    ]
+
+    monkeypatch.setattr(
+        runtime_module,
+        "ask_llm",
+        lambda _messages, tools=None: responses.pop(0),
+    )
+
+    runtime = AgentRuntime(tmp_path, tool_registry=registry)
+
+    assert runtime.run("test.txtを変更して内容を確認してください") == "変更後の内容を確認しました。"
+    assert runtime.task is not None
+    assert runtime.task.tool_calls == 3
+    assert calls["read"] == 2
