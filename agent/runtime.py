@@ -969,6 +969,8 @@ class AgentRuntime:
                 "pass" in stdout.casefold() or "success" in stdout.casefold()
             ):
                 return True
+            if not command and re.search(r"\b\d+\s+passed\b", stdout, re.IGNORECASE):
+                return True
         return False
 
     @staticmethod
