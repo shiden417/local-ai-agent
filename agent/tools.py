@@ -198,7 +198,6 @@ def create_default_tool_registry(
                 "You only need to read/search files, or the user only wants "
                 "an explanation."
             ),
-            terminal_on_success=True,
         )
     )
 
