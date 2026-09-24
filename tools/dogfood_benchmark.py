@@ -171,7 +171,7 @@ def _task2_passed(workspace: Path, original_completion_tests: str, runtime) -> t
         bool(added_text)
         and bool(re.search(r"def\s+test_[A-Za-z0-9_]*blocked", added_text))
         and "completion_status" in added_text
-        and '"blocked"' in added_text
+        and bool(re.search(r"""["']blocked["']""", added_text))
     )
     existing_tests_preserved = content.startswith(original_completion_tests)
     pytest_ok = _successful_pytest_command(runtime)
