@@ -115,6 +115,15 @@ _PROTECTED_PATH_LIST_RE = re.compile(
     re.IGNORECASE,
 )
 
+_POSITIVE_PATH_LIST_RE = re.compile(
+    rf"(?P<paths>{_FILE_PATH_TOKEN}(?:\s*(?:,|、|と|および|and)\s*{_FILE_PATH_TOKEN})+)\s*"
+    r"(?:の)?(?:両方|すべて|とも)?\s*"
+    r"(?:必要に応じて\s*)?(?:を|は|が)?\s*"
+    r"(?:追加|追記|作成|修正|変更|編集|削除|書き換え|保存|書き込み|リネーム|名前変更)"
+    r"\s*(?:してください|して|し、|した|する|します|を)",
+    re.IGNORECASE,
+)
+
 _GLOBAL_NO_FILE_MUTATION_RE = re.compile(
     r"(?:"
     r"ファイル(?:は|を)?(?:絶対に)?(?:変更|修正|編集|削除|書き換え|更新)\s*"
@@ -183,6 +192,20 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
     required_mutation_paths: list[str] = []
     if file_mutation:
         path_matches = list(re.finditer(_FILE_PATH_TOKEN, raw_text, re.IGNORECASE))
+
+        # First recognize explicit multi-file groups such as:
+        # "src/a.py と tests/test_a.py の両方を変更してください。"
+        for group_match in _POSITIVE_PATH_LIST_RE.finditer(raw_text):
+            for path_match in re.finditer(
+                _FILE_PATH_TOKEN,
+                group_match.group("paths"),
+                re.IGNORECASE,
+            ):
+                path = path_match.group(0)
+                if path and path not in protected_paths and path not in required_mutation_paths:
+                    required_mutation_paths.append(path)
+
+        # Then recognize single explicitly mutated paths.
         for index, match in enumerate(path_matches):
             path = match.group(0)
             if not path or path in protected_paths or path in required_mutation_paths:
@@ -200,15 +223,16 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
                 )
                 if position >= 0
             ]
-            sentence_end = min(sentence_end_candidates) if sentence_end_candidates else len(raw_text)
-            context_end = sentence_end
-            if index + 1 < len(path_matches):
-                next_path = path_matches[index + 1].group(0)
-                if next_path in protected_paths:
-                    context_end = min(context_end, path_matches[index + 1].start())
-            context_before = raw_text[sentence_start: match.start()]
-            context_after = raw_text[match.end(): context_end]
-            negative_context = bool(_NO_CHANGE_RE.search(context_after))
+            sentence_end = (
+                min(sentence_end_candidates)
+                if sentence_end_candidates
+                else len(raw_text)
+            )
+            context_after = raw_text[match.end():sentence_end]
+
+            negative_context = bool(
+                _NO_CHANGE_RE.search(context_after)
+            )
             positive_context = bool(
                 _JAPANESE_MUTATION_RE.search(context_after)
                 or _JAPANESE_IMPLEMENT_RE.search(context_after)
@@ -219,6 +243,19 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
                 continue
 
             required_mutation_paths.append(path)
+
+        # Preserve the user's path order rather than the order in which
+        # overlapping protected-path regexes happened to match.
+        required_mutation_paths.sort(
+            key=lambda path: next(
+                match.start()
+                for match in path_matches
+                if match.group(0) == path
+            )
+        )
+        protected_paths.sort(
+            key=lambda path: raw_text.casefold().find(path.casefold())
+        )
 
     process_context = bool(
         _EXPLICIT_PROCESS_CONTEXT_RE.search(text)
