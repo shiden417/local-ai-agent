@@ -28,7 +28,7 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _seed_workspace(root: Path) -> None:
+def _seed_workspace(root: Path, *, broken_add: bool = True) -> None:
     src = root / "src"
     tests = root / "tests"
     src.mkdir(parents=True, exist_ok=True)
@@ -323,6 +323,10 @@ def run_benchmark(
         "Task 7: memory isolation",
         "Task 8: controlled rename",
     }
+    correct_baseline = {
+        "Task 2: multi-file feature",
+        "Task 8: controlled rename",
+    }
 
     results: list[dict[str, object]] = []
     passed = 0
@@ -330,7 +334,7 @@ def run_benchmark(
 
     for label, prompt, check in tasks:
         if label in reset_before:
-            _seed_workspace(root)
+            _seed_workspace(root, broken_add=label not in correct_baseline)
         print(f"[RUN] {label}")
         try:
             result, elapsed, task_metrics = _run_task(runtime, prompt)
