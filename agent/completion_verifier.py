@@ -102,14 +102,16 @@ class CompletionVerifier:
                     "Run the relevant test command and inspect its result before completion."
                 )
 
-            missing_required_paths = [
-                required_path
-                for required_path in requirements.required_mutation_paths
-                if not self._has_successful_mutation_path(
-                    successful_mutations,
-                    required_path,
-                )
-            ]
+            missing_required_paths = []
+            if len(requirements.required_mutation_paths) > 1:
+                missing_required_paths = [
+                    required_path
+                    for required_path in requirements.required_mutation_paths
+                    if not self._has_successful_mutation_path(
+                        successful_mutations,
+                        required_path,
+                    )
+                ]
             if missing_required_paths:
                 return (
                     "System Verification Failed: this task explicitly requires file changes "
