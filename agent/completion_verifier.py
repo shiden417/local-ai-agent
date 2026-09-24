@@ -34,17 +34,42 @@ class CompletionVerifier:
                 )
             return None
 
-        mutation_required = self._requires_file_mutation(verification_goal)
-        process_required = self._requires_process_execution(verification_goal)
+        requirements = classify_task_requirements(verification_goal)
+        mutation_required = requirements.file_mutation
+        process_required = requirements.process_execution
 
-        if mutation_required:
-            mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file"}
-            successful_mutation = any(
+        mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file"}
+        successful_mutations = [
+            message
+            for message in messages
+            if (
                 message.get("role") == "tool"
                 and message.get("name") in mutation_tools
                 and self._tool_payload_ok(message)
-                for message in messages
             )
+        ]
+
+        if requirements.mutation_forbidden and successful_mutations:
+            return (
+                "System Verification Failed: this task explicitly prohibits workspace "
+                "file changes, but a file mutation was executed."
+            )
+
+        protected_mutation = next(
+            (
+                message for message in successful_mutations
+                if self._message_targets_protected_path(message, requirements.protected_paths)
+            ),
+            None,
+        )
+        if protected_mutation is not None:
+            return (
+                "System Verification Failed: a protected file was modified even though "
+                "the task explicitly prohibited changing that path."
+            )
+
+        if mutation_required:
+            successful_mutation = bool(successful_mutations)
             if not successful_mutation:
                 return (
                     "System Verification Failed: no successful action has been observed "
@@ -265,6 +290,41 @@ class CompletionVerifier:
         ):
             return True
         return bool(re.search(r"\b\d+\s+passed\b", output))
+
+    def _message_targets_protected_path(
+        self,
+        message: dict[str, Any],
+        protected_paths: tuple[str, ...],
+    ) -> bool:
+        if not protected_paths:
+            return False
+        try:
+            payload = json.loads(str(message.get("content", "")))
+        except json.JSONDecodeError:
+            return False
+
+        raw_path = str(payload.get("path", "")).strip()
+        if not raw_path:
+            return False
+        target = Path(raw_path)
+        if not target.is_absolute():
+            target = self.working_directory / target
+        try:
+            target = target.resolve()
+        except OSError:
+            target = target.absolute()
+
+        for raw_protected in protected_paths:
+            protected = Path(raw_protected)
+            if not protected.is_absolute():
+                protected = self.working_directory / protected
+            try:
+                protected = protected.resolve()
+            except OSError:
+                protected = protected.absolute()
+            if str(target).casefold() == str(protected).casefold():
+                return True
+        return False
 
     @staticmethod
     def _requires_file_mutation(goal: str) -> bool:
