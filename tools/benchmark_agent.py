@@ -47,30 +47,18 @@ def _parse_args() -> argparse.Namespace:
 
 def _seed_workspace(root: Path) -> None:
     (root / "calculator.py").write_text(
-        "def add(a, b):
-"
-        "    return a - b
-
-"
-        "def multiply(a, b):
-"
-        "    return a * b
-",
+        "def add(a, b):\n"
+        "    return a - b\n\n"
+        "def multiply(a, b):\n"
+        "    return a * b\n",
         encoding="utf-8",
     )
     (root / "test_calculator.py").write_text(
-        "from calculator import add, multiply
-
-"
-        "def test_add():
-"
-        "    assert add(2, 3) == 5
-
-"
-        "def test_multiply():
-"
-        "    assert multiply(2, 3) == 6
-",
+        "from calculator import add, multiply\n\n"
+        "def test_add():\n"
+        "    assert add(2, 3) == 5\n\n"
+        "def test_multiply():\n"
+        "    assert multiply(2, 3) == 6\n",
         encoding="utf-8",
     )
 
@@ -110,8 +98,7 @@ def _task_test_execution_succeeded(runtime) -> bool:
     for result in _tool_results(runtime, {"execute_command", "run_python_script"}):
         if not bool(result.get("ok")):
             continue
-        output = "
-".join(
+        output = "\n".join(
             str(result.get(key, ""))
             for key in ("stdout", "stderr")
         )
@@ -220,29 +207,17 @@ def run_benchmark(
     print()
 
     calculator_source = (
-        "def add(a, b):
-"
-        "    return a - b
-
-"
-        "def multiply(a, b):
-"
-        "    return a * b
-"
+        "def add(a, b):\n"
+        "    return a - b\n\n"
+        "def multiply(a, b):\n"
+        "    return a * b\n"
     )
     test_calculator_source = (
-        "from calculator import add, multiply
-
-"
-        "def test_add():
-"
-        "    assert add(2, 3) == 5
-
-"
-        "def test_multiply():
-"
-        "    assert multiply(2, 3) == 6
-"
+        "from calculator import add, multiply\n\n"
+        "def test_add():\n"
+        "    assert add(2, 3) == 5\n\n"
+        "def test_multiply():\n"
+        "    assert multiply(2, 3) == 6\n"
     )
 
     tasks = [
@@ -254,8 +229,7 @@ def run_benchmark(
         (
             "Task 2: session follow-up",
             "そのファイルの2行目に Session Context works を追加してください。既存の1行目は変更しないでください。確認してください。",
-            lambda: _check_exact(root / "hello.txt", "Hello JARVIS
-Session Context works") and _successful_tool(runtime, {"file_mutation", "run_python_script", "execute_command"}),
+            lambda: _check_exact(root / "hello.txt", "Hello JARVIS\nSession Context works") and _successful_tool(runtime, {"file_mutation", "run_python_script", "execute_command"}),
         ),
         (
             "Task 3: read-only investigation",
@@ -270,12 +244,7 @@ Session Context works") and _successful_tool(runtime, {"file_mutation", "run_pyt
         (
             "Task 5: investigate, edit, test",
             "calculator.py を調査してください。add関数にバグがあります。原因を修正し、python -m pytest -q を実行して、全テストが成功することを確認してください。test_calculator.py は変更しないでください。",
-            lambda: (_check_exact(root / "calculator.py", "def add(a, b):
-    return a + b
-
-def multiply(a, b):
-    return a * b
-") and _check_exact(root / "test_calculator.py", test_calculator_source) and _successful_tool(runtime, {"file_mutation"}) and _task_test_execution_succeeded(runtime)),
+            lambda: (_check_exact(root / "calculator.py", "def add(a, b):\n    return a + b\n\ndef multiply(a, b):\n    return a * b\n") and _check_exact(root / "test_calculator.py", test_calculator_source) and _successful_tool(runtime, {"file_mutation"}) and _task_test_execution_succeeded(runtime)),
         ),
         (
             "Task 6: process execution",
