@@ -1109,7 +1109,7 @@ class AgentRuntime:
             missing_paths = [
                 required_path
                 for required_path in requirements.required_mutation_paths
-                if not self._has_successful_mutation_path(messages, required_path)
+                if not AgentRuntime._has_successful_mutation_path(messages, required_path)
             ]
             if missing_paths:
                 return True, (
@@ -1146,18 +1146,12 @@ class AgentRuntime:
 
         return False, ""
 
+    @staticmethod
     def _has_successful_mutation_path(
-        self,
         messages: list[dict[str, Any]],
         required_path: str,
     ) -> bool:
-        required = Path(required_path)
-        if not required.is_absolute():
-            required = self.working_directory / required
-        try:
-            required_key = str(required.resolve()).casefold()
-        except OSError:
-            required_key = str(required.absolute()).casefold()
+        required_key = str(Path(required_path).as_posix()).casefold()
 
         for message in messages:
             if message.get("role") != "tool" or message.get("name") not in {
@@ -1176,13 +1170,7 @@ class AgentRuntime:
             raw_path = str(payload.get("path", "")).strip()
             if not raw_path:
                 continue
-            target = Path(raw_path)
-            if not target.is_absolute():
-                target = self.working_directory / target
-            try:
-                target_key = str(target.resolve()).casefold()
-            except OSError:
-                target_key = str(target.absolute()).casefold()
+            target_key = str(Path(raw_path).as_posix()).casefold()
             if target_key == required_key:
                 return True
         return False
