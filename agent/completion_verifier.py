@@ -183,7 +183,7 @@ class CompletionVerifier:
             re.search(r"(プロジェクト|workspace|repository|repo|コード)", text)
         )
         has_diagnostic_intent = bool(
-            re.search(r"(問題点|問題|不具合|バグ|原因|調査|確認|状態)", text)
+            re.search(r"(問題点|問題|不具合|バグ|原因|調査|分析|診断)", text)
         )
         return has_project_context and has_diagnostic_intent
 
