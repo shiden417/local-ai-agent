@@ -2158,3 +2158,46 @@ def test_read_only_runtime_excludes_mutation_and_execution_tools(
     assert "file_mutation" not in names
     assert "execute_command" not in names
     assert "run_python_script" not in names
+
+
+def test_task_requirements_only_include_positive_mutation_targets() -> None:
+    from agent.task_requirements import classify_task_requirements
+
+    task = (
+        "README.md に subtract 関数の使い方を追記してください。"
+        "コード、テスト、config.json、app.py は変更しないでください。"
+        "README.mdだけを変更してください。"
+    )
+    requirements = classify_task_requirements(task)
+
+    assert requirements.protected_paths == ("config.json", "app.py")
+    assert requirements.required_mutation_paths == ("README.md",)
+
+
+def test_task_requirements_track_both_positive_multi_file_targets() -> None:
+    from agent.task_requirements import classify_task_requirements
+
+    task = (
+        "calculator に subtract(a, b) を追加してください。"
+        "src/calculator.py と tests/test_calculator.py の両方を必要に応じて変更し、"
+        "python -m pytest -q を実行してください。"
+        "他のファイルは変更しないでください。"
+    )
+    requirements = classify_task_requirements(task)
+
+    assert requirements.required_mutation_paths == (
+        "src/calculator.py",
+        "tests/test_calculator.py",
+    )
+
+
+def test_workspace_mutating_echo_redirection_is_blocked() -> None:
+    assert AgentRuntime._looks_like_workspace_mutating_command(
+        {"command": 'echo "def subtract(a, b):\n    return a - b" >> src/calculator.py'}
+    )
+    assert AgentRuntime._looks_like_workspace_mutating_command(
+        {"command": 'echo "def subtract(a, b):\n    return a - b" > src/calculator.py'}
+    )
+    assert not AgentRuntime._looks_like_workspace_mutating_command(
+        {"command": 'python -c "print(\'JARVIS V10\')"'}
+    )
