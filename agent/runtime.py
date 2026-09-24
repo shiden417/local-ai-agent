@@ -899,7 +899,6 @@ class AgentRuntime:
         mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file"}
         successful_mutation = False
         mutation_rejected = False
-        successful_test = False
 
         for message in messages:
             if message.get("role") != "tool":
@@ -918,13 +917,7 @@ class AgentRuntime:
                 if payload.get("ok"):
                     successful_mutation = True
 
-            if name == "execute_command" and payload.get("ok"):
-                command = str(payload.get("command", "")).casefold()
-                exit_code = payload.get("exit_code", 0)
-                if exit_code in (None, 0) and (
-                    "pytest" in command or re.search(r"\btest(?:ing|s)?\b", command)
-                ):
-                    successful_test = True
+        successful_test = AgentRuntime._has_successful_test_execution(messages)
 
         # An explicit user rejection is a safe terminal condition: do not
         # force the model to retry a mutation the user declined.
