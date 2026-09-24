@@ -340,6 +340,21 @@ class AgentRuntime:
                         ),
                     }
                 )
+            if (
+                task_requirements.required_process_tool == "execute_command"
+                and not read_only_request
+            ):
+                excluded_tools.add("run_python_script")
+                llm_messages.append(
+                    {
+                        "role": "system",
+                        "content": (
+                            "Execution tool constraint: the user explicitly requested "
+                            "execute_command. Use execute_command for the required command "
+                            "instead of run_python_script."
+                        ),
+                    }
+                )
             if task_requirements.protected_paths:
                 protected = ", ".join(task_requirements.protected_paths)
                 llm_messages.append(
