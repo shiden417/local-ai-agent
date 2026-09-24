@@ -18,7 +18,15 @@ def list_directory(
         return {"ok": False, "error": f"Directory does not exist: {requested_path}"}
 
     if not directory.is_dir():
-        return {"ok": False, "error": f"Not a directory: {requested_path}"}
+        return {
+            "ok": False,
+            "error": (
+                f"Not a directory: {requested_path}. "
+                "The path points to a file; use read_file for file contents."
+            ),
+            "suggested_tool": "read_file",
+            "path": requested_path,
+        }
 
     entries = sorted(
         directory.iterdir(),
