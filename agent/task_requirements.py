@@ -15,6 +15,7 @@ class TaskRequirements:
     mutation_forbidden: bool = False
     protected_paths: tuple[str, ...] = ()
     required_process_tool: str | None = None
+    required_mutation_paths: tuple[str, ...] = ()
 
 
 _FILE_CONTEXT_RE = re.compile(
@@ -165,6 +166,13 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
         # including Memory-related language that should not imply file mutation.
         file_mutation = False
 
+    required_mutation_paths: list[str] = []
+    if file_mutation:
+        for match in re.finditer(_FILE_PATH_TOKEN, raw_text, re.IGNORECASE):
+            path = match.group(0)
+            if path and path not in protected_paths and path not in required_mutation_paths:
+                required_mutation_paths.append(path)
+
     process_context = bool(
         _EXPLICIT_PROCESS_CONTEXT_RE.search(text)
         or _PYTHON_COMMAND_RE.search(text)
@@ -196,4 +204,5 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
         mutation_forbidden=mutation_forbidden,
         protected_paths=tuple(protected_paths),
         required_process_tool=required_process_tool,
+        required_mutation_paths=tuple(required_mutation_paths),
     )
