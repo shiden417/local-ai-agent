@@ -183,20 +183,24 @@ class CompletionVerifier:
                 flags=re.IGNORECASE,
             )
         )
-        return bool(
+        has_japanese_mutation = bool(
             re.search(
-                r"(?:追加|作成|修正|変更|編集|削除|書き換え|実装)(?!しない|禁止|不要|しなく)",
+                r"(?:追加|作成|修正|変更|編集|削除|書き換え)(?!しない|禁止|不要|しなく)",
                 text,
             )
-            or (
-                has_file_context
-                and re.search(
-                    r"\b(?:add|create|modify|change|edit|delete|update|implement|write)\b",
-                    text,
-                    flags=re.IGNORECASE,
-                )
+            or re.search(
+                r"実装(?:して|する|してください|します|を)",
+                text,
             )
         )
+        has_english_mutation = bool(
+            re.search(
+                r"\b(?:add|create|modify|change|edit|delete|update|implement|write)\b",
+                text,
+                flags=re.IGNORECASE,
+            )
+        )
+        return has_file_context and (has_japanese_mutation or has_english_mutation)
 
     @staticmethod
     def _requires_test_verification(goal: str) -> bool:
