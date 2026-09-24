@@ -122,7 +122,7 @@ class CompletionVerifier:
         mutation_required = requirements.file_mutation
         process_required = requirements.process_execution
 
-        mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file", "python_symbol_edit"}
+        mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file", "python_symbol_edit", "replace_line"}
         successful_mutations = [
             message
             for message in messages
@@ -220,7 +220,7 @@ class CompletionVerifier:
             )
 
         if self._is_read_only_request(verification_goal):
-            mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file", "python_symbol_edit"}
+            mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file", "python_symbol_edit", "replace_line"}
             if any(
                 message.get("role") == "tool"
                 and message.get("name") in mutation_tools
@@ -292,7 +292,7 @@ class CompletionVerifier:
                 )
             return None
 
-        if name in {"file_mutation", "create_file", "edit_file", "delete_file", "python_symbol_edit"}:
+        if name in {"file_mutation", "create_file", "edit_file", "delete_file", "python_symbol_edit", "replace_line"}:
             path = str(payload.get("path", "")).strip()
             if not path:
                 return (
@@ -526,7 +526,7 @@ class CompletionVerifier:
             if message.get("role") != "tool":
                 continue
             name = str(message.get("name", ""))
-            if name not in {"file_mutation", "create_file", "edit_file", "python_symbol_edit"}:
+            if name not in {"file_mutation", "create_file", "edit_file", "python_symbol_edit", "replace_line"}:
                 continue
             try:
                 payload = json.loads(str(message.get("content", "")))
