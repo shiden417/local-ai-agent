@@ -9,6 +9,8 @@ import tempfile
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 def _parse_args() -> argparse.Namespace:
@@ -50,7 +52,8 @@ def _copy_project(destination: Path) -> None:
         "benchmark-*.json",
         "trace.jsonl",
     )
-    shutil.copytree(PROJECT_ROOT, destination, ignore=ignore)
+    destination.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(PROJECT_ROOT, destination, ignore=ignore, dirs_exist_ok=True)
 
 
 def _inject_truncation_bug(workspace: Path) -> tuple[str, str]:
