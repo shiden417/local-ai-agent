@@ -152,6 +152,10 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
             protected_paths.append(path)
 
     mutation_forbidden = bool(_GLOBAL_NO_FILE_MUTATION_RE.search(raw_text))
+    if mutation_forbidden:
+        # A global no-mutation constraint overrides incidental save/write wording,
+        # including Memory-related language that should not imply file mutation.
+        file_mutation = False
 
     process_context = bool(
         _EXPLICIT_PROCESS_CONTEXT_RE.search(text)
