@@ -161,3 +161,11 @@ def test_file_mutation_rejects_unknown_operation(tmp_path: Path) -> None:
 
     assert result["ok"] is False
     assert "Unsupported file mutation operation" in result["error"]
+
+
+def test_create_file_requires_content_argument(tmp_path: Path) -> None:
+    result = create_file(tmp_path, {"path": "empty.txt"})
+
+    assert result["ok"] is False
+    assert "content is required" in result["error"]
+    assert not (tmp_path / "empty.txt").exists()
