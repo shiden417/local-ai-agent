@@ -920,6 +920,9 @@ class AgentRuntime:
     ) -> tuple[bool, str]:
         """Keep explicit mutation tasks from being completed before required evidence exists."""
         text = str(goal).casefold()
+        if AgentRuntime._is_read_only_request(goal):
+            return False, ""
+
         mutation_required = bool(
             re.search(
                 r"(追加|作成|修正|変更|編集|削除|書き換え|保存|実装|"
