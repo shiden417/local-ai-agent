@@ -39,7 +39,9 @@ class ToolLoopGuard:
         preserved_count = self._counts.get(preserved_key)
         self._counts.clear()
         if preserved_count is not None:
-            self._counts[preserved_key] = preserved_count
+            # A completed mutating Tool must remain blocked from replay even
+            # after the observation state is reset for post-change verification.
+            self._counts[preserved_key] = self.max_identical_calls
 
     def message(self, name: str, arguments: dict[str, Any]) -> str:
         return (
