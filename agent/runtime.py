@@ -226,6 +226,7 @@ class AgentRuntime:
         )
         self.loop_guard.reset()
         terminal_synthesis_required = False
+        raw_tool_call_recovery_used = False
         self.task.start()
         self.task_manager.update_timestamp(current_task)
         if self.terminal_ui is not None:
@@ -420,6 +421,27 @@ class AgentRuntime:
             )
 
             if not tool_calls:
+                if (
+                    not raw_tool_call_recovery_used
+                    and self._looks_like_raw_tool_call_markup(content)
+                ):
+                    raw_tool_call_recovery_used = True
+                    current_task.messages.append(_message_to_dict(message))
+                    current_task.messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "The previous response contained raw Tool-call markup instead of "
+                                "a structured Tool call. Do not emit <|tool_call>, call:ToolName, "
+                                "XML-like Tool syntax, or JSON pretending to be a Tool call in "
+                                "assistant text. Use the provided structured Tool calling interface "
+                                "to invoke the appropriate Tool now. If no Tool is needed, answer "
+                                "normally without Tool-call markup."
+                            ),
+                        }
+                    )
+                    continue
+
                 if self.task.tool_calls == 0 and self.task.iteration == 1:
                     current_task.messages.append(_message_to_dict(message))
                     current_task.messages.append(
@@ -703,6 +725,11 @@ class AgentRuntime:
                     "promote_plugin",
                 }:
                     self._environment_revision += 1
+                    # A successful state-changing Tool creates a new observation
+                    # state. Requiring the old duplicate-call budget to survive
+                    # that state change incorrectly blocks legitimate verification
+                    # such as: edit -> read_file, or command -> read_file.
+                    self.loop_guard.reset()
 
                 if name == "finish_task" and bool(result.get("ok")):
                     summary = str(
@@ -927,6 +954,22 @@ class AgentRuntime:
             return AgentRuntime._normalize_final_content(nested)
 
         return str(content).strip()
+
+    @staticmethod
+    def _looks_like_raw_tool_call_markup(content: str) -> bool:
+        """Detect model-emitted Tool-call syntax that was not parsed as a Tool call."""
+        text = content.strip().lower()
+        if not text:
+            return False
+
+        markers = (
+            "<|tool_call|>",
+            "<|tool_call>",
+            "call:",
+            "<tool_call>",
+            "</tool_call>",
+        )
+        return any(marker in text for marker in markers)
 
     @staticmethod
     def _is_invalid_final_response(
