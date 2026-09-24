@@ -95,7 +95,11 @@ def create_default_tool_registry(
     registry.register(
         ToolDefinition(
             name="read_file",
-            description="Read a text file in the Agent workspace or at an explicit local path.",
+            description=(
+                "Read a text file in the Agent workspace or at an explicit local path. "
+                "The `content` field is the exact raw source text; `numbered_content`, when present, "
+                "is display-only and should not be copied into file mutations."
+            ),
             parameters={
                 "type": "object",
                 "properties": {
