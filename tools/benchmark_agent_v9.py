@@ -227,7 +227,7 @@ def run_benchmark(
             lambda: (
                 _pytest_results(runtime)
                 and any(
-                    bool(result.get("ok")) and result.get("exit_code") not in (None, 0)
+                    result.get("exit_code") not in (None, 0)
                     for result in _pytest_results(runtime)
                 )
                 and any(
