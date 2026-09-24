@@ -216,3 +216,16 @@ def test_completion_verifier_accepts_latest_successful_test(
         task,
         {"completion_status": "completed"},
     ) is None
+
+
+def test_loop_guard_blocks_identical_tool_call_after_two_attempts() -> None:
+    from agent.loop_guard import ToolLoopGuard
+
+    guard = ToolLoopGuard(max_identical_calls=2)
+    arguments = {"query": "needle"}
+
+    assert guard.record("search_files", arguments) == 1
+    assert guard.is_repetition("search_files", arguments) is False
+
+    assert guard.record("search_files", arguments) == 2
+    assert guard.is_repetition("search_files", arguments) is True
