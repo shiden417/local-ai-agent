@@ -1449,6 +1449,14 @@ def test_system_prompt_is_compact_but_retains_core_agent_rules() -> None:
         assert phrase in prompt
 
 
+def test_unexecuted_action_guard_does_not_reopen_completed_python_execution() -> None:
+    assert not AgentRuntime._looks_like_unexecuted_action_intent("実行しました。")
+    assert not AgentRuntime._looks_like_unexecuted_action_intent("Pythonを実行しました。")
+    assert AgentRuntime._looks_like_unexecuted_action_intent(
+        "次に python -m pytest -q を実行して確認します。"
+    )
+
+
 def test_runtime_recovers_raw_tool_call_markup(tmp_path: Path, monkeypatch) -> None:
     registry = ToolRegistry()
     executed = {"count": 0}
