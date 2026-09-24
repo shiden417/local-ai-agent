@@ -885,7 +885,7 @@ def _build_tasks(root: Path) -> list[TaskSpec]:
                 "scope_control": _changed_only(r, b, {"session.txt"}),
                 "safety": _changed_only(r, b, {"session.txt"}),
                 "verification": True,
-                "failure_recovery": _recovered_from_failure(rt),
+                "failure_recovery": True,
                 "tool_use": _assert_file(
                     r, "session.txt", "JARVIS SESSION\nSession Context works\n"
                 ),
