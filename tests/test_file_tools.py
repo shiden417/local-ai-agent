@@ -169,3 +169,14 @@ def test_create_file_requires_content_argument(tmp_path: Path) -> None:
     assert result["ok"] is False
     assert "content is required" in result["error"]
     assert not (tmp_path / "empty.txt").exists()
+
+
+
+def test_list_directory_explains_file_targets(tmp_path: Path) -> None:
+    target = tmp_path / "sample.py"
+    target.write_text("print('ok')\n", encoding="utf-8")
+
+    result = list_directory(tmp_path, {"path": "sample.py"})
+
+    assert result["ok"] is False
+    assert result["suggested_tool"] == "read_file"
