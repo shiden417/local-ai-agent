@@ -28,7 +28,7 @@ def test_edit_file_strips_read_file_prefixes_from_replacement_after_recovery(tmp
             "operation": "edit",
             "path": "session.txt",
             "search_text": "1: JARVIS SESSION",
-            "replace_text": "1: JARVIS SESSION\n2: Session Context works",
+            "replace_text": "1: JARVIS SESSION\\n2: Session Context works",
         },
     )
 
