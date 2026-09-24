@@ -34,6 +34,20 @@ def _prepare_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return prepared
 
 
+def _thinking_options() -> dict[str, Any]:
+    """Return LM Studio reasoning controls for models that expose them via the API."""
+    if THINKING_MODE not in {"think", "no_think"}:
+        return {}
+
+    if MODEL.lower().startswith("qwen/"):
+        return {}
+
+    # LM Studio exposes a generic reasoning setting for supported reasoning models.
+    # Gemma 4's LM Studio model definition maps its Enable Thinking switch to this
+    # reasoning control when using the local API.
+    return {"extra_body": {"reasoning": "on" if THINKING_MODE == "think" else "off"}}
+
+
 def ask_llm(
     messages: list[dict[str, Any]],
     tools: list[dict[str, Any]] | None = None,
@@ -43,6 +57,7 @@ def ask_llm(
         "model": MODEL,
         "messages": _prepare_messages(messages),
     }
+    kwargs.update(_thinking_options())
     if tools:
         kwargs["tools"] = tools
 
