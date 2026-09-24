@@ -56,3 +56,9 @@ def test_classify_file_already_exists_as_invalid_input() -> None:
         "file_mutation",
         {"ok": False, "error": "File already exists: hello.txt"},
     ) == STATUS_INVALID_INPUT
+
+
+def test_invalid_file_edit_recovery_guidance_avoids_line_number_prefixes() -> None:
+    guidance = recovery_guidance("file_mutation", STATUS_INVALID_INPUT)
+    assert "search_text" in guidance
+    assert "read_file line-number prefixes" in guidance
