@@ -64,7 +64,8 @@ def test_file_tools_can_use_explicit_absolute_local_paths(
     assert listed["path"] == "external"
     assert listed["entries"][0]["name"] == "hello.txt"
     assert read["ok"] is True
-    assert read["content"] == "1: hello"
+    assert read["content"] == "hello"
+    assert read["numbered_content"] == "1: hello"
 
 
 def test_create_file_creates_parent_directories(tmp_path: Path) -> None:
