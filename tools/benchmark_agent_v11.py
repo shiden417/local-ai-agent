@@ -1055,7 +1055,16 @@ def run_benchmark(
                 result_text = f"{result_text}\nFOLLOW-UP: {follow_result}"
 
             criteria = task.check(root, runtime, baseline)
-            ok = all(criteria.values())
+            # first_attempt_clean is an independent quality signal. Tasks that
+            # intentionally exercise recovery must still pass when the final
+            # result, scope, safety, verification, and required tool behavior
+            # are correct.
+            required_criteria = {
+                name: value
+                for name, value in criteria.items()
+                if name != "first_attempt_clean"
+            }
+            ok = all(required_criteria.values())
         except Exception as exc:
             result_text = f"{type(exc).__name__}: {exc}"
             elapsed = 0.0
