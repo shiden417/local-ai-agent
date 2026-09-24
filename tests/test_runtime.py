@@ -1761,6 +1761,52 @@ def test_read_only_request_is_not_treated_as_mutation_requirement() -> None:
     assert message == ""
 
 
+def test_read_only_request_is_false_when_mutation_is_explicitly_requested_with_preservation_constraint() -> None:
+    assert not AgentRuntime._is_read_only_request(
+        "hello.txtの2行目に Session Context works を追加してください。既存の1行目は変更しないでください。確認してください。"
+    )
+
+
+def test_completion_verifier_rejects_finish_without_required_mutation(tmp_path: Path) -> None:
+    from agent.completion_verifier import CompletionVerifier
+
+    task = SimpleNamespace(
+        goal="hello.txtの2行目に Session Context works を追加してください。既存の1行目は変更しないでください。確認してください。",
+        messages=[
+            {
+                "role": "tool",
+                "name": "read_file",
+                "content": json.dumps({"ok": True, "path": "hello.txt"}),
+            }
+        ],
+    )
+    result = {"ok": True, "completion_status": "completed", "summary": "追加しました。"}
+
+    error = CompletionVerifier(tmp_path).verify(task, result)
+
+    assert error is not None
+    assert "file change" in error
+
+
+def test_completion_verifier_rejects_blocked_required_process_execution(tmp_path: Path) -> None:
+    from agent.completion_verifier import CompletionVerifier
+
+    task = SimpleNamespace(
+        goal="単純なコマンド実行Taskとして、python -c を使って JARVIS benchmark と表示し、終了コード0を確認してください。",
+        messages=[],
+    )
+    result = {
+        "ok": True,
+        "completion_status": "blocked",
+        "summary": "実行するToolがありません。",
+    }
+
+    error = CompletionVerifier(tmp_path).verify(task, result)
+
+    assert error is not None
+    assert "execute_command" in error
+
+
 def test_read_only_request_detection() -> None:
     assert AgentRuntime._is_read_only_request(
         "calculator.pyを調査して確認してください。ファイルは変更しないでください。"
