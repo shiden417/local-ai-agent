@@ -78,7 +78,7 @@ def edit_file(
             "ok": False,
             "error": (
                 "search_text was not found. Use exact source text from the latest file contents; "
-                "do not include read_file line-number prefixes such as \\"12: \\"."
+                'do not include read_file line-number prefixes such as "12: ".'
             ),
         }
 
