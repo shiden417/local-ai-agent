@@ -58,8 +58,9 @@ _READ_INTENT_RE = re.compile(
 )
 
 _NO_CHANGE_RE = re.compile(
-    r"(変更しない|変更なし|変更は不要|変更禁止|改変しない|改変禁止|"
-    r"修正しない|修正禁止|編集しない|編集禁止|ファイルを変更しない|"
+    r"(変更しない|変更なし|変更は不要|変更禁止|変更せず|変更せずに|変更することなく|"
+    r"改変しない|改変禁止|改変せず|"
+    r"修正しない|修正禁止|修正せず|編集しない|編集禁止|編集せず|ファイルを変更しない|"
     r"do not\s+(?:modify|change|edit)|don't\s+(?:modify|change|edit)|"
     r"without\s+(?:modifying|changing|editing)|read[- ]?only|no changes?)",
     re.IGNORECASE,
