@@ -7,6 +7,47 @@ from agent.tool_registry import ToolDefinition, ToolRegistry
 import agent.runtime as runtime_module
 
 
+def test_task_requirement_classifier_covers_core_benchmark_intents() -> None:
+    from agent.task_requirements import classify_task_requirements
+
+    cases = [
+        (
+            "calculator.py の add 関数を調査して、現在の実装内容を確認してください。"
+            "ファイルは変更しないでください。",
+            {"read_only": True, "file_mutation": False, "process_execution": False, "test_verification": False},
+        ),
+        (
+            "calculator.py を調査してください。add関数にバグがあります。"
+            "原因を修正し、python -m pytest -q を実行して、全テストが成功することを確認してください。"
+            "test_calculator.py は変更しないでください。",
+            {"read_only": False, "file_mutation": True, "process_execution": True, "test_verification": True},
+        ),
+        (
+            "PowerShellから python -c \"print('JARVIS benchmark')\" を実行し、終了コード0を確認してください。",
+            {"read_only": False, "file_mutation": False, "process_execution": True, "test_verification": False},
+        ),
+        (
+            "Pythonを実行してください",
+            {"read_only": False, "file_mutation": False, "process_execution": False, "test_verification": False},
+        ),
+        (
+            "Benchmarkの識別子 jarvis-benchmark をMemoryに保存し、その後検索して確認してください。",
+            {"read_only": False, "file_mutation": False, "process_execution": False, "test_verification": False},
+        ),
+        (
+            "results.txtに実行結果を保存してください。",
+            {"read_only": False, "file_mutation": True, "process_execution": False, "test_verification": False},
+        ),
+    ]
+
+    for goal, expected in cases:
+        actual = classify_task_requirements(goal)
+        assert actual.read_only is expected["read_only"]
+        assert actual.file_mutation is expected["file_mutation"]
+        assert actual.process_execution is expected["process_execution"]
+        assert actual.test_verification is expected["test_verification"]
+
+
 def test_mutation_completion_requirement_does_not_treat_test_filename_as_test_request() -> None:
     messages = [
         {
