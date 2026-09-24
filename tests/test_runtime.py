@@ -1751,6 +1751,16 @@ def test_runtime_retries_corrected_file_mutation_after_invalid_input(
 
 
 
+def test_read_only_request_is_not_treated_as_mutation_requirement() -> None:
+    required, message = AgentRuntime._mutation_completion_requirement(
+        "calculator.pyを調査して確認してください。ファイルは変更しないでください。",
+        [],
+    )
+
+    assert required is False
+    assert message == ""
+
+
 def test_read_only_request_detection() -> None:
     assert AgentRuntime._is_read_only_request(
         "calculator.pyを調査して確認してください。ファイルは変更しないでください。"
