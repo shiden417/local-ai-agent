@@ -159,14 +159,14 @@ def _strip_read_file_line_numbers(value: str) -> str:
 def _strip_read_file_line_numbers_if_present(value: str) -> str:
     """Strip display-only read_file prefixes from model replacement text when present."""
     lines = value.splitlines()
-    if len(lines) < 2 or not any(re.match(r"^\\d+: ", line) for line in lines):
+    if len(lines) < 2 or not any(re.match(r"^\d+: ", line) for line in lines):
         return value
 
     normalized: list[str] = []
     for line in lines:
-        match = re.match(r"^\\d+: (.*)$", line)
+        match = re.match(r"^\d+: (.*)$", line)
         normalized.append(match.group(1) if match else line)
-    return "\\n".join(normalized)
+    return "\n".join(normalized)
 
 
 def _decode_literal_escapes(value: str) -> str:
