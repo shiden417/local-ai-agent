@@ -977,16 +977,8 @@ class AgentRuntime:
         if AgentRuntime._is_read_only_request(goal):
             return False, ""
 
-        mutation_required = bool(
-            re.search(
-                r"(追加|作成|修正|変更|編集|削除|書き換え|保存|実装|"
-                r"add|create|modify|change|edit|delete|update|implement|write)",
-                text,
-                flags=re.IGNORECASE,
-            )
-        )
-        if not mutation_required:
-            return False, ""
+        file_mutation_required = CompletionVerifier._requires_file_mutation(goal)
+        process_required = CompletionVerifier._requires_process_execution(goal)
 
         # A request needs a test run only when testing is explicitly requested.
         # Avoid interpreting filenames such as "test.txt" as a test requirement.
@@ -998,6 +990,9 @@ class AgentRuntime:
                 flags=re.IGNORECASE,
             )
         )
+
+        if not file_mutation_required and not process_required and not verification_required:
+            return False, ""
 
         mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file"}
         successful_mutation = False
@@ -1027,11 +1022,18 @@ class AgentRuntime:
         if mutation_rejected and not successful_mutation:
             return False, ""
 
-        if not successful_mutation:
+        if file_mutation_required and not successful_mutation:
             return True, (
                 "This task explicitly requires a file change. Do not answer with an "
                 "explanation or summary yet. Use the appropriate file mutation Tool now, "
                 "then inspect its result. Do not declare completion without a successful mutation."
+            )
+
+        if process_required and not AgentRuntime._has_successful_command_execution(messages):
+            return True, (
+                "This task explicitly requires process/command execution. Use the "
+                "execute_command Tool now, run the requested command, and verify a successful "
+                "exit_code 0 result before declaring completion."
             )
 
         if verification_required and not successful_test:
@@ -1042,6 +1044,24 @@ class AgentRuntime:
             )
 
         return False, ""
+
+    @staticmethod
+    def _has_successful_command_execution(messages: list[dict[str, Any]]) -> bool:
+        """Return True when execute_command completed successfully."""
+        for message in messages:
+            if message.get("role") != "tool" or message.get("name") != "execute_command":
+                continue
+            try:
+                payload = json.loads(str(message.get("content", "")))
+            except json.JSONDecodeError:
+                continue
+            if (
+                isinstance(payload, dict)
+                and payload.get("ok")
+                and payload.get("exit_code") == 0
+            ):
+                return True
+        return False
 
     @staticmethod
     def _has_successful_test_execution(messages: list[dict[str, Any]]) -> bool:
