@@ -24,14 +24,14 @@ def test_list_directory(tmp_path: Path) -> None:
     assert result["entries"][0]["name"] == "example.txt"
 
 
-def test_read_file_numbers_lines(tmp_path: Path) -> None:
+def test_read_file_returns_raw_content_and_numbered_display(tmp_path: Path) -> None:
     (tmp_path / "example.txt").write_text("first\nsecond\n", encoding="utf-8")
 
     result = read_file(tmp_path, {"path": "example.txt"})
 
     assert result["ok"] is True
-    assert "1: first" in result["content"]
-    assert "2: second" in result["content"]
+    assert result["content"] == "first\nsecond"
+    assert result["numbered_content"] == "1: first\n2: second"
 
 
 def test_search_files_finds_text(tmp_path: Path) -> None:
