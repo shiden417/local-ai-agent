@@ -309,6 +309,7 @@ class AgentRuntime:
                         "Treat this as Runtime-managed state; do not reconstruct "
                         "progress only from chat history.\n"
                         f"{self.task.snapshot()}\n"
+                        f"{self._progress_ledger(current_task.goal, current_task.messages)}\n"
                         "Tool use is optional. Call a tool only when it advances "
                         "the goal; otherwise answer directly."
                     ),
@@ -1186,6 +1187,59 @@ class AgentRuntime:
                 unread.append(required_path)
 
         return unread
+
+    @staticmethod
+    def _progress_ledger(
+        goal: str,
+        messages: list[dict[str, Any]],
+    ) -> str:
+        """Create a compact deterministic progress ledger for small local models."""
+        requirements = classify_task_requirements(goal)
+        explicit_targets = list(requirements.required_mutation_paths)
+        mutated: list[str] = []
+        read: list[str] = []
+        latest_test = "none"
+        latest_failure = "none"
+
+        for message in messages:
+            if message.get("role") != "tool":
+                continue
+            name = str(message.get("name", ""))
+            try:
+                payload = json.loads(str(message.get("content", "")))
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, dict):
+                continue
+
+            if name == "read_file" and payload.get("ok"):
+                path = str(payload.get("path", "")).strip()
+                if path and path not in read:
+                    read.append(path)
+            elif name in {"file_mutation", "create_file", "edit_file", "delete_file"} and payload.get("ok"):
+                path = str(payload.get("path", "")).strip()
+                if path and path not in mutated:
+                    mutated.append(path)
+            elif name == "execute_command":
+                command = str(payload.get("command", "")).strip()
+                exit_code = payload.get("exit_code")
+                if payload.get("ok") and exit_code == 0 and "pytest" in command.casefold():
+                    latest_test = "PASS: " + command
+                elif command:
+                    latest_failure = "FAIL: " + command
+
+        remaining = [path for path in explicit_targets if path not in mutated]
+        return (
+            "Progress ledger: "
+            f"explicit mutation targets=[{', '.join(explicit_targets) or 'none'}]; "
+            f"successfully mutated=[{', '.join(mutated) or 'none'}]; "
+            f"already read=[{', '.join(read) or 'none'}]; "
+            f"remaining explicit mutations=[{', '.join(remaining) or 'none'}]; "
+            f"latest successful pytest={latest_test}; latest command failure={latest_failure}. "
+            "Do not repeat completed work. For each remaining target, make the smallest direct change "
+            "needed by the goal, then verify before finishing."
+        )
+
 
     @staticmethod
     def _runtime_requirements_satisfied(
