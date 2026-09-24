@@ -12,6 +12,7 @@ from tools.search_web import search_web
 from tools.fetch_web_page import fetch_web_page
 from tools.run_python_script import run_python_script
 from tools.python_symbol_edit import python_symbol_edit
+from tools.replace_line import replace_line
 from tools.control import ask_user, finish_task
 
 
@@ -205,6 +206,46 @@ def create_default_tool_registry(
             avoid_when=(
                 "You only need to read/search files, or the user only wants "
                 "an explanation."
+            ),
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="replace_line",
+            description=(
+                "Replace exactly one specified 1-based line in a local text file. "
+                "Use this for ambiguous duplicate text where the user identifies a specific line."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Workspace-relative or explicit absolute file path.",
+                    },
+                    "line_number": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "1-based line number to replace.",
+                    },
+                    "new_text": {
+                        "type": "string",
+                        "description": "Complete replacement text for that one line.",
+                    },
+                },
+                "required": ["path", "line_number", "new_text"],
+                "additionalProperties": False,
+            },
+            handler=replace_line,
+            requires_confirmation=True,
+            use_when=(
+                "A text file needs one specific line changed, especially when the old text "
+                "appears multiple times and the requested line is known."
+            ),
+            avoid_when=(
+                "The target is Python structural code or the correct location should be chosen "
+                "by matching surrounding source text."
             ),
         )
     )
