@@ -41,6 +41,7 @@ def read_file(
     else:
         selected = lines[start_line - 1 : max(start_line - 1, int(end_line))]
 
+    raw_output = "\n".join(selected)
     numbered_lines = [
         f"{number}: {line}"
         for number, line in enumerate(
@@ -48,12 +49,19 @@ def read_file(
             start=start_line,
         )
     ]
-    output = "\n".join(numbered_lines)
+    numbered_output = "\n".join(numbered_lines)
 
-    truncated = len(output) > MAX_CHARS
+    truncated = len(raw_output) > MAX_CHARS
     if truncated:
-        output = output[:MAX_CHARS]
-        output = output.rsplit("\n", 1)[0]
+        raw_output = raw_output[:MAX_CHARS]
+        raw_output = raw_output.rsplit("\n", 1)[0]
+        numbered_output = "\n".join(
+            f"{number}: {line}"
+            for number, line in enumerate(
+                raw_output.splitlines(),
+                start=start_line,
+            )
+        )
 
     display_path = to_display_path(working_directory, path)
     display_directory = to_display_path(working_directory, path.parent)
@@ -65,6 +73,10 @@ def read_file(
         "relative_reference_base": display_directory,
         "start_line": start_line,
         "end_line": end_line,
-        "content": output,
+        # `content` is the exact source text so its contents can be copied safely
+        # into file_mutation.search_text/replace_text. `numbered_content` is retained
+        # separately for display/navigation and is never part of the source itself.
+        "content": raw_output,
+        "numbered_content": numbered_output,
         "truncated": truncated,
     }
