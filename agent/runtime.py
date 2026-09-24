@@ -1105,7 +1105,7 @@ class AgentRuntime:
         if mutation_rejected and not successful_mutation:
             return False, ""
 
-        if requirements.file_mutation and requirements.required_mutation_paths:
+        if requirements.file_mutation and len(requirements.required_mutation_paths) > 1:
             missing_paths = [
                 required_path
                 for required_path in requirements.required_mutation_paths
@@ -1113,7 +1113,8 @@ class AgentRuntime:
             ]
             if missing_paths:
                 return True, (
-                    "This task requires successful file mutations in every explicit target path: "
+                    "This task requires successful file mutations in every explicit target path "
+                    "(multi-file change): "
                     + ", ".join(missing_paths)
                     + ". Use file_mutation on each missing target before completion."
                 )
