@@ -85,7 +85,11 @@ def edit_file(
     if occurrence_count > 1:
         return {
             "ok": False,
-            "error": f"search_text matched {occurrence_count} locations; provide a more specific block.",
+            "error": (
+                f"search_text matched {occurrence_count} locations; provide a more specific block. "
+                "Use surrounding lines (for example, the target function definition plus its assertion) "
+                "so the next edit request is different from this one."
+            ),
         }
 
     new_content = content.replace(search_text, replace_text, 1)
