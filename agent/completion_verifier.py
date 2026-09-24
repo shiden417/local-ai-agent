@@ -195,51 +195,76 @@ class CompletionVerifier:
 
     @staticmethod
     def _has_successful_command(messages: list[dict[str, Any]]) -> bool:
-        for message in messages:
-            if message.get("role") != "tool" or message.get("name") != "execute_command":
-                continue
-            try:
-                payload = json.loads(str(message.get("content", "")))
-            except json.JSONDecodeError:
-                continue
-            if (
-                isinstance(payload, dict)
-                and payload.get("ok")
-                and payload.get("exit_code") == 0
-            ):
-                return True
-        return False
+        """Return True only when the latest execute_command succeeded."""
+        command_messages = [
+            message
+            for message in messages
+            if message.get("role") == "tool"
+            and message.get("name") == "execute_command"
+        ]
+        if not command_messages:
+            return False
+
+        message = command_messages[-1]
+        try:
+            payload = json.loads(str(message.get("content", "")))
+        except json.JSONDecodeError:
+            return False
+        return bool(
+            isinstance(payload, dict)
+            and payload.get("ok")
+            and payload.get("exit_code") == 0
+        )
 
     @staticmethod
     def _has_successful_test(messages: list[dict[str, Any]]) -> bool:
+        """Return True only when the latest test execution succeeded."""
+        test_messages: list[dict[str, Any]] = []
         for message in messages:
-            if message.get("role") != "tool":
-                continue
-            if message.get("name") not in {"execute_command", "run_python_script"}:
+            if message.get("role") != "tool" or message.get("name") not in {
+                "execute_command",
+                "run_python_script",
+            }:
                 continue
             try:
                 payload = json.loads(str(message.get("content", "")))
             except json.JSONDecodeError:
                 continue
-            if not isinstance(payload, dict) or not payload.get("ok"):
-                continue
-            if payload.get("exit_code") not in (None, 0):
+            if not isinstance(payload, dict):
                 continue
             command = str(payload.get("command", "")).casefold()
             output = "\n".join(
                 str(payload.get(key, ""))
                 for key in ("stdout", "stderr")
             ).casefold()
-            if "pytest" in command or "pytest" in output:
-                return True
-            if re.search(r"\btest(?:ing|s)?\b", command) and re.search(
-                r"pass|success",
-                output,
+            if (
+                "pytest" in command
+                or "pytest" in output
+                or re.search(r"\btest(?:ing|s)?\b", command)
+                or re.search(r"\b\d+\s+passed\b", output)
             ):
-                return True
-            if re.search(r"\b\d+\s+passed\b", output):
-                return True
-        return False
+                test_messages.append(payload)
+
+        if not test_messages:
+            return False
+
+        payload = test_messages[-1]
+        if not payload.get("ok") or payload.get("exit_code") not in (None, 0):
+            return False
+
+        command = str(payload.get("command", "")).casefold()
+        output = "\n".join(
+            str(payload.get(key, ""))
+            for key in ("stdout", "stderr")
+        ).casefold()
+        if "pytest" in command or "pytest" in output:
+            return True
+        if re.search(r"\btest(?:ing|s)?\b", command) and re.search(
+            r"pass|success",
+            output,
+        ):
+            return True
+        return bool(re.search(r"\b\d+\s+passed\b", output))
 
     @staticmethod
     def _requires_file_mutation(goal: str) -> bool:
