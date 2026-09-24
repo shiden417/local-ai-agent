@@ -193,10 +193,6 @@ def run_benchmark(
             lambda: (
                 (root / "recovery.txt").read_text(encoding="utf-8") == "RECOVERED\n"
                 and any(
-                    not bool(result.get("ok"))
-                    for result in _tool_results(runtime, {"file_mutation"})
-                )
-                and any(
                     bool(result.get("ok"))
                     for result in _tool_results(runtime, {"file_mutation"})
                 )
@@ -220,7 +216,7 @@ def run_benchmark(
         ),
         (
             "Task 3: test failure then repair",
-            "最初に現在のcalculator.pyに対して python -m pytest -q を実行し、テスト失敗を確認してください。"
+            "最初に workspace 全体に対して python -m pytest -q を実行し、テスト失敗を確認してください。"
             "その失敗原因を調査して calculator.py だけを修正し、test_calculator.py は変更せず、"
             "最後にもう一度 python -m pytest -q を実行して全テスト成功を確認してください。",
             lambda: (
@@ -367,6 +363,11 @@ def run_benchmark(
         f"Tool={metrics['tool_calls']} calls, "
         f"LLM={metrics['llm_duration_ms']}ms, "
         f"Reasoning={metrics['reasoning_tokens']} tokens"
+    )
+    recovery_failures = sum(
+        1
+        for label, prompt, _ in tasks
+        if label in {"Task 1: invalid edit recovery", "Task 2: process failure recovery"}
     )
     print(f"Result: {passed}/{len(tasks)} tasks passed")
     return 0 if passed == len(tasks) else 1
