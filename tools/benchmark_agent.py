@@ -73,6 +73,53 @@ def _run_task(runtime, prompt: str) -> tuple[str, float, dict[str, int]]:
     return result, elapsed, delta
 
 
+def _tool_results(runtime, names: set[str]) -> list[dict[str, object]]:
+    task = runtime.task
+    if task is None:
+        return []
+    results: list[dict[str, object]] = []
+    for message in task.messages:
+        if message.get("role") != "tool" or message.get("name") not in names:
+            continue
+        try:
+            parsed = json.loads(str(message.get("content", "")))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            results.append(parsed)
+    return results
+
+
+def _successful_tool(runtime, names: set[str]) -> bool:
+    return any(bool(result.get("ok")) for result in _tool_results(runtime, names))
+
+
+def _task_test_execution_succeeded(runtime) -> bool:
+    for result in _tool_results(runtime, {"execute_command", "run_python_script"}):
+        if not bool(result.get("ok")):
+            continue
+        output = "\\n".join(
+            str(result.get(key, ""))
+            for key in ("stdout", "stderr")
+        )
+        if "2 passed" in output and not str(result.get("stderr", "")).strip():
+            return True
+        if "Return Code: 0" in output and "2 passed" in output:
+            return True
+    return False
+
+
+def _task_process_execution_succeeded(runtime) -> bool:
+    for result in _tool_results(runtime, {"execute_command"}):
+        if (
+            bool(result.get("ok"))
+            and result.get("exit_code") == 0
+            and "JARVIS benchmark" in str(result.get("stdout", ""))
+            and not str(result.get("stderr", "")).strip()
+        ):
+            return True
+    return False
+
 def _task_used_tool(runtime, names: set[str]) -> bool:
     task = runtime.task
     if task is None:
@@ -158,7 +205,7 @@ def run_benchmark(root: Path, *, model: str | None, max_iterations: int, output:
         (
             "Task 2: session follow-up",
             "そのファイルの2行目に Session Context works を追加してください。既存の1行目は変更しないでください。確認してください。",
-            lambda: _check_exact(root / "hello.txt", "Hello JARVIS\nSession Context works") and _task_used_tool(runtime, {"file_mutation", "run_python_script", "execute_command"}),
+            lambda: _check_exact(root / "hello.txt", "Hello JARVIS\nSession Context works") and _successful_tool(runtime, {"file_mutation", "run_python_script", "execute_command"}),
         ),
         (
             "Task 3: read-only investigation",
@@ -173,12 +220,12 @@ def run_benchmark(root: Path, *, model: str | None, max_iterations: int, output:
         (
             "Task 5: investigate, edit, test",
             "calculator.py を調査してください。add関数にバグがあります。原因を修正し、python -m pytest -q を実行して、全テストが成功することを確認してください。test_calculator.py は変更しないでください。",
-            lambda: (_check_exact(root / "calculator.py", "def add(a, b):\n    return a + b\n\ndef multiply(a, b):\n    return a * b\n") and _check_exact(root / "test_calculator.py", "from calculator import add, multiply\n\ndef test_add():\n    assert add(2, 3) == 5\n\ndef test_multiply():\n    assert multiply(2, 3) == 6\n") and _task_used_tool(runtime, {"file_mutation"}) and _task_used_tool(runtime, {"execute_command"})),
+            lambda: (_check_exact(root / "calculator.py", "def add(a, b):\n    return a + b\n\ndef multiply(a, b):\n    return a * b\n") and _check_exact(root / "test_calculator.py", "from calculator import add, multiply\n\ndef test_add():\n    assert add(2, 3) == 5\n\ndef test_multiply():\n    assert multiply(2, 3) == 6\n") and _successful_tool(runtime, {"file_mutation"}) and _task_test_execution_succeeded(runtime)),
         ),
         (
             "Task 6: process execution",
             "このworkspaceで python -c を使って JARVIS benchmark と表示するコマンドを実行し、終了コード0を確認してください。",
-            lambda: _task_used_tool(runtime, {"execute_command"}),
+            lambda: _task_process_execution_succeeded(runtime),
         ),
         (
             "Task 7: file deletion",
