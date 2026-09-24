@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import os
 import subprocess
+import sys
 
 from agent.safety import validate_command_scope
 from agent.observation import truncate_text
