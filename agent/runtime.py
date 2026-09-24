@@ -700,16 +700,7 @@ class AgentRuntime:
                     else:
                         print("[Tool] blocked by recovery quarantine")
                 elif (
-                    (
-                        task_requirements.mutation_forbidden
-                        or (
-                            name in {"file_mutation", "create_file", "edit_file", "delete_file"}
-                            and self._is_protected_mutation_path(
-                                arguments,
-                                task_requirements,
-                            )
-                        )
-                    )
+                    task_requirements.mutation_forbidden
                     and name in {"file_mutation", "create_file", "edit_file", "delete_file"}
                 ):
                     safety_decision = "task_tool_blocked"
@@ -732,6 +723,23 @@ class AgentRuntime:
                         self.terminal_ui.info(f"Tool blocked for read-only task: {name}")
                     else:
                         print(f"[Tool] blocked for read-only task: {name}")
+                elif (
+                    name in {"file_mutation", "create_file", "edit_file", "delete_file"}
+                    and self._is_protected_mutation_path(arguments, task_requirements)
+                ):
+                    safety_decision = "protected_path_blocked"
+                    result = {
+                        "ok": False,
+                        "error": (
+                            f"Tool '{name}' cannot modify a protected path for this task."
+                        ),
+                        "task_tool_blocked": True,
+                        "protected_path_blocked": True,
+                    }
+                    if self.terminal_ui is not None:
+                        self.terminal_ui.info(f"Protected path blocked: {arguments.get('path', '')}")
+                    else:
+                        print(f"[Tool] protected path blocked: {arguments.get('path', '')}")
                 elif name in excluded_tools:
                     safety_decision = "task_tool_blocked"
                     result = {
@@ -863,6 +871,11 @@ class AgentRuntime:
                     failure_status=outcome_status if not bool(result.get("ok")) else None,
                     result_truncated=truncated,
                 )
+                if result.get("protected_path_blocked"):
+                    # A protected-path violation must not quarantine the whole mutation tool:
+                    # another path may still be explicitly allowed by the same task.
+                    self.task.recovery_tool = None
+                    self.task.last_failure_status = None
                 self.task_manager.update_timestamp(current_task)
 
                 if self.terminal_ui is not None:
