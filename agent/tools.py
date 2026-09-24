@@ -158,7 +158,8 @@ def create_default_tool_registry(
             description=(
                 "Perform one local file mutation: create, edit, or delete. "
                 "Use one operation at a time and provide the fields required by "
-                "that operation."
+                "that operation. For edit, search_text must be exact source text from the file, "
+                "without read_file line-number prefixes such as \"12: \"."
             ),
             parameters={
                 "type": "object",
