@@ -50,6 +50,12 @@ class CompletionVerifier:
         ]
 
         if requirements.mutation_forbidden and successful_mutations:
+            if requirements.read_only:
+                return (
+                    "System Verification Failed: this task explicitly requested "
+                    "read-only investigation, but a file mutation was executed. "
+                    "Do not claim the task completed successfully."
+                )
             return (
                 "System Verification Failed: this task explicitly prohibits workspace "
                 "file changes, but a file mutation was executed."
