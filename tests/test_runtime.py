@@ -1489,6 +1489,36 @@ def test_runtime_allows_read_verification_after_state_change(
     assert reads["count"] == 2
 
 
+def test_has_successful_test_execution_after_pytest() -> None:
+    messages = [
+        {
+            "role": "tool",
+            "name": "execute_command",
+            "content": json.dumps(
+                {
+                    "ok": True,
+                    "exit_code": 0,
+                    "command": "python -m pytest -q",
+                    "stdout": "2 passed",
+                }
+            ),
+        }
+    ]
+
+    assert AgentRuntime._has_successful_test_execution(messages) is True
+
+
+def test_has_successful_test_execution_is_false_for_unexecuted_claim() -> None:
+    messages = [
+        {
+            "role": "assistant",
+            "content": "テストを実行して成功しました。",
+        }
+    ]
+
+    assert AgentRuntime._has_successful_test_execution(messages) is False
+
+
 def test_runtime_reprompts_when_model_claims_test_execution_without_tool(
     tmp_path: Path,
     monkeypatch,
