@@ -72,9 +72,9 @@ def _run_model(model: str, max_iterations: int, thinking_mode: str, work_dir: Pa
         try:
             parsed = json.loads(report.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
-            parsed = {"parse_error": str(exc)}
+            parsed = {"parse_error": str(exc), "report_status": "invalid_json"}
     else:
-        parsed = {}
+        parsed = {"report_status": "missing"}
 
     parsed["process_exit_code"] = completed.returncode
     parsed["stdout"] = completed.stdout[-8_000:]
@@ -82,6 +82,35 @@ def _run_model(model: str, max_iterations: int, thinking_mode: str, work_dir: Pa
     parsed["requested_model"] = model
     parsed["thinking_mode"] = thinking_mode
     return parsed
+
+
+def _print_result(result: dict[str, object]) -> None:
+    model = result.get("requested_model", "unknown")
+    process_exit_code = result.get("process_exit_code")
+    passed = result.get("passed", "?")
+    total = result.get("total_tasks", "?")
+    metrics = result.get("metrics", {})
+    llm_ms = metrics.get("llm_duration_ms", "?") if isinstance(metrics, dict) else "?"
+    llm_calls = metrics.get("llm_calls", "?") if isinstance(metrics, dict) else "?"
+
+    if process_exit_code == 0 and "passed" in result:
+        print(f"{model}: {passed}/{total} tasks, LLM={llm_calls} calls, {llm_ms}ms")
+        return
+
+    print(f"{model}: benchmark failed (exit_code={process_exit_code})")
+    if "parse_error" in result:
+        print(f"  report parse error: {result['parse_error']}")
+    elif result.get("report_status") == "missing":
+        print("  benchmark JSON report was not created")
+
+    stderr = str(result.get("stderr", "")).strip()
+    stdout = str(result.get("stdout", "")).strip()
+    if stderr:
+        print("  stderr:")
+        print(stderr[-2_000:])
+    elif stdout:
+        print("  stdout:")
+        print(stdout[-4_000:])
 
 
 def main() -> int:
@@ -106,13 +135,7 @@ def main() -> int:
 
     print("J.A.R.V.I.S. Model Comparison")
     for result in results:
-        model = result.get("requested_model", "unknown")
-        passed = result.get("passed", "?")
-        total = result.get("total_tasks", "?")
-        metrics = result.get("metrics", {})
-        llm_ms = metrics.get("llm_duration_ms", "?") if isinstance(metrics, dict) else "?"
-        llm_calls = metrics.get("llm_calls", "?") if isinstance(metrics, dict) else "?"
-        print(f"{model}: {passed}/{total} tasks, LLM={llm_calls} calls, {llm_ms}ms")
+        _print_result(result)
 
     print(f"JSON report: {output}")
     return 0 if all(result.get("process_exit_code") == 0 for result in results) else 1
