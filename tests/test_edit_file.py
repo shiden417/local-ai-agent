@@ -110,3 +110,22 @@ def test_edit_file_recovers_literal_newline_escapes(tmp_path: Path) -> None:
 
     assert result["ok"] is True
     assert result["search_text_recovered"] is True
+
+
+def test_edit_file_rejects_no_op_replacement(tmp_path: Path) -> None:
+    target = tmp_path / "example.txt"
+    original = "same\n"
+    target.write_text(original, encoding="utf-8")
+
+    result = edit_file(
+        tmp_path,
+        {
+            "path": "example.txt",
+            "search_text": "same",
+            "replace_text": "same",
+        },
+    )
+
+    assert result["ok"] is False
+    assert result["no_op"] is True
+    assert target.read_text(encoding="utf-8") == original
