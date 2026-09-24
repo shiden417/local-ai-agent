@@ -11,6 +11,7 @@ from tools.search_files import search_files
 from tools.search_web import search_web
 from tools.fetch_web_page import fetch_web_page
 from tools.run_python_script import run_python_script
+from tools.python_symbol_edit import python_symbol_edit
 from tools.control import ask_user, finish_task
 
 
@@ -204,6 +205,63 @@ def create_default_tool_registry(
             avoid_when=(
                 "You only need to read/search files, or the user only wants "
                 "an explanation."
+            ),
+        )
+    )
+
+    registry.register(
+        ToolDefinition(
+            name="python_symbol_edit",
+            description=(
+                "Perform deterministic, Python-aware edits in one .py file. Supported operations are "
+                "add_function, remove_function, rename_identifier, and ensure_from_import. "
+                "Use this instead of broad text replacement for Python function additions/removals or renames; "
+                "rename_identifier changes Python NAME tokens only, not strings/comments."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "operation": {
+                        "type": "string",
+                        "enum": [
+                            "add_function",
+                            "remove_function",
+                            "rename_identifier",
+                            "ensure_from_import",
+                        ],
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Workspace-relative or explicit absolute .py file path.",
+                    },
+                    "symbol": {
+                        "type": "string",
+                        "description": "Python function or identifier name.",
+                    },
+                    "function_code": {
+                        "type": "string",
+                        "description": "Complete single top-level function definition for add_function.",
+                    },
+                    "new_name": {
+                        "type": "string",
+                        "description": "New identifier name for rename_identifier.",
+                    },
+                    "module": {
+                        "type": "string",
+                        "description": "Absolute import module for ensure_from_import, e.g. src.calculator.",
+                    },
+                },
+                "required": ["operation", "path", "symbol"],
+                "additionalProperties": False,
+            },
+            handler=python_symbol_edit,
+            requires_confirmation=True,
+            use_when=(
+                "Editing Python code where a function must be added/removed, a Python identifier must be renamed, "
+                "or a from-import must be updated safely."
+            ),
+            avoid_when=(
+                "Editing non-Python files, changing arbitrary prose, or making a small non-Python text replacement."
             ),
         )
     )
