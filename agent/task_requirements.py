@@ -15,8 +15,9 @@ class TaskRequirements:
 
 
 _FILE_CONTEXT_RE = re.compile(
-    r"(?:ファイル|file|\.py\b|\.txt\b|\.json\b|\.md\b|"
-    r"\.yaml\b|\.yml\b|\.csv\b|workspace|path|directory|コード)",
+    r"(?:ファイル|file|\.py(?![A-Za-z0-9_])|\.txt(?![A-Za-z0-9_])|"
+    r"\.json(?![A-Za-z0-9_])|\.md(?![A-Za-z0-9_])|\.yaml(?![A-Za-z0-9_])|"
+    r"\.yml(?![A-Za-z0-9_])|\.csv(?![A-Za-z0-9_])|workspace|path|directory|コード)",
     re.IGNORECASE,
 )
 
