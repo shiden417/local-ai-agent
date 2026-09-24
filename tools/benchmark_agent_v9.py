@@ -364,11 +364,6 @@ def run_benchmark(
         f"LLM={metrics['llm_duration_ms']}ms, "
         f"Reasoning={metrics['reasoning_tokens']} tokens"
     )
-    recovery_failures = sum(
-        1
-        for label, prompt, _ in tasks
-        if label in {"Task 1: invalid edit recovery", "Task 2: process failure recovery"}
-    )
     print(f"Result: {passed}/{len(tasks)} tasks passed")
     return 0 if passed == len(tasks) else 1
 
