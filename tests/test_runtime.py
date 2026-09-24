@@ -7,6 +7,63 @@ from agent.tool_registry import ToolDefinition, ToolRegistry
 import agent.runtime as runtime_module
 
 
+def test_mutation_completion_requirement_requires_successful_file_change() -> None:
+    required, message = AgentRuntime._mutation_completion_requirement(
+        "tests/test_example.py に回帰テストを1件追加してください。",
+        [],
+    )
+
+    assert required is True
+    assert "file change" in message
+
+
+def test_mutation_completion_requirement_requires_verification_after_change() -> None:
+    messages = [
+        {
+            "role": "tool",
+            "name": "file_mutation",
+            "content": json.dumps({"ok": True, "path": "tests/test_example.py"}),
+        }
+    ]
+
+    required, message = AgentRuntime._mutation_completion_requirement(
+        "tests/test_example.py に回帰テストを1件追加してください。",
+        messages,
+    )
+
+    assert required is True
+    assert "verification" in message
+
+
+def test_mutation_completion_requirement_allows_change_after_successful_pytest() -> None:
+    messages = [
+        {
+            "role": "tool",
+            "name": "file_mutation",
+            "content": json.dumps({"ok": True, "path": "tests/test_example.py"}),
+        },
+        {
+            "role": "tool",
+            "name": "execute_command",
+            "content": json.dumps(
+                {
+                    "ok": True,
+                    "exit_code": 0,
+                    "command": "python -m pytest -q",
+                }
+            ),
+        },
+    ]
+
+    required, message = AgentRuntime._mutation_completion_requirement(
+        "tests/test_example.py に回帰テストを1件追加してください。",
+        messages,
+    )
+
+    assert required is False
+    assert message == ""
+
+
 def test_runtime_initializes_with_absolute_working_directory(tmp_path: Path) -> None:
     runtime = AgentRuntime(tmp_path)
 
