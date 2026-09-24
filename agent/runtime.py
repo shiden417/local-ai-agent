@@ -729,7 +729,10 @@ class AgentRuntime:
                     # state. Requiring the old duplicate-call budget to survive
                     # that state change incorrectly blocks legitimate verification
                     # such as: edit -> read_file, or command -> read_file.
-                    self.loop_guard.reset()
+                    self.loop_guard.reset_for_state_change(
+                        preserve_name=name,
+                        preserve_arguments=arguments,
+                    )
 
                 if name == "finish_task" and bool(result.get("ok")):
                     summary = str(
