@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import os
+import re
 import subprocess
 import sys
 
@@ -50,6 +51,8 @@ def execute_command(
             "timed_out": False,
             "blocked": True,
         }
+
+    command = _normalize_python_command(command)
 
     wrapped_command = (
         "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
@@ -138,3 +141,27 @@ def _terminate_process_tree(pid: int) -> None:
 def _bound_output(text: str) -> str:
     bounded, _ = truncate_text(text, MAX_OUTPUT_CHARS)
     return bounded
+
+
+
+def _normalize_python_command(command: str) -> str:
+    """Resolve Python/pytest commands to the interpreter running the Agent."""
+    match = re.match(
+        r"^(\\s*)(python(?:\\.exe)?)(?=\\s|$)(.*)$",
+        command,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if match:
+        prefix, _, rest = match.groups()
+        return f'{prefix}& "{sys.executable}"{rest}'
+
+    match = re.match(
+        r"^(\\s*)(pytest(?:\\.exe)?)(?=\\s|$)(.*)$",
+        command,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if match:
+        prefix, _, rest = match.groups()
+        return f'{prefix}& "{sys.executable}" -m pytest{rest}'
+
+    return command
