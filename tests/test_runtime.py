@@ -87,6 +87,7 @@ def test_runtime_executes_tool_then_returns_final_response(
     runtime = AgentRuntime(
         tmp_path,
         tool_registry=registry,
+        confirm=lambda _message: True,
     )
 
     result = runtime.run("調査してください")
@@ -688,7 +689,7 @@ def test_runtime_keeps_tool_quarantine_inside_task_state(
         lambda _messages, tools=None: responses.pop(0),
     )
 
-    runtime = AgentRuntime(tmp_path, tool_registry=registry)
+    runtime = AgentRuntime(tmp_path, tool_registry=registry, confirm=lambda _message: True)
     assert runtime.run("調査") == "完了しました。"
     assert runtime.task is not None
     assert runtime.task.disabled_tools == set()
