@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 import difflib
+import re
 
 from tools.source_validation import validate_python_syntax
 
@@ -92,6 +93,11 @@ def edit_file(
             ),
         }
 
+    if recovered:
+        normalized_replacement = _strip_read_file_line_numbers_if_present(replace_text)
+        if normalized_replacement != replace_text:
+            replace_text = normalized_replacement
+
     new_content = content.replace(search_text, replace_text, 1)
 
     if new_content == content:
@@ -148,6 +154,19 @@ def _strip_read_file_line_numbers(value: str) -> str:
         )
         for rest in (line.split(":", 1)[1] for line in lines)
     )
+
+
+def _strip_read_file_line_numbers_if_present(value: str) -> str:
+    """Strip display-only read_file prefixes from model replacement text when present."""
+    lines = value.splitlines()
+    if len(lines) < 2 or not any(re.match(r"^\\d+: ", line) for line in lines):
+        return value
+
+    normalized: list[str] = []
+    for line in lines:
+        match = re.match(r"^\\d+: (.*)$", line)
+        normalized.append(match.group(1) if match else line)
+    return "\\n".join(normalized)
 
 
 def _decode_literal_escapes(value: str) -> str:
