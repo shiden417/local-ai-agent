@@ -1508,6 +1508,29 @@ def test_has_successful_test_execution_after_pytest() -> None:
     assert AgentRuntime._has_successful_test_execution(messages) is True
 
 
+def test_mutation_completion_requirement_uses_shared_test_detection() -> None:
+    messages = [
+        {
+            "role": "tool",
+            "name": "file_mutation",
+            "content": json.dumps({"ok": True, "path": "calculator.py"}),
+        },
+        {
+            "role": "tool",
+            "name": "execute_command",
+            "content": json.dumps({"ok": True, "stdout": "2 passed"}),
+        },
+    ]
+
+    required, message = AgentRuntime._mutation_completion_requirement(
+        "calculator.pyを修正してテストしてください。",
+        messages,
+    )
+
+    assert required is False
+    assert message == ""
+
+
 def test_has_successful_test_execution_accepts_passed_output_without_command() -> None:
     messages = [
         {
