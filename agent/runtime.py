@@ -25,6 +25,7 @@ from agent.safety import AUTO_ALLOW, AUTO_DENY, SafetyPolicy
 from agent.task import TaskState, classify_progress
 from agent.trace import TraceRecorder
 from agent.task_manager import ManagedTask, TaskManager
+from agent.task_requirements import classify_task_requirements
 from agent.tool_registry import ToolRegistry
 from agent.tools import create_default_tool_registry
 
@@ -925,126 +926,78 @@ class AgentRuntime:
 
     @staticmethod
     def _is_read_only_request(goal: str) -> bool:
-        """Detect explicit requests that prohibit local mutation/execution."""
-        text = str(goal).casefold()
-        has_mutation_intent = bool(
-            re.search(
-                r"(?:追加|作成|修正|変更|編集|削除|書き換え)(?!しない)(?:してください|して|する|します|を)",
-                text,
-            )
-            or re.search(
-                r"(?:実装)(?!しない)(?:してください|して|する|します|を)",
-                text,
-            )
-            or re.search(
-                r"\b(?:please\s+)?(?:add|create|modify|change|edit|delete|update|write)\s+(?:a|an|the|new|this|that|file|folder|directory|line|code|test)\b",
-                text,
-                flags=re.IGNORECASE,
-            )
-            or re.search(
-                r"\b(?:please\s+)?implement\s+(?:a|an|the|new|this|that|feature|function|method|class)\b",
-                text,
-                flags=re.IGNORECASE,
-            )
-        )
-        has_read_intent = bool(
-            re.search(
-                r"(調査|調べ|検索|探して|確認|閲覧|読み|分析|diagnos|investigat|"
-                r"inspect|search|review|read|check|verify)",
-                text,
-                flags=re.IGNORECASE,
-            )
-        )
-        has_no_change = bool(
-            re.search(
-                r"(変更しない|変更なし|変更は不要|変更禁止|改変しない|改変禁止|"
-                r"修正しない|修正禁止|編集しない|編集禁止|ファイルを変更しない|"
-                r"do not (?:modify|change|edit)|without (?:modifying|changing|editing)|"
-                r"read[- ]?only|no changes?)",
-                text,
-                flags=re.IGNORECASE,
-            )
-        )
-        return has_read_intent and has_no_change and not has_mutation_intent
+        return classify_task_requirements(goal).read_only
 
     @staticmethod
     def _mutation_completion_requirement(
         goal: str,
         messages: list[dict[str, Any]],
     ) -> tuple[bool, str]:
-        """Keep explicit mutation tasks from being completed before required evidence exists."""
-        text = str(goal).casefold()
-        if AgentRuntime._is_read_only_request(goal):
-            return False, ""
-
-        file_mutation_required = CompletionVerifier._requires_file_mutation(goal)
-        process_required = CompletionVerifier._requires_process_execution(goal)
-
-        # A request needs a test run only when testing is explicitly requested.
-        # Avoid interpreting filenames such as "test.txt" as a test requirement.
-        verification_required = bool(
-            re.search(
-                r"(?:テスト|回帰|pytest|regression|verify|validation)"
-                r"|\btest(?:ing|s)?\s+(?:suite|case|coverage|run|result)",
-                text,
-                flags=re.IGNORECASE,
-            )
-        )
-
-        if not file_mutation_required and not process_required and not verification_required:
+        """Keep explicit action/verification tasks from being completed without evidence."""
+        requirements = classify_task_requirements(goal)
+        if requirements.read_only:
             return False, ""
 
         mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file"}
-        successful_mutation = False
-        mutation_rejected = False
+        successful_mutation = any(
+            message.get("role") == "tool"
+            and message.get("name") in mutation_tools
+            and AgentRuntime._tool_message_ok(message)
+            for message in messages
+        )
+        mutation_rejected = any(
+            message.get("role") == "tool"
+            and message.get("name") in mutation_tools
+            and AgentRuntime._tool_message_has_flag(message, "user_rejected")
+            for message in messages
+        )
 
-        for message in messages:
-            if message.get("role") != "tool":
-                continue
-            try:
-                payload = json.loads(str(message.get("content", "")))
-            except json.JSONDecodeError:
-                continue
-            if not isinstance(payload, dict):
-                continue
-
-            name = str(message.get("name", ""))
-            if name in mutation_tools:
-                if payload.get("user_rejected") is True:
-                    mutation_rejected = True
-                if payload.get("ok"):
-                    successful_mutation = True
-
-        successful_test = AgentRuntime._has_successful_test_execution(messages)
-
-        # An explicit user rejection is a safe terminal condition: do not
-        # force the model to retry a mutation the user declined.
         if mutation_rejected and not successful_mutation:
             return False, ""
 
-        if file_mutation_required and not successful_mutation:
+        if requirements.file_mutation and not successful_mutation:
             return True, (
                 "This task explicitly requires a file change. Do not answer with an "
                 "explanation or summary yet. Use the appropriate file mutation Tool now, "
-                "then inspect its result. Do not declare completion without a successful mutation. "
-                "The Runtime requires a successful mutation before finish_task."
+                "then inspect its result. Do not declare completion without a successful mutation."
             )
 
-        if process_required and not AgentRuntime._has_successful_command_execution(messages):
+        if (
+            requirements.process_execution
+            and not AgentRuntime._has_successful_command_execution(messages)
+        ):
             return True, (
                 "This task explicitly requires process/command execution. Use the "
                 "execute_command Tool now, run the requested command, and verify a successful "
                 "exit_code 0 result before declaring completion."
             )
 
-        if verification_required and not successful_test:
+        if (
+            requirements.test_verification
+            and not AgentRuntime._has_successful_test_execution(messages)
+        ):
             return True, (
-                "The requested file change has succeeded, but the task explicitly requires "
-                "testing or verification. Run the relevant test/verification command and "
-                "inspect its result before giving a completion answer."
+                "The task explicitly requires testing or verification. Run the relevant "
+                "test command, inspect its successful result, and only then declare completion."
             )
 
         return False, ""
+
+    @staticmethod
+    def _tool_message_ok(message: dict[str, Any]) -> bool:
+        try:
+            payload = json.loads(str(message.get("content", "")))
+        except json.JSONDecodeError:
+            return False
+        return isinstance(payload, dict) and bool(payload.get("ok"))
+
+    @staticmethod
+    def _tool_message_has_flag(message: dict[str, Any], key: str) -> bool:
+        try:
+            payload = json.loads(str(message.get("content", "")))
+        except json.JSONDecodeError:
+            return False
+        return isinstance(payload, dict) and bool(payload.get(key))
 
     @staticmethod
     def _has_successful_command_execution(messages: list[dict[str, Any]]) -> bool:
@@ -1064,7 +1017,6 @@ class AgentRuntime:
                 return True
         return False
 
-    @staticmethod
     def _has_successful_test_execution(messages: list[dict[str, Any]]) -> bool:
         """Return True when a test command already completed successfully."""
         for message in messages:
