@@ -6,12 +6,14 @@ import re
 
 @dataclass(frozen=True)
 class TaskRequirements:
-    """Deterministic requirements inferred from the user's task wording."""
+    """Deterministic requirements and mutation constraints inferred from the task wording."""
 
     read_only: bool
     file_mutation: bool
     process_execution: bool
     test_verification: bool
+    mutation_forbidden: bool
+    protected_paths: tuple[str, ...]
 
 
 _FILE_CONTEXT_RE = re.compile(
@@ -81,6 +83,36 @@ _TEST_REQUEST_RE = re.compile(
     re.IGNORECASE,
 )
 
+_FILE_PATH_TOKEN = (
+    r"(?:[A-Za-z]:[\\/])?(?:[A-Za-z0-9_.-]+[\\/])*"
+    r"[A-Za-z0-9_.-]+\.(?:py|txt|json|md|yaml|yml|csv)"
+)
+
+_PROTECTED_PATH_RE = re.compile(
+    rf"(?P<path>{_FILE_PATH_TOKEN})\s*(?:は|を|が)?\s*"
+    r"(?:絶対に\s*)?(?:変更|修正|編集|削除|書き換え|更新|上書き)"
+    r"\s*(?:しない|しません|禁止|不要|しないで(?:ください|下さい)?)"
+    rf"|(?P<english_path>{_FILE_PATH_TOKEN})\s+"
+    r"(?:must\s+not|should\s+not|do\s+not|don't)\s+"
+    r"(?:modify|change|edit|delete|update|overwrite)",
+    re.IGNORECASE,
+)
+
+_GLOBAL_NO_FILE_MUTATION_RE = re.compile(
+    r"(?:"
+    r"ファイル(?:は|を)?(?:絶対に)?(?:変更|修正|編集|削除|書き換え|更新)\s*"
+    r"(?:しない|しません|禁止|しないで(?:ください|下さい)?)"
+    r"|"
+    r"(?:ワークスペース|workspace)(?:内|の)?(?:ファイル|files?)\s*"
+    r"(?:は|を)?\s*(?:絶対に)?(?:変更|修正|編集|削除|書き換え|更新|modify|change|edit|delete)\s*"
+    r"(?:しない|しません|禁止|しないで(?:ください|下さい)?|not|never)"
+    r"|"
+    r"(?:do\s+not|don't|without|never)\s+(?:modify|change|edit|delete|update)\s+"
+    r"(?:any\s+)?(?:workspace\s+)?files?"
+    r")",
+    re.IGNORECASE,
+)
+
 
 def _has_positive_mutation_intent(text: str) -> bool:
     """Detect positive mutation requests without treating negative constraints as actions."""
@@ -99,7 +131,8 @@ def _has_positive_mutation_intent(text: str) -> bool:
 
 
 def classify_task_requirements(goal: str) -> TaskRequirements:
-    text = str(goal).casefold()
+    raw_text = str(goal)
+    text = raw_text.casefold()
     file_context = bool(_FILE_CONTEXT_RE.search(text))
     positive_mutation = _has_positive_mutation_intent(text)
 
@@ -110,6 +143,14 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
     )
 
     file_mutation = bool(file_context and positive_mutation)
+
+    protected_paths: list[str] = []
+    for match in _PROTECTED_PATH_RE.finditer(raw_text):
+        path = match.group("path") or match.group("english_path")
+        if path and path not in protected_paths:
+            protected_paths.append(path)
+
+    mutation_forbidden = bool(_GLOBAL_NO_FILE_MUTATION_RE.search(raw_text))
 
     process_context = bool(
         _EXPLICIT_PROCESS_CONTEXT_RE.search(text)
@@ -126,4 +167,6 @@ def classify_task_requirements(goal: str) -> TaskRequirements:
         file_mutation=file_mutation,
         process_execution=process_execution,
         test_verification=test_verification,
+        mutation_forbidden=mutation_forbidden,
+        protected_paths=tuple(protected_paths),
     )
