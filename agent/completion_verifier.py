@@ -21,7 +21,7 @@ class CompletionVerifier:
     ) -> list[str]:
         """Return deterministic gaps for explicitly requested function changes."""
         requirements = classify_task_requirements(goal_text)
-        if not requirements.required_symbols:
+        if not requirements.file_mutation or not requirements.required_symbols:
             return []
 
         successful_paths: list[str] = []
