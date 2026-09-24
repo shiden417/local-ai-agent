@@ -53,7 +53,7 @@ def test_default_registry_contains_structured_edit_tools() -> None:
 def test_runtime_exposes_python_structural_tool_for_python_mutation_tasks() -> None:
     runtime = AgentRuntime(Path("."))
     result = runtime._effective_task_requirements(
-        "calculator に subtract(a, b) を追加してください。src/calculator.pyを変更対象にします。",
+        "calculator に src/calculator.py の subtract(a, b) を追加してください。",
         "calculator に subtract(a, b) を追加してください。",
         is_follow_up=False,
     )
