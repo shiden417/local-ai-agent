@@ -965,11 +965,20 @@ class AgentRuntime:
         markers = (
             "<|tool_call|>",
             "<|tool_call>",
-            "call:",
             "<tool_call>",
             "</tool_call>",
         )
-        return any(marker in text for marker in markers)
+        if any(marker in text for marker in markers):
+            return True
+
+        # Some local models emit a textual form such as
+        # "call:run_python_script{...}" instead of a structured tool call.
+        return bool(
+            re.search(
+                r"(?:^|[\\s<])(?:call|tool_call)\\s*:\\s*[a-z_][a-z0-9_]*\\s*[<{]",
+                text,
+            )
+        )
 
     @staticmethod
     def _is_invalid_final_response(
