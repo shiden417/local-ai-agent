@@ -665,8 +665,9 @@ def _build_tasks(root: Path) -> list[TaskSpec]:
             "Task 9: repository search",
             ("investigation", "search", "scope"),
             (
-                "legacy_value の定義と参照箇所を workspace 全体から検索してください。"
-                "見つかったファイルパスと、どのファイルに定義があるかだけ報告してください。ファイル変更は不要です。"
+                "workspace内のコードファイルから legacy_value の定義と参照箇所を検索してください。"
+                "src/ を対象に検索し、見つかったファイルパスと、どのファイルに定義があるかだけ報告してください。"
+                "ファイル変更は不要です。"
             ),
             _seed_search,
             (
@@ -901,9 +902,8 @@ def _build_tasks(root: Path) -> list[TaskSpec]:
             "Task 18: final-requirement precedence",
             ("context", "coding", "scope", "verification"),
             (
-                "要件が途中で更新された想定です。最初は subtract を追加すると考えて構いませんが、"
-                "最終要件は『subtract は追加せず、divide(a, b) を追加する。b が0なら ValueError を送出する』です。"
-                "最終要件だけを実装し、tests/test_calculator.py も更新して python -m pytest -q を実行してください。"
+                "calculator に subtract(a, b) を追加してください。tests/test_calculator.py にもテストを追加し、"
+                "python -m pytest -q を実行して確認してください。"
             ),
             lambda r: _seed_common(r),
             calculator_files,
@@ -919,6 +919,12 @@ def _build_tasks(root: Path) -> list[TaskSpec]:
                     and _contains(r, "tests/test_calculator.py", "ValueError")
                 ),
                 require_pytest=True,
+            ),
+            follow_up=(
+                "要件が更新されました。先ほどの subtract は最終要件では不要です。"
+                "subtract を削除し、代わりに divide(a, b) を追加してください。"
+                "b が0なら ValueError を送出し、tests/test_calculator.py も最終要件に合わせて更新して、"
+                "python -m pytest -q を実行して全テスト成功を確認してください。",
             ),
         )
     )
@@ -953,9 +959,10 @@ def _build_tasks(root: Path) -> list[TaskSpec]:
             "Task 20: multi-bug diagnosis",
             ("debugging", "recovery", "long-horizon", "verification"),
             (
-                "src/order.py とそのテストを調査してください。"
+                "まず python -m pytest -q を実行して現在の失敗を確認してください。"
+                "そのうえで src/order.py とそのテストを調査してください。"
                 "total() は合計金額に10を勝手に加算しており、discounted_total() は割引率を逆方向に適用しています。"
-                "両方を正しく修正し、tests/test_order.py も含めて python -m pytest -q を実行して全テスト成功を確認してください。"
+                "失敗原因を修正し、必要なら tests/test_order.py も更新して、最後に python -m pytest -q を再実行して全テスト成功を確認してください。"
             ),
             _seed_debug,
             (
@@ -1055,10 +1062,15 @@ def run_benchmark(
                 result_text = f"{result_text}\nFOLLOW-UP: {follow_result}"
 
             criteria = task.check(root, runtime, baseline)
-            # first_attempt_clean is an independent quality signal. Tasks that
-            # intentionally exercise recovery must still pass when the final
-            # result, scope, safety, verification, and required tool behavior
-            # are correct.
+            current_status = (
+                runtime.current_task.state.status.value
+                if runtime.current_task is not None
+                else "unknown"
+            )
+            criteria["agent_completed"] = current_status == "completed"
+            # first_attempt_clean is an independent quality signal. Recovery tasks
+            # are allowed to have an initial failure, but the Agent itself must still
+            # reach a completed state for the task to count as passed.
             required_criteria = {
                 name: value
                 for name, value in criteria.items()
@@ -1078,6 +1090,7 @@ def run_benchmark(
                 "failure_recovery": False,
                 "tool_use": False,
                 "first_attempt_clean": False,
+                "agent_completed": False,
             }
             ok = False
 
