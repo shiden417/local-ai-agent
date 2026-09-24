@@ -2174,6 +2174,24 @@ def test_task_requirements_only_include_positive_mutation_targets() -> None:
     assert requirements.required_mutation_paths == ("README.md",)
 
 
+def test_task_requirements_other_files_constraint_does_not_block_explicit_targets() -> None:
+    from agent.task_requirements import classify_task_requirements
+
+    requirements = classify_task_requirements(
+        "calculator に subtract(a, b) を追加してください。"
+        "src/calculator.py と tests/test_calculator.py の両方を必要に応じて変更し、"
+        "python -m pytest -q を実行してください。"
+        "他のファイルは変更しないでください。"
+    )
+
+    assert requirements.file_mutation is True
+    assert requirements.mutation_forbidden is False
+    assert requirements.required_mutation_paths == (
+        "src/calculator.py",
+        "tests/test_calculator.py",
+    )
+
+
 def test_task_requirements_track_both_positive_multi_file_targets() -> None:
     from agent.task_requirements import classify_task_requirements
 
