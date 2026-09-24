@@ -1017,6 +1017,7 @@ class AgentRuntime:
                 return True
         return False
 
+    @staticmethod
     def _has_successful_test_execution(messages: list[dict[str, Any]]) -> bool:
         """Return True when a test command already completed successfully."""
         for message in messages:
@@ -1049,9 +1050,9 @@ class AgentRuntime:
         if not text:
             return False
 
-        completed_report = bool(
+        simple_completed_report = bool(
             re.search(
-                r"(?:実行|起動|テスト|確認|検証|調査|変更|修正|削除|作成|保存|検索)"
+                r"^(?:実行|起動|テスト|確認|検証|調査|変更|修正|削除|作成|保存|検索)"
                 r"(?:しました|できました|完了しました|成功しました|済みです)[。！!]?$",
                 text,
                 flags=re.IGNORECASE,
@@ -1065,7 +1066,7 @@ class AgentRuntime:
                 flags=re.IGNORECASE,
             )
         )
-        if completed_report and not future_cue:
+        if simple_completed_report and not future_cue:
             return False
 
         has_action_verb = bool(
