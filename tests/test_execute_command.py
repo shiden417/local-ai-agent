@@ -47,3 +47,15 @@ def test_execute_command_propagates_native_process_failure(tmp_path: Path) -> No
 
     assert result["ok"] is False
     assert result["exit_code"] == 3
+
+
+def test_execute_command_prefers_agent_python(tmp_path: Path) -> None:
+    import sys
+
+    result = execute_command(
+        'python -c "import sys; print(sys.executable)"',
+        working_directory=tmp_path,
+    )
+
+    assert result["ok"] is True
+    assert str(Path(sys.executable).resolve()) in result["stdout"]
