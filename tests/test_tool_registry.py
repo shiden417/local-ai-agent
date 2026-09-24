@@ -139,3 +139,13 @@ def test_default_file_mutation_description_guides_exact_edit_text() -> None:
     description = schema["function"]["description"]
     assert "exact source text" in description
     assert "line-number prefixes" in description
+
+
+def test_default_file_mutation_is_not_terminal_after_success() -> None:
+    from agent.tools import create_default_tool_registry
+
+    registry = create_default_tool_registry()
+    definition = registry.get("file_mutation")
+
+    assert definition is not None
+    assert definition.terminal_on_success is False
