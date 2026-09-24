@@ -32,7 +32,7 @@ def _parse_args() -> argparse.Namespace:
         "--thinking-mode",
         choices=("default", "think", "no_think"),
         default="default",
-        help="Use the same thinking-mode setting for every model."
+        help="Use the same thinking-mode setting for every model.",
     )
     parser.add_argument(
         "--output",
@@ -43,10 +43,16 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _run_model(model: str, max_iterations: int, thinking_mode: str, work_dir: Path) -> dict[str, object]:
+def _run_model(
+    model: str,
+    max_iterations: int,
+    thinking_mode: str,
+    work_dir: Path,
+) -> dict[str, object]:
     report = work_dir / (model.replace("/", "_").replace(":", "_") + ".json")
     command = [
         sys.executable,
+        "-u",
         str(BENCHMARK),
         "--model",
         model,
@@ -57,15 +63,29 @@ def _run_model(model: str, max_iterations: int, thinking_mode: str, work_dir: Pa
         "--output",
         str(report),
     ]
-    completed = subprocess.run(
+
+    print(f"\n[RUN] {model}", flush=True)
+    print(f"[COMMAND] {' '.join(command)}", flush=True)
+
+    completed = subprocess.Popen(
         command,
         cwd=str(PROJECT_ROOT),
         text=True,
         encoding="utf-8",
         errors="replace",
-        capture_output=True,
-        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        bufsize=1,
     )
+
+    output_lines: list[str] = []
+    assert completed.stdout is not None
+    for line in completed.stdout:
+        output_lines.append(line)
+        print(line, end="", flush=True)
+
+    return_code = completed.wait()
+    combined_output = "".join(output_lines)
 
     parsed: dict[str, object]
     if report.exists():
@@ -76,9 +96,9 @@ def _run_model(model: str, max_iterations: int, thinking_mode: str, work_dir: Pa
     else:
         parsed = {"report_status": "missing"}
 
-    parsed["process_exit_code"] = completed.returncode
-    parsed["stdout"] = completed.stdout[-8_000:]
-    parsed["stderr"] = completed.stderr[-4_000:]
+    parsed["process_exit_code"] = return_code
+    parsed["stdout"] = combined_output[-8_000:]
+    parsed["stderr"] = ""
     parsed["requested_model"] = model
     parsed["thinking_mode"] = thinking_mode
     return parsed
@@ -103,14 +123,10 @@ def _print_result(result: dict[str, object]) -> None:
     elif result.get("report_status") == "missing":
         print("  benchmark JSON report was not created")
 
-    stderr = str(result.get("stderr", "")).strip()
-    stdout = str(result.get("stdout", "")).strip()
-    if stderr:
-        print("  stderr:")
-        print(stderr[-2_000:])
-    elif stdout:
-        print("  stdout:")
-        print(stdout[-4_000:])
+    output = str(result.get("stdout", "")).strip()
+    if output:
+        print("  captured output:")
+        print(output[-4_000:])
 
 
 def main() -> int:
@@ -122,7 +138,10 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="jarvis-benchmark-compare-") as temp_dir:
         workspace = Path(temp_dir)
-        results = [_run_model(model, args.max_iterations, args.thinking_mode, workspace) for model in args.models]
+        results = [
+            _run_model(model, args.max_iterations, args.thinking_mode, workspace)
+            for model in args.models
+        ]
 
     output = args.output.expanduser().resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -133,7 +152,7 @@ def main() -> int:
     }
     output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    print("J.A.R.V.I.S. Model Comparison")
+    print("\nJ.A.R.V.I.S. Model Comparison")
     for result in results:
         _print_result(result)
 
