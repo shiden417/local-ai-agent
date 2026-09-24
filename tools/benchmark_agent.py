@@ -259,7 +259,12 @@ def run_benchmark(
         (
             "Task 8: memory",
             "このBenchmarkの識別子 jarvis-benchmark をMemoryに保存し、その後検索して保存できたことを確認してください。",
-            lambda: (root / "memory.json").exists() and _task_used_tool(runtime, {"save_memory", "search_memory"}),
+            lambda: (
+                (root / "memory.json").exists()
+                and _task_used_tool(runtime, {"save_memory", "search_memory"})
+                and not (root / "jarvis-benchmark").exists()
+                and not _successful_tool(runtime, {"file_mutation", "create_file", "edit_file", "delete_file"})
+            ),
         ),
     ]
 
