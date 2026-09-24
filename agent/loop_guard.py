@@ -28,6 +28,19 @@ class ToolLoopGuard:
     def reset(self) -> None:
         self._counts.clear()
 
+    def reset_for_state_change(
+        self,
+        *,
+        preserve_name: str,
+        preserve_arguments: dict[str, Any],
+    ) -> None:
+        """Invalidate observations from the old state without allowing a mutating Tool replay."""
+        preserved_key = self._key(preserve_name, preserve_arguments)
+        preserved_count = self._counts.get(preserved_key)
+        self._counts.clear()
+        if preserved_count is not None:
+            self._counts[preserved_key] = preserved_count
+
     def message(self, name: str, arguments: dict[str, Any]) -> str:
         return (
             "このTaskでは同じTool呼び出しがすでに実行されています。"
