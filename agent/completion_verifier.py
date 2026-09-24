@@ -25,6 +25,20 @@ class CompletionVerifier:
         verification_goal = goal_text or task.goal
         messages = getattr(task, "messages", None) or []
 
+        if self._is_read_only_request(verification_goal):
+            mutation_tools = {"file_mutation", "create_file", "edit_file", "delete_file"}
+            if any(
+                message.get("role") == "tool"
+                and message.get("name") in mutation_tools
+                and self._tool_payload_ok(message)
+                for message in messages
+            ):
+                return (
+                    "System Verification Failed: this task explicitly requested "
+                    "read-only investigation, but a file mutation was executed. "
+                    "Do not claim the task completed successfully."
+                )
+
         successful_tools: list[tuple[str, dict[str, Any]]] = []
         for message in messages:
             if message.get("role") != "tool":
@@ -128,6 +142,37 @@ class CompletionVerifier:
             return None
 
         return None
+
+    @staticmethod
+    def _tool_payload_ok(message: dict[str, Any]) -> bool:
+        try:
+            payload = json.loads(str(message.get("content", "")))
+        except json.JSONDecodeError:
+            return False
+        return isinstance(payload, dict) and bool(payload.get("ok"))
+
+    @staticmethod
+    def _is_read_only_request(goal: str) -> bool:
+        text = str(goal).casefold()
+        has_read_intent = bool(
+            re.search(
+                r"(調査|調べ|検索|探して|確認|閲覧|読み|分析|diagnos|investigat|"
+                r"inspect|search|review|read|check|verify)",
+                text,
+                flags=re.IGNORECASE,
+            )
+        )
+        has_no_change = bool(
+            re.search(
+                r"(変更しない|変更なし|変更は不要|変更禁止|改変しない|改変禁止|"
+                r"修正しない|修正禁止|編集しない|編集禁止|ファイルを変更しない|"
+                r"do not (?:modify|change|edit)|without (?:modifying|changing|editing)|"
+                r"read[- ]?only|no changes?)",
+                text,
+                flags=re.IGNORECASE,
+            )
+        )
+        return has_read_intent and has_no_change
 
     def _requires_python_test_after_mutation(
         self,
