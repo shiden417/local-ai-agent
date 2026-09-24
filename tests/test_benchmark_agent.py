@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tools.benchmark_agent import _check_exact, _seed_workspace
+from types import SimpleNamespace
+
+from tools.benchmark_agent import (
+    _check_exact,
+    _seed_workspace,
+    _task_process_execution_succeeded,
+    _task_test_execution_succeeded,
+)
 
 
 def test_benchmark_workspace_seed_is_deterministic(tmp_path: Path) -> None:
@@ -23,3 +30,25 @@ def test_benchmark_workspace_seed_is_deterministic(tmp_path: Path) -> None:
         "def test_multiply():\n"
         "    assert multiply(2, 3) == 6\n",
     )
+
+
+def test_benchmark_result_helpers_read_current_task_messages() -> None:
+    runtime = SimpleNamespace(
+        current_task=SimpleNamespace(
+            messages=[
+                {
+                    "role": "tool",
+                    "name": "execute_command",
+                    "content": '{"ok": true, "exit_code": 0, "stdout": "2 passed in 0.01s", "stderr": ""}',
+                },
+                {
+                    "role": "tool",
+                    "name": "execute_command",
+                    "content": '{"ok": true, "exit_code": 0, "stdout": "JARVIS benchmark\\n", "stderr": ""}',
+                },
+            ]
+        )
+    )
+
+    assert _task_test_execution_succeeded(runtime) is True
+    assert _task_process_execution_succeeded(runtime) is True
