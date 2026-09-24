@@ -14,6 +14,89 @@ class CompletionVerifier:
     def __init__(self, working_directory: str | Path) -> None:
         self.working_directory = Path(working_directory).resolve()
 
+    def requirement_gaps(
+        self,
+        goal_text: str,
+        messages: list[dict[str, Any]],
+    ) -> list[str]:
+        """Return deterministic gaps for explicitly requested function changes."""
+        requirements = classify_task_requirements(goal_text)
+        if not requirements.required_symbols:
+            return []
+
+        successful_paths: list[str] = []
+        for message in messages:
+            if message.get("role") != "tool" or message.get("name") not in {
+                "file_mutation",
+                "create_file",
+                "edit_file",
+            }:
+                continue
+            if not self._tool_payload_ok(message):
+                continue
+            try:
+                payload = json.loads(str(message.get("content", "")))
+            except json.JSONDecodeError:
+                continue
+            path = str(payload.get("path", "")).strip()
+            if path and path not in successful_paths:
+                successful_paths.append(path)
+
+        candidate_paths = list(requirements.required_mutation_paths)
+        if not candidate_paths:
+            candidate_paths = successful_paths
+
+        implementation_paths = [
+            path for path in candidate_paths
+            if path.casefold().endswith(".py") and "test" not in Path(path).name.casefold()
+        ]
+        test_paths = [
+            path for path in candidate_paths
+            if path.casefold().endswith(".py") and "test" in Path(path).name.casefold()
+        ]
+
+        gaps: list[str] = []
+        for symbol in requirements.required_symbols:
+            implementation_found = False
+            for path in implementation_paths:
+                target = Path(path)
+                if not target.is_absolute():
+                    target = self.working_directory / target
+                if not target.exists() or not target.is_file():
+                    continue
+                try:
+                    content = target.read_text(encoding="utf-8")
+                except (OSError, UnicodeDecodeError):
+                    continue
+                if re.search(rf"\\bdef\\s+{re.escape(symbol)}\\s*\\(", content):
+                    implementation_found = True
+                    break
+            if not implementation_found:
+                gaps.append(f"{symbol}: implementation not found in the requested Python target")
+
+            if test_paths and requirements.test_verification:
+                test_found = False
+                for path in test_paths:
+                    target = Path(path)
+                    if not target.is_absolute():
+                        target = self.working_directory / target
+                    if not target.exists() or not target.is_file():
+                        continue
+                    try:
+                        content = target.read_text(encoding="utf-8")
+                    except (OSError, UnicodeDecodeError):
+                        continue
+                    if re.search(rf"\\b{re.escape(symbol)}\\s*\\(", content) or re.search(
+                        rf"\\btest_{re.escape(symbol)}\\b",
+                        content,
+                    ):
+                        test_found = True
+                        break
+                if not test_found:
+                    gaps.append(f"{symbol}: requested test target does not contain a test/call")
+
+        return gaps
+
     def verify(
         self,
         task: Any,
@@ -121,6 +204,13 @@ class CompletionVerifier:
                     + ". Modify each required target with the file_mutation Tool before completion."
                 )
 
+            requirement_gaps = self.requirement_gaps(verification_goal, messages)
+            if requirement_gaps:
+                return (
+                    "System Verification Failed: explicit requested changes are not fully evidenced: "
+                    + "; ".join(requirement_gaps)
+                    + ". Resolve every requirement gap before completion."
+                )
         if process_required and not self._has_successful_command(messages):
             return (
                 "System Verification Failed: this task explicitly requires process/command execution, "
