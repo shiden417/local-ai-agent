@@ -61,3 +61,15 @@ def test_execute_command_prefers_agent_python(tmp_path: Path) -> None:
 
     assert result["ok"] is True
     assert str(Path(sys.executable).resolve()) in result["stdout"]
+
+
+
+def test_normalize_python_commands_to_agent_interpreter() -> None:
+    import sys
+    from tools.execute_command import _normalize_python_command
+
+    normalized = _normalize_python_command("python -m pytest -q")
+    assert normalized == f'& "{sys.executable}" -m pytest -q'
+
+    normalized = _normalize_python_command("pytest -q")
+    assert normalized == f'& "{sys.executable}" -m pytest -q'
