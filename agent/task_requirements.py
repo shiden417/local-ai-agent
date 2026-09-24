@@ -100,7 +100,7 @@ _FILE_PATH_TOKEN = (
 _PROTECTED_PATH_RE = re.compile(
     rf"(?P<path>{_FILE_PATH_TOKEN})\s*(?:は|を|が)?\s*"
     r"(?:絶対に\s*)?(?:変更|修正|編集|削除|書き換え|更新|上書き)"
-    r"\s*(?:しない|しません|禁止|不要|しないで(?:ください|下さい)?)"
+    r"\s*(?:しない|しません|禁止|不要|しないで(?:ください|下さい)?)(?!ではありません|ではない)"
     rf"|(?P<english_path>{_FILE_PATH_TOKEN})\s+"
     r"(?:must\s+not|should\s+not|do\s+not|don't)\s+"
     r"(?:modify|change|edit|delete|update|overwrite)",
