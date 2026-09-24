@@ -38,6 +38,13 @@ class CompletionVerifier:
                 if name and name != "finish_task":
                     successful_tools.append((name, payload))
 
+        if self._requires_python_test_after_mutation(messages):
+            return (
+                "System Verification Failed: a Python file was changed in a pytest project. "
+                "Run 'python -m pytest' successfully after the latest Python file change "
+                "before declaring completion."
+            )
+
         if self._requires_project_diagnostic(verification_goal):
             diagnostic_tools = {"read_file", "search_files", "execute_command"}
             if not any(
@@ -121,6 +128,53 @@ class CompletionVerifier:
             return None
 
         return None
+
+    def _requires_python_test_after_mutation(
+        self,
+        messages: list[dict[str, Any]],
+    ) -> bool:
+        """Require a successful pytest run after the latest Python mutation."""
+        if not (self.working_directory / "pytest.ini").exists() and not (
+            self.working_directory / "tests"
+        ).is_dir():
+            return False
+
+        latest_python_mutation_index: int | None = None
+        for index, message in enumerate(messages):
+            if message.get("role") != "tool":
+                continue
+            name = str(message.get("name", ""))
+            if name not in {"file_mutation", "create_file", "edit_file"}:
+                continue
+            try:
+                payload = json.loads(str(message.get("content", "")))
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, dict) or not payload.get("ok"):
+                continue
+            if payload.get("deleted") is True:
+                continue
+            path = str(payload.get("path", "")).strip()
+            if path.lower().endswith(".py"):
+                latest_python_mutation_index = index
+
+        if latest_python_mutation_index is None:
+            return False
+
+        for message in messages[latest_python_mutation_index + 1 :]:
+            if message.get("role") != "tool" or message.get("name") != "execute_command":
+                continue
+            try:
+                payload = json.loads(str(message.get("content", "")))
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, dict):
+                continue
+            command = str(payload.get("command", "")).casefold()
+            if payload.get("ok") and payload.get("exit_code") == 0 and "pytest" in command:
+                return False
+
+        return True
 
     @staticmethod
     def _requires_project_diagnostic(goal: str) -> bool:
