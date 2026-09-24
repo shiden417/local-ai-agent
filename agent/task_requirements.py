@@ -29,6 +29,12 @@ _JAPANESE_MUTATION_RE = re.compile(
     r"\s*(?:してください|して|し、|した|しろ|する|します|を)"
 )
 
+_JAPANESE_MUTATION_NEGATION_RE = re.compile(
+    r"(?:ファイル(?:は|を)?\s*)?"
+    r"(?:追加|作成|修正|変更|編集|削除|書き換え|保存|書き込み)"
+    r"\s*(?:せず(?:に)?|することなく|しない(?:で(?:ください|下さい)?)?|しません|禁止)"
+)
+
 _JAPANESE_IMPLEMENT_RE = re.compile(
     r"実装\s*(?:してください|して|し、|した|しろ|する|します|を)"
 )
@@ -78,9 +84,9 @@ _PYTHON_COMMAND_RE = re.compile(
 )
 
 _TEST_REQUEST_RE = re.compile(
-    r"(?:テスト|回帰|pytest|regression|"
-    r"\btest(?:ing|s)?\s+(?:suite|case|coverage|run|result)\b|"
-    r"全テスト)",
+    r"(?:回帰|pytest|regression|全テスト"
+    r"|テスト(?:を|の|が)?\s*(?:実行|実施|走らせ|成功|失敗|確認|検証)"
+    r"|\btest(?:ing|s)?\s+(?:suite|case|coverage|run|result)\b)",
     re.IGNORECASE,
 )
 
@@ -117,10 +123,11 @@ _GLOBAL_NO_FILE_MUTATION_RE = re.compile(
 
 def _has_positive_mutation_intent(text: str) -> bool:
     """Detect positive mutation requests without treating negative constraints as actions."""
+    positive_text = _JAPANESE_MUTATION_NEGATION_RE.sub("", text)
     positive_text = re.sub(
         r"\b(?:do not|don't)\s+(?:modify|change|edit)\b",
         "",
-        text,
+        positive_text,
         flags=re.IGNORECASE,
     )
     return bool(
