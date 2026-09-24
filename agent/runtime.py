@@ -412,6 +412,30 @@ class AgentRuntime:
                 include_control_tools=True,
             )
 
+            preflight_paths = self._unread_required_mutation_paths(
+                current_task.goal,
+                current_task.messages,
+            )
+            if preflight_paths:
+                available_tools = [
+                    schema
+                    for schema in available_tools
+                    if str(schema.get("function", {}).get("name", ""))
+                    in {"read_file", "list_directory", "search_files", "finish_task"}
+                ]
+                llm_messages.append(
+                    {
+                        "role": "system",
+                        "content": (
+                            "Preflight is required for this multi-file change. Inspect every existing "
+                            "required target file before making any mutation. Missing target files may be "
+                            "created when the goal explicitly requires creation. Unread existing targets: "
+                            + ", ".join(preflight_paths)
+                            + ". Do not edit yet."
+                        ),
+                    }
+                )
+
             completion_ready = self._runtime_requirements_satisfied(
                 current_task.goal,
                 current_task.messages,
@@ -1115,6 +1139,53 @@ class AgentRuntime:
         )
         lowered = command.casefold()
         return any(re.search(pattern, lowered, re.IGNORECASE) for pattern in patterns)
+
+    def _unread_required_mutation_paths(
+        self,
+        goal: str,
+        messages: list[dict[str, Any]],
+    ) -> list[str]:
+        """Return existing explicit mutation targets that have not been read yet."""
+        requirements = classify_task_requirements(goal)
+        if len(requirements.required_mutation_paths) <= 1:
+            return []
+
+        read_paths: set[str] = set()
+        for message in messages:
+            if message.get("role") != "tool" or message.get("name") != "read_file":
+                continue
+            try:
+                payload = json.loads(str(message.get("content", "")))
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, dict) or not payload.get("ok"):
+                continue
+            raw_path = str(payload.get("path", "")).strip()
+            if not raw_path:
+                continue
+            candidate = Path(raw_path)
+            if not candidate.is_absolute():
+                candidate = self.working_directory / candidate
+            try:
+                read_paths.add(str(candidate.resolve()).casefold())
+            except OSError:
+                read_paths.add(str(candidate.absolute()).casefold())
+
+        unread: list[str] = []
+        for required_path in requirements.required_mutation_paths:
+            target = Path(required_path)
+            if not target.is_absolute():
+                target = self.working_directory / target
+            if not target.exists() or not target.is_file():
+                continue
+            try:
+                target_key = str(target.resolve()).casefold()
+            except OSError:
+                target_key = str(target.absolute()).casefold()
+            if target_key not in read_paths:
+                unread.append(required_path)
+
+        return unread
 
     @staticmethod
     def _runtime_requirements_satisfied(
