@@ -200,7 +200,7 @@ class CompletionVerifier:
                 flags=re.IGNORECASE,
             )
         )
-        return has_file_context and (has_japanese_mutation or has_english_mutation)
+        return has_japanese_mutation or (has_file_context and has_english_mutation)
 
     @staticmethod
     def _requires_test_verification(goal: str) -> bool:
