@@ -94,6 +94,9 @@ def edit_file(
         }
 
     if recovered:
+        # Recovery may include display metadata or serialized newline escapes.
+        # Normalize only this recovered edit so ordinary source edits preserve literal backslashes.
+        replace_text = _decode_literal_escapes(replace_text)
         normalized_replacement = _strip_read_file_line_numbers_if_present(replace_text)
         if normalized_replacement != replace_text:
             replace_text = normalized_replacement
