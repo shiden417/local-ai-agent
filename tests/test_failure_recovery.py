@@ -324,3 +324,84 @@ def test_task_requirements_detect_explicit_execute_command() -> None:
 
     assert req.process_execution is True
     assert req.required_process_tool == "execute_command"
+
+
+def test_task_requirements_mark_process_command_as_execute_command() -> None:
+    req = classify_task_requirements(
+        'python -m pytest -q を実行して全テスト成功を確認してください。'
+    )
+
+    assert req.process_execution is True
+    assert req.required_process_tool == "execute_command"
+    assert req.file_mutation is False
+
+
+def test_task_requirements_keep_plain_python_execution_unforced() -> None:
+    req = classify_task_requirements("Pythonを実行してください。")
+
+    assert req.process_execution is False
+    assert req.required_process_tool is None
+
+
+def test_completion_verifier_rejects_out_of_scope_mutation(
+    tmp_path: Path,
+) -> None:
+    verifier = CompletionVerifier(tmp_path)
+    task = SimpleNamespace(
+        goal="python -c \"print('hello')\" を実行してください。",
+        messages=[
+            _tool(
+                "file_mutation",
+                {"ok": True, "path": "unexpected.txt"},
+            ),
+            _tool(
+                "execute_command",
+                {
+                    "ok": True,
+                    "exit_code": 0,
+                    "command": "python -c \"print('hello')\"",
+                },
+            ),
+        ],
+    )
+
+    error = verifier.verify(
+        task,
+        {"completion_status": "completed"},
+    )
+
+    assert error is not None
+    assert "did not request a workspace file change" in error
+
+
+def test_runtime_mutation_scope_excludes_file_tools_for_process_task(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    captured: list[set[str]] = []
+
+    class Response:
+        choices = [
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    role="assistant",
+                    content="確認できました。",
+                    tool_calls=[],
+                )
+            )
+        ]
+
+    def fake_ask_llm(_messages, tools=None):
+        captured.append(
+            {item["function"]["name"] for item in (tools or [])}
+        )
+        return Response()
+
+    monkeypatch.setattr("agent.runtime.ask_llm", fake_ask_llm)
+
+    runtime = AgentRuntime(tmp_path)
+    runtime.run("python -c \"print('hello')\" を実行してください。")
+
+    assert captured
+    assert "file_mutation" not in captured[0]
+    assert "execute_command" in captured[0]
