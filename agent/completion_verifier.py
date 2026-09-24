@@ -68,7 +68,7 @@ class CompletionVerifier:
                     content = target.read_text(encoding="utf-8")
                 except (OSError, UnicodeDecodeError):
                     continue
-                if re.search(rf"\\bdef\\s+{re.escape(symbol)}\\s*\\(", content):
+                if re.search(rf"\bdef\s+{re.escape(symbol)}\s*\(", content):
                     implementation_found = True
                     break
             if not implementation_found:
@@ -86,8 +86,8 @@ class CompletionVerifier:
                         content = target.read_text(encoding="utf-8")
                     except (OSError, UnicodeDecodeError):
                         continue
-                    if re.search(rf"\\b{re.escape(symbol)}\\s*\\(", content) or re.search(
-                        rf"\\btest_{re.escape(symbol)}\\b",
+                    if re.search(rf"\b{re.escape(symbol)}\s*\(", content) or re.search(
+                        rf"\btest_{re.escape(symbol)}\b",
                         content,
                     ):
                         test_found = True
