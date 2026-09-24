@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from tools.source_validation import validate_python_syntax
+
 from tools.path_utils import resolve_workspace_path, to_display_path
 
 
@@ -33,6 +35,15 @@ def create_file(
 
     if len(content.encode("utf-8")) > MAX_FILE_SIZE:
         return {"ok": False, "error": "File content is too large to create safely"}
+
+    validation_error = validate_python_syntax(path, content)
+    if validation_error is not None:
+        return {
+            "ok": False,
+            "error": validation_error,
+            "path": to_display_path(working_directory, path),
+            "validation_failed": True,
+        }
 
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
