@@ -147,7 +147,7 @@ def _bound_output(text: str) -> str:
 def _normalize_python_command(command: str) -> str:
     """Resolve Python/pytest commands to the interpreter running the Agent."""
     match = re.match(
-        r"^(\\s*)(python(?:\\.exe)?)(?=\\s|$)(.*)$",
+        r"^(\s*)(python(?:\.exe)?)(?=\s|$)(.*)$",
         command,
         flags=re.IGNORECASE | re.DOTALL,
     )
@@ -156,7 +156,7 @@ def _normalize_python_command(command: str) -> str:
         return f'{prefix}& "{sys.executable}"{rest}'
 
     match = re.match(
-        r"^(\\s*)(pytest(?:\\.exe)?)(?=\\s|$)(.*)$",
+        r"^(\s*)(pytest(?:\.exe)?)(?=\s|$)(.*)$",
         command,
         flags=re.IGNORECASE | re.DOTALL,
     )
