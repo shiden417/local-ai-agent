@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -106,11 +107,18 @@ def _tool_results(runtime, names: set[str]) -> list[dict[str, object]]:
     return results
 
 
-def _successful_command(runtime) -> bool:
-    return any(
-        bool(result.get("ok")) and result.get("exit_code") == 0
-        for result in _tool_results(runtime, {"execute_command", "run_python_script"})
-    )
+def _successful_pytest_command(runtime) -> bool:
+    """Return True only when an actual pytest command completed successfully."""
+    for result in _tool_results(runtime, {"execute_command"}):
+        command = str(result.get("command", "")).casefold()
+        if "pytest" not in command:
+            continue
+        if not bool(result.get("ok")) or result.get("exit_code") != 0:
+            continue
+        stdout = str(result.get("stdout", ""))
+        if re.search(r"\\b\\d+\\s+passed\\b", stdout, flags=re.IGNORECASE):
+            return True
+    return False
 
 
 def _run_agent_task(runtime, prompt: str) -> str:
@@ -129,13 +137,8 @@ def _task1_passed(
 
     source_restored = observation == original_observation
     tests_preserved = tests == original_tests
-    pytest_ok = _successful_command(runtime)
-    passed_marker = any(
-        "passed" in str(result.get("stdout", ""))
-        for result in _tool_results(runtime, {"execute_command", "run_python_script"})
-        if bool(result.get("ok"))
-    )
-    ok = source_restored and tests_preserved and pytest_ok and passed_marker
+    pytest_ok = _successful_pytest_command(runtime)
+    ok = source_restored and tests_preserved and pytest_ok
     details = (
         f"source_restored={source_restored}, "
         f"tests_preserved={tests_preserved}, "
@@ -151,7 +154,7 @@ def _task2_passed(workspace: Path, original_completion_tests: str, runtime) -> t
         "def test_completion_verifier_accepts_blocked_finish" in content
         and content != original_completion_tests
     )
-    pytest_ok = _successful_command(runtime)
+    pytest_ok = _successful_pytest_command(runtime)
     ok = test_added and pytest_ok
     return ok, f"test_added={test_added}, pytest_ok={pytest_ok}"
 
