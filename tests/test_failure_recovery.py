@@ -441,3 +441,32 @@ def test_runtime_blocks_common_shell_file_writes_for_mutation_tasks() -> None:
     assert not AgentRuntime._looks_like_workspace_mutating_command(
         {"command": "python -c \"print('JARVIS V10')\""}
     )
+
+
+def test_task_requirements_extracts_required_mutation_paths() -> None:
+    req = classify_task_requirements(
+        "calculatorにsubtract(a, b)を追加してください。"
+        "src/calculator.py と tests/test_calculator.py の両方を変更し、"
+        "tests/test_calculator.py は変更禁止ではありません。"
+    )
+
+    assert req.required_mutation_paths == (
+        "src/calculator.py",
+        "tests/test_calculator.py",
+    )
+
+
+def test_runtime_requires_all_explicit_mutation_targets(tmp_path: Path) -> None:
+    runtime = AgentRuntime(tmp_path)
+    messages = [
+        _tool("file_mutation", {"ok": True, "path": "src/calculator.py"})
+    ]
+
+    required, message = runtime._mutation_completion_requirement(
+        "calculatorにsubtractを追加してください。"
+        "src/calculator.py と tests/test_calculator.py の両方を変更してください。",
+        messages,
+    )
+
+    assert required is True
+    assert "tests/test_calculator.py" in message
