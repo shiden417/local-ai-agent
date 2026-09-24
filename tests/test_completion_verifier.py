@@ -80,6 +80,36 @@ def test_completion_verifier_requires_diagnostic_action_for_project_investigatio
     assert "concrete diagnostic action" in error
 
 
+def test_completion_verifier_accepts_successful_workspace_command_without_diagnostic(
+    tmp_path: Path,
+) -> None:
+    verifier = CompletionVerifier(tmp_path)
+    task = SimpleNamespace(
+        goal="このworkspaceで python -c を使って JARVIS benchmark と表示し、終了コード0を確認してください。",
+        messages=[
+            {
+                "role": "tool",
+                "name": "execute_command",
+                "content": json.dumps(
+                    {
+                        "ok": True,
+                        "exit_code": 0,
+                        "command": "python -c \"print('JARVIS benchmark')\"",
+                    }
+                ),
+            }
+        ],
+    )
+
+    assert verifier.verify(
+        task,
+        {
+            "completion_status": "completed",
+            "summary": "コマンド実行と終了コード0を確認しました",
+        },
+    ) is None
+
+
 def test_completion_verifier_requires_pytest_after_python_mutation(tmp_path: Path) -> None:
     (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
     verifier = CompletionVerifier(tmp_path)
