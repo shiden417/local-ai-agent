@@ -1281,7 +1281,11 @@ def test_runtime_recovers_raw_tool_call_markup(tmp_path: Path, monkeypatch) -> N
         lambda _messages, tools=None: responses.pop(0),
     )
 
-    runtime = AgentRuntime(tmp_path, tool_registry=registry)
+    runtime = AgentRuntime(
+        tmp_path,
+        tool_registry=registry,
+        confirm=lambda _message: True,
+    )
     assert runtime.run("Pythonを実行してください") == "実行しました。"
     assert executed["count"] == 1
 
@@ -1356,6 +1360,10 @@ def test_runtime_allows_read_verification_after_state_change(
         lambda _messages, tools=None: responses.pop(0),
     )
 
-    runtime = AgentRuntime(tmp_path, tool_registry=registry)
+    runtime = AgentRuntime(
+        tmp_path,
+        tool_registry=registry,
+        confirm=lambda _message: True,
+    )
     assert runtime.run("test.txtを変更して内容を確認してください") == "変更後の内容を確認しました。"
     assert reads["count"] == 2
