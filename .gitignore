@@ -5,3 +5,9 @@ __pycache__/
 
 benchmark.json
 benchmark-*.json
+
+
+# Fine-tuning artifacts
+finetuning/data/*.jsonl
+finetuning/outputs/
+.venv-finetune/
