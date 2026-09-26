@@ -141,6 +141,7 @@ def main() -> int:
 
         with output_path.open("w", encoding="utf-8") as handle:
             for task in tasks:
+                runtime.clear_session_context()
                 _reset_workspace(root)
                 task.seed(root)
                 baseline = _snapshot(root, task.expected_paths)
