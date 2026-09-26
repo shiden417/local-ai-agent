@@ -29,6 +29,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--gradient-accumulation", type=int, default=8)
     parser.add_argument("--lora-r", type=int, default=16)
+    parser.add_argument(
+        "--export-gguf",
+        choices=("q4_k_m", "q5_k_m", "q8_0"),
+        help="Optionally export the trained adapter merged into GGUF.",
+    )
     parser.add_argument("--seed", type=int, default=3407)
     return parser.parse_args()
 
@@ -145,6 +150,17 @@ def main() -> int:
     adapter_dir = args.output_dir / "adapter"
     model.save_pretrained(str(adapter_dir))
     tokenizer.save_pretrained(str(adapter_dir))
+
+    if args.export_gguf:
+        gguf_dir = args.output_dir / f"gguf-{args.export_gguf}"
+        print()
+        print(f"Exporting GGUF: {gguf_dir} ({args.export_gguf})")
+        model.save_pretrained_gguf(
+            str(gguf_dir),
+            tokenizer,
+            quantization_method=args.export_gguf,
+        )
+        print(f"GGUF saved: {gguf_dir}")
 
     print()
     print(f"LoRA adapter saved: {adapter_dir}")
