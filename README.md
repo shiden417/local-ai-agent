@@ -78,7 +78,7 @@ LM StudioのDeveloper tabでServerを起動し、既定モデルをロードし�
 
 推奨モデル（既定）:
 
-    google/gemma-4-e4b-qat
+    qwen/qwen3-8b
 
 Gemma 4 E4Bは、Native Function Calling・Reasoning・Visionを備えた小型ローカルモデルです。LM Studio公式Hubでは最低システムメモリ6GB、7.9Bタグ、128K contextのモデルとして案内されています。
 
@@ -105,6 +105,9 @@ The native `lmstudio-python` SDK remains a useful future option for features tha
 - Python 3.12+
 - LM Studio
 - Qwen3:8B（既定）
+
+Fine-tuning
+- finetuning/README.md
 - OpenAI Python SDK
 - ddgs
 
